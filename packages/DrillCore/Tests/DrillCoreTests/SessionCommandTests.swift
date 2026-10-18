@@ -1,0 +1,140 @@
+import XCTest
+import DrillTiming
+@testable import DrillCore
+
+final class SessionCommandTests: XCTestCase {
+    func makeSession(performers: Int = 8) throws -> DocumentSession {
+        let session = try DocumentSession(show: try Show.makeNew(title: "Test", measures: 8))
+        try session.perform(try session.show.makeRoster([RosterSectionRequest(name: "Trumpet", prefix: "T", count: performers)]))
+        return session
+    }
+
+    func testRosterCreatesStableLabelsAndExplicitUnresolvedState() throws {
+        let session = try makeSession()
+        XCTAssertEqual(session.show.performers.map(\.label), (1...8).map { "T\($0)" })
+        let preset = session.show.sets[0].id
+        XCTAssertEqual(session.show.formation(preset).placements.count, 8)
+        XCTAssertTrue(session.show.formation(preset).placements.values.allSatisfy { $0 == .unresolved })
+        // Adding to the same section continues numbering.
+        try session.perform(try session.show.makeRoster([RosterSectionRequest(name: "Trumpet", prefix: "T", count: 2)]))
+        XCTAssertEqual(session.show.sections.count, 1)
+        XCTAssertEqual(session.show.performers.last?.label, "T10")
+    }
+
+    func testFormRetainsGeometryAndOrder() throws {
+        let session = try makeSession()
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        try session.perform(try session.show.makeForm(.line(start: Point2(-7, 0), end: Point2(7, 0)), members: ids, at: preset))
+        let form = try XCTUnwrap(session.show.forms.first)
+        XCTAssertEqual(form.members, ids)
+        XCTAssertEqual(session.show.formation(preset)[ids[0]].position?.x ?? .nan, -7, accuracy: 1e-9)
+        XCTAssertEqual(session.show.formation(preset)[ids[7]].position?.x ?? .nan, 7, accuracy: 1e-9)
+
+        // Editing geometry respaces the same members in the same order.
+        try session.perform(.updateFormGeometry(form.id, .arc(start: Point2(-7, 0), end: Point2(7, 0), bulge: 3)))
+        XCTAssertGreaterThan(session.show.formation(preset)[ids[3]].position!.y, 2)
+
+        // Reversing assignment order mirrors positions.
+        try session.perform(.updateFormMembers(form.id, ids.reversed()))
+        XCTAssertEqual(session.show.formation(preset)[ids[0]].position?.x ?? .nan, 7, accuracy: 1e-9)
+
+        // Translating every member moves the form; moving one member detaches only it.
+        try session.perform(try session.show.makeTranslate(ids, at: preset, by: Point2(0, 2)))
+        guard case .arc(let s, _, _) = session.show.forms[0].geometry else { return XCTFail() }
+        XCTAssertEqual(s.y, 2, accuracy: 1e-9)
+        try session.perform(try session.show.makeTranslate([ids[2]], at: preset, by: Point2(1, 0)))
+        XCTAssertEqual(session.show.forms[0].members.count, 7)
+        XCTAssertFalse(session.show.forms[0].members.contains(ids[2]))
+    }
+
+    func testCreateSetShiftsLaterSetsAndExtendsTimeline() throws {
+        let session = try makeSession()
+        let preset = session.show.sets[0].id
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 16))
+        let set2 = session.show.sets[1].id
+        XCTAssertEqual(try session.show.moveCounts(into: set2), Rational(16))
+        // Insert an 8-count set between preset and set 2: set 2 keeps its 16-count move.
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 8))
+        XCTAssertEqual(session.show.sets.map(\.label), ["1", "3", "2"])
+        XCTAssertEqual(try session.show.moveCounts(into: set2), Rational(16))
+        XCTAssertEqual(try session.show.timingMap(for: session.show.movements[0].id).pulse(at: session.show.set(set2)!.cursor), Rational(24))
+        // A move beyond the 8-measure (32-count) timeline extends it in the same transaction.
+        try session.perform(try session.show.makeCreateSet(after: set2, counts: 16))
+        let map = try session.show.timingMap(for: session.show.movements[0].id)
+        XCTAssertGreaterThanOrEqual(map.totalPulses, Rational(40))
+        session.undo()
+        XCTAssertEqual(session.show.movements[0].timing.measures.count, 8, "undo restores the timeline with the set")
+    }
+
+    func testCompoundUndoRedoRestoresEverythingTogether() throws {
+        let session = try makeSession()
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        try session.perform(try session.show.makeForm(.line(start: Point2(-7, 0), end: Point2(7, 0)), members: ids, at: preset))
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 16))
+        let before = session.show
+        try session.perform(try session.show.makeSetMoveCounts(session.show.sets[1].id, counts: 40))
+        XCTAssertEqual(try session.show.moveCounts(into: session.show.sets[1].id), Rational(40))
+        XCTAssertGreaterThan(session.show.movements[0].timing.measures.count, 8)
+        XCTAssertEqual(session.undoName, "Change Move Counts")
+        session.undo()
+        XCTAssertEqual(session.show, before, "timeline, cursors and sets restored as one unit")
+        session.redo()
+        XCTAssertEqual(try session.show.moveCounts(into: session.show.sets[1].id), Rational(40))
+    }
+
+    func testInvalidCommandLeavesShowUntouched() throws {
+        let session = try makeSession()
+        let before = session.show
+        let revision = session.revision
+        XCTAssertThrowsError(try session.perform(.deleteSet(session.show.sets[0].id)))
+        XCTAssertThrowsError(try session.perform(.batch("Bad", [.renameShow("Fine"), .renameShow("  ")])))
+        XCTAssertEqual(session.show, before)
+        XCTAssertEqual(session.revision, revision)
+        XCTAssertFalse(session.canRedo)
+    }
+
+    func testDirtyStateFollowsUndoToSavedState() throws {
+        let session = try makeSession()
+        session.markSaved()
+        XCTAssertFalse(session.isDirty)
+        try session.perform(.renameShow("Renamed"))
+        XCTAssertTrue(session.isDirty)
+        session.undo()
+        XCTAssertFalse(session.isDirty)
+        session.redo()
+        XCTAssertTrue(session.isDirty)
+    }
+
+    func testExactCoordinateAndNudge() throws {
+        let session = try makeSession(performers: 2)
+        let preset = session.show.sets[0].id
+        let id = session.show.performers[0].id
+        try session.perform(try session.show.makeSetCoordinate(id, at: preset, x: 3.5, y: -2))
+        try session.perform(try session.show.makeTranslate([id], at: preset, by: Point2(session.show.field.stepSize, 0)))
+        XCTAssertEqual(session.show.formation(preset)[id].position?.x ?? .nan, 3.5 + session.show.field.stepSize, accuracy: 1e-12)
+        // Unplaced performers are not silently placed at the origin by a nudge.
+        XCTAssertThrowsError(try session.show.makeTranslate([session.show.performers[1].id], at: preset, by: Point2(1, 0)))
+    }
+
+    func testCommandsRoundTripThroughJSONForJournalReplay() throws {
+        let session = try makeSession()
+        let baseline = session.show
+        var events: [CommitEvent] = []
+        session.observe { events.append($0) }
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        try session.perform(try session.show.makeForm(.arc(start: Point2(-5, 0), end: Point2(5, 0), bulge: 2), members: ids, at: preset))
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 12))
+        session.undo()
+        session.redo()
+        try session.perform(try session.show.makeTranslate(ids, at: session.show.sets[1].id, by: Point2(0, 4)))
+
+        let data = try JSONEncoder().encode(events)
+        let decoded = try JSONDecoder().decode([CommitEvent].self, from: data)
+        let fresh = try DocumentSession(show: baseline)
+        for event in decoded { try fresh.replay(event) }
+        XCTAssertEqual(fresh.show, session.show)
+    }
+}
