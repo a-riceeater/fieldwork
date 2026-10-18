@@ -1,0 +1,7 @@
+* text=auto
+*.sh text eol=lf
+*.fieldwork binary
+*.wav binary
+*.mp3 binary
+*.pdf binary
+*.sqlite binary

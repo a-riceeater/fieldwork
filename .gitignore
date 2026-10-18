@@ -1,0 +1,19 @@
+# SwiftPM
+.build/
+.swiftpm/
+
+# Xcode (project is generated from apps/macos/project.yml)
+apps/macos/*.xcodeproj/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+apps/macos/Config/Local.xcconfig
+
+# .NET
+apps/windows/**/bin/
+apps/windows/**/obj/
+.vs/
+
+# Local outputs
+/out/
+.DS_Store
