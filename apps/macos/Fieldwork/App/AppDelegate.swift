@@ -50,12 +50,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if let error { NSApp.presentError(error) }
                 }
             })
-        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+        let hosting = NSHostingController(rootView: view)
+        // Only the minimum size comes from SwiftUI, so the window stays resizable.
+        hosting.sizingOptions = [.minSize]
+        let window = NSWindow(contentViewController: hosting)
         window.title = "Welcome to Fieldwork"
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 900, height: 620))
+        window.contentMinSize = NSSize(width: 760, height: 540)
         window.center()
+        window.setFrameAutosaveName("FieldworkWelcomeWindow")
         window.makeKeyAndOrderFront(nil)
         welcomeWindow = window
     }
