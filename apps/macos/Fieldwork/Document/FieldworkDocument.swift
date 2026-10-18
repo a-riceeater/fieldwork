@@ -41,12 +41,12 @@ final class FieldworkDocument: NSDocument {
     // MARK: Model setup
 
     @MainActor
-    private func configure(show: Show, assets: [String: Data], readOnlyReason: String?) throws {
+    private func configure(show: Show, assets: [String: Data], readOnlyReason: String?, encoded: Data? = nil) throws {
         let session = try DocumentSession(show: show)
         let model = EditorModel(session: session, assets: assets, readOnlyReason: readOnlyReason)
         model.document = self
         self.model = model
-        startJournal()
+        startJournal(encoded: encoded)
     }
 
     override func makeWindowControllers() {
@@ -86,7 +86,7 @@ final class FieldworkDocument: NSDocument {
             let decoded = try DocumentCodec.decode(data)
             container = decoded
             try MainActor.assumeIsolated {
-                try configure(show: decoded.show, assets: decoded.assets, readOnlyReason: decoded.readOnlyReason)
+                try configure(show: decoded.show, assets: decoded.assets, readOnlyReason: decoded.readOnlyReason, encoded: data)
             }
         } catch {
             throw NSError(domain: "org.fieldwork", code: 1, userInfo: [
@@ -96,48 +96,84 @@ final class FieldworkDocument: NSDocument {
         }
     }
 
+    /// Everything a save needs, captured on the main thread. Encoding then runs
+    /// on NSDocument's background writer so the window never freezes.
+    private struct SaveSnapshot {
+        var document: ShowDocument
+        var state: UUID
+        var readOnlyReason: String?
+    }
+
+    private var saveSnapshot: SaveSnapshot?
+    /// Bytes from the most recent successful encode, reused to restart the journal.
+    private var lastEncoded: (state: UUID, data: Data)?
+
+    override func canAsynchronouslyWrite(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType) -> Bool { true }
+
+    @MainActor
+    private func makeSaveSnapshot() -> SaveSnapshot? {
+        guard let model else { return nil }
+        var document = container ?? ShowDocument(show: model.show)
+        document.show = model.show
+        document.assets = model.assets
+        return SaveSnapshot(document: document, state: model.session.currentStateID, readOnlyReason: model.readOnlyReason)
+    }
+
+    /// Runs on a background thread for saves (see `canAsynchronouslyWrite`).
     override func data(ofType typeName: String) throws -> Data {
-        try MainActor.assumeIsolated {
-            guard let model else { throw NSError(domain: "org.fieldwork", code: 2, userInfo: [NSLocalizedDescriptionKey: "Nothing to save."]) }
-            if let reason = model.readOnlyReason {
-                throw NSError(domain: "org.fieldwork", code: 3, userInfo: [NSLocalizedDescriptionKey: "This show is read-only.", NSLocalizedRecoverySuggestionErrorKey: reason])
-            }
-            var document = container ?? ShowDocument(show: model.show)
-            document.show = model.show
-            document.assets = model.assets
-            do {
-                let data = try DocumentCodec.encode(document)
-                // Never hand NSDocument bytes we cannot read back.
-                _ = try DocumentCodec.decode(data)
-                return data
-            } catch {
-                throw NSError(domain: "org.fieldwork", code: 4, userInfo: [
-                    NSLocalizedDescriptionKey: "The show could not be saved. Your previous file was not changed.",
-                    NSLocalizedRecoverySuggestionErrorKey: "\(error)",
-                ])
-            }
+        let snapshot = saveSnapshot ?? (Thread.isMainThread ? MainActor.assumeIsolated { makeSaveSnapshot() } : nil)
+        // The snapshot is taken, so editing can continue while the bytes are produced.
+        unblockUserInteraction()
+        guard let snapshot else { throw NSError(domain: "org.fieldwork", code: 2, userInfo: [NSLocalizedDescriptionKey: "Nothing to save."]) }
+        if let reason = snapshot.readOnlyReason {
+            throw NSError(domain: "org.fieldwork", code: 3, userInfo: [NSLocalizedDescriptionKey: "This show is read-only.", NSLocalizedRecoverySuggestionErrorKey: reason])
+        }
+        do {
+            let data = try DocumentCodec.encode(snapshot.document)
+            // Never hand NSDocument bytes we cannot read back.
+            _ = try DocumentCodec.decode(data)
+            lastEncoded = (snapshot.state, data)
+            return data
+        } catch {
+            throw NSError(domain: "org.fieldwork", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "The show could not be saved. Your previous file was not changed.",
+                NSLocalizedRecoverySuggestionErrorKey: "\(error)",
+            ])
         }
     }
 
     override func save(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType, completionHandler: @escaping (Error?) -> Void) {
+        let snapshot = MainActor.assumeIsolated { makeSaveSnapshot() }
+        saveSnapshot = snapshot
         super.save(to: url, ofType: typeName, for: saveOperation) { [weak self] error in
-            if error == nil, saveOperation != .autosaveElsewhereOperation {
-                MainActor.assumeIsolated { self?.didSave() }
+            Self.onMain {
+                self?.saveSnapshot = nil
+                if error == nil, saveOperation != .autosaveElsewhereOperation, let snapshot {
+                    MainActor.assumeIsolated { self?.didSave(snapshot) }
+                }
+                completionHandler(error)
             }
-            completionHandler(error)
         }
     }
 
+    private static func onMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread { work() } else { DispatchQueue.main.async(execute: work) }
+    }
+
     @MainActor
-    private func didSave() {
+    private func didSave(_ snapshot: SaveSnapshot) {
         guard let model else { return }
-        model.session.markSaved()
+        model.session.markSaved(state: snapshot.state)
         isRecovered = false
         model.recoveredBanner = nil
         lastSaved = Date()
-        container = ShowDocument(show: model.show, assets: model.assets, extensionMembers: container?.extensionMembers ?? [:],
-                                 extensions: container?.extensions ?? [])
-        startJournal()
+        container = ShowDocument(show: snapshot.document.show, assets: snapshot.document.assets,
+                                 extensionMembers: container?.extensionMembers ?? [:], extensions: container?.extensions ?? [])
+        // If nothing changed during the save, the journal restarts from the bytes just written.
+        let unchanged = model.session.currentStateID == snapshot.state
+        startJournal(encoded: unchanged && lastEncoded?.state == snapshot.state ? lastEncoded?.data : nil)
+        lastEncoded = nil
+        if model.session.isDirty { updateChangeCount(.changeDone) }
         model.statusMessage = "Saved \(fileURL?.lastPathComponent ?? "")"
     }
 
@@ -162,13 +198,19 @@ final class FieldworkDocument: NSDocument {
         return ShowDocument(show: model.show, assets: model.assets)
     }
 
+    /// Restarts crash recovery. `encoded` is the show's current bytes when
+    /// already known (just opened or saved), which avoids encoding again.
     @MainActor
-    private func startJournal() {
+    private func startJournal(encoded: Data? = nil) {
         guard let model else { return }
         let dir = RecoveryStore.directory(for: recoveryID)
         let journal = RecoveryJournal(directory: dir)
         do {
-            try journal.begin(base: ShowDocument(show: model.show, assets: model.assets))
+            if let encoded {
+                try journal.begin(encodedBase: encoded)
+            } else {
+                try journal.begin(base: ShowDocument(show: model.show, assets: model.assets))
+            }
             RecoveryStore.writeOrigin(fileURL: fileURL, title: model.show.title, in: dir)
             self.journal = journal
         } catch {
