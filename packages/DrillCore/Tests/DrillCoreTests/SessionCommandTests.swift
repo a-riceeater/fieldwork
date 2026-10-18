@@ -87,6 +87,61 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertEqual(old.set(second)?.rehearsalMark, "")
     }
 
+    func testQuickShapesPlaceTheSelectionInOneStep() throws {
+        let session = try makeSession(performers: 12)
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        let spacing = 2 * session.show.field.stepSize
+
+        func minimumGap() -> Double {
+            let points = ids.compactMap { session.show.formation(preset)[$0].position?.point }
+            XCTAssertEqual(points.count, ids.count, "everyone placed")
+            var best = Double.infinity
+            for i in points.indices { for j in points.indices where j > i { best = min(best, points[i].distance(to: points[j])) } }
+            return best
+        }
+
+        for shape in QuickShape.allCases {
+            try session.perform(try session.show.makeQuickShape(shape, members: ids, at: preset))
+            XCTAssertEqual(session.undoName, "Place in \(shape.displayName)")
+            XCTAssertGreaterThan(minimumGap(), spacing * 0.95, "\(shape) keeps neighbors apart")
+            let retained = session.show.forms(on: preset).contains { Set($0.members) == Set(ids) }
+            XCTAssertEqual(retained, shape == .line || shape == .arc, "\(shape) form retention")
+        }
+        // Lines are centered where the performers already were.
+        try session.perform(try session.show.makeTranslate(ids, at: preset, by: Point2(5, 3)))
+        let before = Rect2(points: ids.compactMap { session.show.formation(preset)[$0].position?.point }).center
+        try session.perform(try session.show.makeQuickShape(.line, members: ids, at: preset))
+        let after = Rect2(points: ids.compactMap { session.show.formation(preset)[$0].position?.point }).center
+        XCTAssertLessThan(before.distance(to: after), 1e-6)
+        XCTAssertThrowsError(try session.show.makeQuickShape(.block, members: [], at: preset))
+    }
+
+    func testPlaceUnplacedPutsEverySectionOnTheField() throws {
+        let session = try DocumentSession(show: try Show.makeNew(title: "Band", measures: 8))
+        try session.perform(try session.show.makeRoster([
+            RosterSectionRequest(name: "Trumpet", prefix: "T", count: 16),
+            RosterSectionRequest(name: "Mellophone", prefix: "M", count: 8),
+            RosterSectionRequest(name: "Snare Drum", prefix: "S", count: 6),
+            RosterSectionRequest(name: "Color Guard", prefix: "G", count: 40),
+        ]))
+        let preset = session.show.sets[0].id
+        try session.perform(try session.show.makeSetCoordinate(session.show.performers[0].id, at: preset, x: 30, y: 10))
+        try session.perform(try session.show.makePlaceUnplaced(at: preset))
+        let formation = session.show.formation(preset)
+        XCTAssertTrue(session.show.performers.allSatisfy { formation[$0.id].position != nil })
+        XCTAssertEqual(formation[session.show.performers[0].id].position?.point, Point2(30, 10), "already placed performers stay put")
+        let points = session.show.performers.dropFirst().compactMap { formation[$0.id].position?.point }
+        let bounds = session.show.field.bounds
+        XCTAssertTrue(points.allSatisfy { bounds.contains($0) }, "inside the field")
+        var gap = Double.infinity
+        for i in points.indices { for j in points.indices where j > i { gap = min(gap, points[i].distance(to: points[j])) } }
+        XCTAssertGreaterThan(gap, 2 * session.show.field.stepSize * 0.95)
+        XCTAssertThrowsError(try session.show.makePlaceUnplaced(at: preset), "nothing left to place")
+        session.undo()
+        XCTAssertEqual(session.show.formation(preset)[session.show.performers[1].id], .unresolved)
+    }
+
     func testFormRetainsGeometryAndOrder() throws {
         let session = try makeSession()
         let preset = session.show.sets[0].id
