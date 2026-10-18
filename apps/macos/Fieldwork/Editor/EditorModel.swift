@@ -349,6 +349,35 @@ final class EditorModel: ObservableObject {
         performTiming { resolution in try self.show.makeTempo(movementID: movementID, measures: lo...hi, bpm: bpm, resolution: resolution) }
     }
 
+    /// Counts-only tempo: applies to the whole measures that the move into the
+    /// current set spans, so designers never have to think in measure numbers.
+    func setTempoForCurrentMove(bpm: Double) {
+        guard let map, let set = currentSet, let previous = show.previousSet(before: set.id) else {
+            report(DrillError("Choose a set after the opening set to change the tempo of its move."))
+            return
+        }
+        do {
+            let start = try map.musicalPosition(at: previous.cursor)
+            let end = try map.musicalPosition(at: set.cursor)
+            let endsOnDownbeat = end.beat == 1 && end.beatFraction.isZero && end.holdOffsetSeconds == nil
+            let lo = start.measureIndex, hi = max(lo, endsOnDownbeat ? end.measureIndex - 1 : end.measureIndex)
+            let movementID = self.movementID
+            performTiming { resolution in try self.show.makeTempo(movementID: movementID, measures: lo...hi, bpm: bpm, resolution: resolution) }
+        } catch {
+            report(error)
+        }
+    }
+
+    func setCurrentSetMarkers(rehearsalMark: String, measureMarker: String) {
+        guard let set = currentSet, set.rehearsalMark != rehearsalMark || set.measureMarker != measureMarker else { return }
+        perform(.updateSetMarkers(set.id, rehearsalMark: rehearsalMark, measureMarker: measureMarker))
+    }
+
+    func setCountingMode(_ mode: CountingMode) {
+        guard show.countingMode != mode else { return }
+        perform(.setCountingMode(mode))
+    }
+
     func setFitMode(_ mode: FitMode) {
         var track = movement.timing
         guard track.fitMode != mode else { return }
@@ -395,7 +424,7 @@ final class EditorModel: ObservableObject {
     func countsOnly() {
         tour.handle(TourEvent.countsOnly)
         TourStore.save(tour)
-        statusMessage = "Counts only: the timeline runs from the tempo map."
+        statusMessage = "No music: playback follows the tempo."
     }
 
     // MARK: Audio

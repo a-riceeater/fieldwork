@@ -89,6 +89,11 @@ struct NumberField: View {
 struct SetInspector: View {
     @ObservedObject var model: EditorModel
     @State private var label = ""
+    @State private var mark = ""
+    @State private var marker = ""
+    @FocusState private var focusedMarker: MarkerField?
+
+    private enum MarkerField { case mark, measures }
 
     var body: some View {
         InspectorSection(title: "Set") {
@@ -98,6 +103,29 @@ struct SetInspector: View {
                 }
                 .onAppear { label = set.label }
                 .onChange(of: set.label) { _, newValue in label = newValue }
+                LabeledContent("Rehearsal mark") {
+                    TextField("None", text: $mark)
+                        .frame(width: 96)
+                        .focused($focusedMarker, equals: .mark)
+                        .onSubmit(saveMarkers)
+                        .help("Rehearsal letter that starts at this set, such as A, B or CC")
+                }
+                LabeledContent("Measures") {
+                    TextField(measurePlaceholder(set), text: $marker)
+                        .frame(width: 96)
+                        .focused($focusedMarker, equals: .measures)
+                        .onSubmit(saveMarkers)
+                        .help(model.show.countingMode == .counts
+                              ? "Measure numbers for this set, such as 222-223. Only a label; it never moves the set."
+                              : "Leave empty to show the measure from the timeline, or type your own label")
+                }
+                .onAppear { mark = set.rehearsalMark; marker = set.measureMarker }
+                .onChange(of: set) { _, newValue in mark = newValue.rehearsalMark; marker = newValue.measureMarker }
+                .onChange(of: focusedMarker) { _, newValue in if newValue == nil { saveMarkers() } }
+                if let count = model.show.cumulativeCount(of: set, map: model.map) {
+                    Text("Arrives on count \(TimeFormat.decimal(count.doubleValue, places: count.isInteger ? 0 : 2))")
+                        .font(.caption).monospacedDigit().foregroundStyle(Color.fwSecondary)
+                }
                 if model.show.previousSet(before: set.id) != nil {
                     let counts = (try? model.show.moveCounts(into: set.id)) ?? .zero
                     NumberField(label: "Move counts", value: counts.doubleValue, places: 0) { model.setMoveCounts(Int($0.rounded())) }
@@ -112,6 +140,17 @@ struct SetInspector: View {
                 }
             }
         }
+    }
+
+    private func measurePlaceholder(_ set: ArrivalSet) -> String {
+        guard model.show.countingMode == .measures, let map = model.map, let position = try? map.musicalPosition(at: set.cursor) else {
+            return "e.g. 222-223"
+        }
+        return position.label
+    }
+
+    private func saveMarkers() {
+        model.setCurrentSetMarkers(rehearsalMark: mark.trimmingCharacters(in: .whitespaces), measureMarker: marker.trimmingCharacters(in: .whitespaces))
     }
 }
 
@@ -128,12 +167,28 @@ struct TimingInspector: View {
 
     var body: some View {
         let timing = model.movement.timing
-        InspectorSection(title: "Music and counts") {
-            if let first = timing.measures.first {
+        InspectorSection(title: model.show.countingMode == .counts ? "Tempo" : "Music and counts") {
+            if model.show.countingMode == .counts, let map = model.map {
+                Text("\(TimeFormat.decimal(map.totalPulses.doubleValue, places: 0)) counts · \(timing.anchors.count) audio pin\(timing.anchors.count == 1 ? "" : "s")")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+            } else if let first = timing.measures.first {
                 Text("\(timing.measures.count) measures · \(first.meter.description) · \(timing.anchors.count) audio pin\(timing.anchors.count == 1 ? "" : "s")")
                     .font(.caption).foregroundStyle(Color.fwSecondary)
             }
-            if model.setsInMovement.count == 1 && timing.anchors.isEmpty {
+            if model.show.countingMode == .counts {
+                NumberField(label: "Tempo (BPM)", value: tempoBPM, places: 1) { tempoBPM = $0 }
+                if model.setsInMovement.count == 1 && timing.anchors.isEmpty, let first = timing.measures.first {
+                    Button("Set Tempo") {
+                        model.configureTimeline(numerator: first.meter.numerator, denominator: first.meter.denominator, bpm: tempoBPM,
+                                                pulse: first.pulseUnit, measures: timing.measures.count)
+                    }
+                } else {
+                    Button("Set Tempo for This Move") { model.setTempoForCurrentMove(bpm: tempoBPM) }
+                        .disabled(model.show.previousSet(before: model.currentSetID) == nil)
+                }
+                Text("Counts only: sets are pages of counts and meters are ignored. With music, pin each page with Align Set Here instead of changing tempo.")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+            } else if model.setsInMovement.count == 1 && timing.anchors.isEmpty {
                 Stepper("Meter \(numerator)/\(denominator)", value: $numerator, in: 1...15)
                 Picker("Note value", selection: $denominator) {
                     ForEach([2, 4, 8, 16], id: \.self) { Text("\($0)").tag($0) }

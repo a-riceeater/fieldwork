@@ -40,7 +40,7 @@ struct TimelinePanel: View {
                 if !model.hasAudio {
                     Button("Import Audio…") { importAudio() }
                         .accessibilityIdentifier("timeline.importAudio")
-                    Button("Counts Only") { model.countsOnly() }
+                    Button("Continue Without Music") { model.countsOnly() }
                         .help("Continue without music; playback follows the tempo map")
                 } else {
                     Button("Replace Audio…") { importAudio() }

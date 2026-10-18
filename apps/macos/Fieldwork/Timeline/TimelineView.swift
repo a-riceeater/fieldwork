@@ -348,17 +348,29 @@ extension EditorModel {
         var anchors: [TimelineAnchorMarker] = []
         if let map {
             let track = movement.timing
+            let countsOnly = show.countingMode == .counts
             var seen = Set<MeasureID>()
             for event in track.events where event.kind == .beat {
                 guard let t = try? map.audioTime(at: TimelineCursor(eventID: event.id)) else { continue }
                 beats.append(t)
-                if seen.insert(event.measureID).inserted, let m = track.measures.first(where: { $0.id == event.measureID }) {
+                if !countsOnly, seen.insert(event.measureID).inserted, let m = track.measures.first(where: { $0.id == event.measureID }) {
                     measures.append(TimelineMarker(time: t, label: "m\(m.number)"))
+                }
+            }
+            if countsOnly {
+                // Counts mode: a count ruler every 8 counts instead of measure numbers.
+                var count = 0
+                while Rational(count) <= map.totalPulses {
+                    if let cursor = try? map.cursor(atPulse: Rational(count)), let t = try? map.audioTime(at: cursor) {
+                        measures.append(TimelineMarker(time: t, label: "\(count)"))
+                    }
+                    count += 8
                 }
             }
             for set in setsInMovement {
                 if let t = try? map.audioTime(at: set.cursor) {
-                    sets.append(TimelineSetMarker(id: set.id, label: set.label, time: t, selected: set.id == currentSetID))
+                    let label = set.rehearsalMark.isEmpty ? set.label : "\(set.label) · \(set.rehearsalMark)"
+                    sets.append(TimelineSetMarker(id: set.id, label: label, time: t, selected: set.id == currentSetID))
                 }
             }
             if let assetID = movement.audioAssetID {

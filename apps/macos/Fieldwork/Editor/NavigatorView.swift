@@ -30,7 +30,9 @@ struct NavigatorView: View {
                 Section(model.movement.name) {
                     ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in
                         SetRow(set: set, isPreset: index == 0, counts: (try? model.show.moveCounts(into: set.id)) ?? .zero,
-                               music: (try? map?.musicalPosition(at: set.cursor).label) ?? "",
+                               music: model.show.measureLabel(for: set, map: map),
+                               arrivalCount: model.show.cumulativeCount(of: set, map: map),
+                               countsOnly: model.show.countingMode == .counts,
                                time: model.hasAudio ? (try? map?.audioTime(at: set.cursor)).flatMap { $0 }.map(TimeFormat.clock) : nil)
                     }
                 }
@@ -119,22 +121,45 @@ struct SetRow: View {
     var isPreset: Bool
     var counts: Rational
     var music: String
+    var arrivalCount: Rational?
+    var countsOnly: Bool
     var time: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("Set \(set.label)").font(.system(size: 13, weight: .semibold))
+                if !set.rehearsalMark.isEmpty {
+                    Text(set.rehearsalMark)
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .foregroundStyle(Color.white)
+                        .background(Capsule().fill(Color.fwAccent))
+                        .accessibilityLabel("Rehearsal mark \(set.rehearsalMark)")
+                }
                 Spacer()
                 if !set.notes.isEmpty { Image(systemName: "note.text").foregroundStyle(Color.fwSecondary).accessibilityLabel("Has notes") }
             }
-            Text(isPreset ? "Preset · count 0 · \(music)" : "Arrival \(music) · move \(TimeFormat.decimal(counts.doubleValue, places: counts.isInteger ? 0 : 2)) counts")
+            Text(detail)
                 .font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(Color.fwSecondary)
             if let time { Text(time).font(.system(size: 11)).monospacedDigit().foregroundStyle(Color.fwSecondary) }
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Measures mode: "Arrival m17 b1 · move 16 counts". Counts mode: "Count 208 · 16 counts · m. 222-223".
+    private var detail: String {
+        let move = "\(TimeFormat.decimal(counts.doubleValue, places: counts.isInteger ? 0 : 2)) counts"
+        if countsOnly {
+            let count = arrivalCount.map { "Count \(TimeFormat.decimal($0.doubleValue, places: $0.isInteger ? 0 : 2))" } ?? ""
+            let parts = isPreset ? ["Preset", music] : [count, move, music]
+            return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+        if isPreset { return ["Preset · count 0", music].filter { !$0.isEmpty }.joined(separator: " · ") }
+        return music.isEmpty ? "Move \(move)" : "Arrival \(music) · move \(move)"
     }
 }
 
