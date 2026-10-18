@@ -359,19 +359,25 @@ struct NewShowFlow: View {
                 .frame(minWidth: 220, maxWidth: 360, alignment: .leading)
             Spacer(minLength: Tokens.Space.s)
             TextField("Letter", text: section.prefix)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
-                .frame(width: 52)
+                .frame(width: 64)
                 .help("Label letter, for example T for T1, T2…")
                 .accessibilityLabel("Label letter for \(section.wrappedValue.name)")
             HStack(spacing: 4) {
                 TextField("Count", value: section.count, format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
-                    .frame(width: 44)
+                    .frame(width: 64)
                     .accessibilityLabel("Performers in \(section.wrappedValue.name)")
                 Stepper("Performers", value: section.count, in: 0...400)
                     .labelsHidden()
+                    .fixedSize()
             }
+            .fixedSize()
             Button {
                 let id = section.wrappedValue.id
                 withAnimation(reduceMotion ? nil : .default) { request.sections.removeAll { $0.id == id } }
