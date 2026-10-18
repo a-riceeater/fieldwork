@@ -270,6 +270,10 @@ final class EditorModel: ObservableObject {
         perform { try self.show.makeRoster([RosterSectionRequest(name: name, prefix: prefix, count: count, symbol: symbol, colorIndex: colorIndex)]) }
     }
 
+    func setSectionPrefix(_ id: SectionID, prefix: String) {
+        perform { try self.show.makeSectionPrefix(id, prefix: prefix) }
+    }
+
     func selectSection(_ id: SectionID) {
         selection = Set(show.performers(in: id).map(\.id))
     }

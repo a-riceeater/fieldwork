@@ -92,6 +92,7 @@ struct NavigatorView: View {
                         HStack {
                             Text("\(section.name) (\(model.show.performers(in: section.id).count))")
                             Spacer()
+                            SectionLetterButton(model: model, section: section)
                             Button("Select") { model.selectSection(section.id) }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
@@ -134,5 +135,52 @@ struct SetRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Shows a section's label letter; clicking it changes the letter and
+/// relabels the section's performers (T3 → TS3) in one undoable edit.
+struct SectionLetterButton: View {
+    @ObservedObject var model: EditorModel
+    var section: DrillCore.Section
+    @State private var editing = false
+    @State private var letter = ""
+
+    var body: some View {
+        Button(section.prefix) {
+            letter = section.prefix
+            editing = true
+        }
+        .buttonStyle(.borderless)
+        .font(.caption.monospaced())
+        .help("Change the label letter for \(section.name)")
+        .accessibilityLabel("Label letter \(section.prefix) for \(section.name). Change")
+        .disabled(!model.isEditable)
+        .popover(isPresented: $editing, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s) {
+                Text("\(section.name) label letter").font(.headline)
+                TextField("Letter", text: $letter)
+                    .frame(width: 120)
+                    .onSubmit(apply)
+                Text("Performers labeled \(section.prefix)1, \(section.prefix)2… are relabeled. Labels you changed by hand stay as they are.")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { editing = false }.keyboardShortcut(.cancelAction)
+                    Button("Change", action: apply)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(letter.trimmingCharacters(in: .whitespaces).isEmpty || letter == section.prefix)
+                }
+            }
+            .padding(Tokens.Space.l)
+            .frame(width: 280)
+        }
+    }
+
+    private func apply() {
+        guard !letter.trimmingCharacters(in: .whitespaces).isEmpty, letter != section.prefix else { return }
+        model.setSectionPrefix(section.id, prefix: letter)
+        editing = false
     }
 }

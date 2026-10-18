@@ -31,10 +31,17 @@ struct InstrumentPicker: View {
             .accessibilityLabel("Section")
             if isOther {
                 TextField("Section name", text: $name)
-                    .onChange(of: name) { _, value in prefix = value.first.map { String($0).uppercased() } ?? "" }
+                    .onChange(of: name) { old, new in
+                        // Suggest the first letter, but never overwrite a letter typed by hand.
+                        if prefix.isEmpty || prefix == initial(old) { prefix = initial(new) }
+                    }
                     .accessibilityLabel("Custom section name")
             }
         }
+    }
+
+    private func initial(_ text: String) -> String {
+        text.first.map { String($0).uppercased() } ?? ""
     }
 
     private var selection: Binding<String?> {
