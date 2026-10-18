@@ -73,6 +73,16 @@ struct TimelinePanel: View {
             .labelsHidden()
             .frame(width: 70)
             .help("Playback rate (does not change pins or timing)")
+            Menu {
+                Toggle("Whole Counts Only", isOn: $model.wholeCountsOnly)
+                Text("Hide fractional counts and snap to the nearest count when pausing.")
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Playback settings")
+            .accessibilityLabel("Playback settings")
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, Tokens.Space.s)
@@ -83,7 +93,14 @@ struct TimelinePanel: View {
     private var position: some View {
         let map = model.map
         let location = map?.locate(audioTime: model.playheadSeconds)
-        let music = location.flatMap { try? map?.musicalPosition(at: $0.cursor).label } ?? ""
+        let musicalPosition = location.flatMap { try? map?.musicalPosition(at: $0.cursor) }
+        let music = musicalPosition.map {
+            model.wholeCountsOnly ? "m\($0.measureNumber) b\($0.beat)" : $0.label
+        } ?? ""
+        let pulse = location?.pulse ?? 0
+        let count = model.wholeCountsOnly
+            ? TimeFormat.decimal(floor(pulse + 1e-6), places: 0)
+            : TimeFormat.decimal(pulse, places: 2)
         return HStack(spacing: Tokens.Space.m) {
             TextField("Time", text: $timeText)
                 .frame(width: 92)
@@ -99,7 +116,7 @@ struct TimelinePanel: View {
             Text(location?.isPreRoll == true ? "pre-roll" : music)
                 .monospacedDigit()
                 .frame(minWidth: 80, alignment: .leading)
-            Text("count \(TimeFormat.decimal(location?.pulse ?? 0, places: 2))")
+            Text("count \(count)")
                 .monospacedDigit()
                 .foregroundStyle(Color.fwSecondary)
         }

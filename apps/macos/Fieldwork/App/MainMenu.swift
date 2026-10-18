@@ -76,6 +76,8 @@ enum MainMenu {
         main.addItem(submenu("Playback", [
             item("Play", #selector(EditorWindowController.togglePlayback(_:)), "p", [.command, .option]),
             item("Go to Start", #selector(EditorWindowController.goToStart(_:)), "\u{F729}", [.command]),
+            .separator(),
+            item("Whole Counts Only", #selector(EditorWindowController.toggleWholeCounts(_:))),
         ]))
 
         let window = submenu("Window", [

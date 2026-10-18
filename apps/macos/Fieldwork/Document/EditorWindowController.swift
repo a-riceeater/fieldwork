@@ -55,6 +55,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     // MARK: Playback, audio, export, help
 
     @MainActor @objc func togglePlayback(_ sender: Any?) { model.togglePlay() }
+    @MainActor @objc func toggleWholeCounts(_ sender: Any?) { model.wholeCountsOnly.toggle() }
     @MainActor @objc func goToStart(_ sender: Any?) { model.selectSet(model.setsInMovement[0].id) }
     @MainActor @objc func importAudio(_ sender: Any?) {
         let panel = NSOpenPanel()
@@ -79,6 +80,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
             return true
         case #selector(togglePlayback(_:)):
             menuItem.title = model.isPlaying ? "Pause" : "Play"
+            return true
+        case #selector(toggleWholeCounts(_:)):
+            menuItem.state = model.wholeCountsOnly ? .on : .off
             return true
         case #selector(toolSelect(_:)): menuItem.state = model.tool == .select ? .on : .off; return true
         case #selector(toolLine(_:)): menuItem.state = model.tool == .line ? .on : .off; return true

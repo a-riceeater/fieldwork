@@ -68,6 +68,9 @@ final class EditorModel: ObservableObject {
     @Published var isBetweenSets = false
     @Published private(set) var isPlaying = false
     @Published var playbackRate: Double = 1 { didSet { transport.rate = playbackRate } }
+    @Published var wholeCountsOnly: Bool {
+        didSet { preferences.set(wholeCountsOnly, forKey: "FieldworkWholeCountsOnly") }
+    }
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
     @Published var conflict: PendingConflict?
@@ -84,12 +87,15 @@ final class EditorModel: ObservableObject {
     func requestCanvas(_ command: CanvasViewCommand) { canvasRequest = (command, UUID()) }
 
     let transport = PlaybackTransport()
+    private let preferences: UserDefaults
     private var displayTimer: Timer?
     private var lastPlaybackSetIndex: Int?
     private var evaluatorCache: (revision: Int, evaluator: SceneEvaluator)?
     private var analysisCache: (revision: Int, issues: [DrillIssue])?
 
-    init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil) {
+    init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil, preferences: UserDefaults = .standard) {
+        self.preferences = preferences
+        wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
         self.session = session
         self.assets = assets
         self.readOnlyReason = readOnlyReason
@@ -461,6 +467,18 @@ final class EditorModel: ObservableObject {
         isPlaying = false
         displayTimer?.invalidate()
         displayTimer = nil
+        if wholeCountsOnly, let map {
+            let location = map.locate(audioTime: playheadSeconds)
+            // Keep pre-roll and elapsed holds intact when already on a whole count.
+            if !location.isPreRoll, !location.isPastEnd,
+               abs(location.pulse - location.pulse.rounded()) > 1e-6 {
+                let count = min(location.pulse.rounded(), floor(map.totalPulses.doubleValue))
+                if let time = try? map.audioTime(atPulse: Rational(Int64(count))) {
+                    playheadSeconds = time
+                    transport.seek(to: time)
+                }
+            }
+        }
         snapToSetIfAtArrival()
     }
 
