@@ -90,7 +90,7 @@ struct BannerView: View {
         .padding(.horizontal, Tokens.Space.l)
         .padding(.vertical, Tokens.Space.s)
         .foregroundStyle(isWarning ? Color.fwWarning : Color.primary)
-        .background(Color.fwSurface)
+        .background(.bar)
         .accessibilityElement(children: .combine)
     }
 }
@@ -121,7 +121,7 @@ struct StatusBar: View {
         .font(.system(size: 11))
         .padding(.horizontal, Tokens.Space.m)
         .frame(height: Tokens.Layout.status)
-        .background(Color.fwSurface)
+        .background(.bar)
         .overlay(alignment: .top) { Divider() }
     }
 }

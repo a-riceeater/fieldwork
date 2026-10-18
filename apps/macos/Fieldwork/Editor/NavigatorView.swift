@@ -19,7 +19,7 @@ struct NavigatorView: View {
             .padding(Tokens.Space.s)
             if tab == 0 { setsList } else { rosterList }
         }
-        .background(Color.fwSurface)
+        .background(VisualEffectBackground(material: .sidebar))
     }
 
     private var setsList: some View {

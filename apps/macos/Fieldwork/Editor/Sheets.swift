@@ -13,38 +13,54 @@ struct AddSectionSheet: View {
     @State private var symbol: PerformerSymbol = .circle
 
     var body: some View {
-        Form {
-            Text("Add a section").font(.headline)
-            LabeledContent("Section") {
-                InstrumentPicker(name: $name, prefix: $prefix).labelsHidden()
+        VStack(spacing: 0) {
+            Text("Add Section")
+                .font(.system(size: 20, weight: .bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding([.horizontal, .top], Tokens.Space.xl)
+            Form {
+                SwiftUI.Section {
+                    LabeledContent("Section") {
+                        InstrumentPicker(name: $name, prefix: $prefix).labelsHidden()
+                    }
+                    TextField("Label letter", text: $prefix)
+                    LabeledContent("Performers") {
+                        Stepper(value: $count, in: 1...400) { Text("\(count)").monospacedDigit() }
+                    }
+                    Picker("Symbol", selection: $symbol) {
+                        ForEach(PerformerSymbol.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                    }
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let existing = model.show.sections.first(where: { $0.name.caseInsensitiveCompare(name.trimmingCharacters(in: .whitespaces)) == .orderedSame }) {
+                            Text("Adds performers to the existing \(existing.name) section, continuing its \(existing.prefix) labels.")
+                        } else if let clash = model.show.sections.first(where: { $0.prefix == prefix }) {
+                            Label("\(clash.name) already uses \(prefix). Labels stay unique but will be hard to tell apart.", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(Color.fwWarning)
+                        }
+                        Text("New performers start without positions at every set, so nothing is placed by accident.")
+                    }
+                }
             }
-            TextField("Label letter", text: $prefix)
-            if let existing = model.show.sections.first(where: { $0.name.caseInsensitiveCompare(name.trimmingCharacters(in: .whitespaces)) == .orderedSame }) {
-                Text("Adds performers to the existing \(existing.name) section, continuing its \(existing.prefix) labels.")
-                    .font(.caption).foregroundStyle(Color.fwSecondary)
-            } else if let clash = model.show.sections.first(where: { $0.prefix == prefix }) {
-                Label("\(clash.name) already uses \(prefix). Labels stay unique but will be hard to tell apart.", systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(Color.fwWarning)
-            }
-            Stepper("\(count) performers", value: $count, in: 1...400)
-            Picker("Symbol", selection: $symbol) {
-                ForEach(PerformerSymbol.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
-            }
-            Text("New performers start without positions at every set, so nothing is placed by accident.")
-                .font(.caption).foregroundStyle(Color.fwSecondary)
-            HStack {
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            HStack(spacing: Tokens.Space.s) {
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .fwSecondaryButton()
                 Button("Add") {
                     model.addSection(name: name, prefix: prefix, count: count, symbol: symbol)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
+                .fwPrimaryButton()
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || prefix.isEmpty)
             }
+            .controlSize(.large)
+            .padding([.horizontal, .bottom], Tokens.Space.xl)
         }
-        .padding(Tokens.Space.xl)
-        .frame(width: 380)
+        .frame(width: 460, height: 400)
     }
 }
 

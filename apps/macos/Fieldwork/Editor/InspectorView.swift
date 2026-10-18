@@ -24,9 +24,9 @@ struct InspectorView: View {
                     FormInspector(model: model)
                 }
             }
-            .padding(Tokens.Space.l)
+            .padding(Tokens.Space.m)
         }
-        .background(Color.fwSurface)
+        .background(VisualEffectBackground(material: .sidebar))
     }
 }
 
@@ -35,9 +35,17 @@ struct InspectorSection<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.s) {
-            Text(title).font(.system(size: 13, weight: .semibold))
-            content
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.fwSecondary)
+                .padding(.leading, Tokens.Space.xs)
+            VStack(alignment: .leading, spacing: Tokens.Space.s) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Tokens.Space.m)
+            .fwCard()
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
