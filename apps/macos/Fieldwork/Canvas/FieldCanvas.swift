@@ -38,6 +38,7 @@ struct FieldCanvas: NSViewRepresentable {
         func canvasNudge(dx: Double, dy: Double) { model.nudge(dx: dx, dy: dy) }
         func canvasClearSelection() { model.selection = [] }
         func canvasMessage(_ text: String) { model.statusMessage = text }
+        func canvasTogglePlay() { model.togglePlay() }
     }
 }
 

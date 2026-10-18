@@ -83,4 +83,5 @@ protocol FieldCanvasDelegate: AnyObject {
     func canvasNudge(dx: Double, dy: Double)
     func canvasClearSelection()
     func canvasMessage(_ text: String)
+    func canvasTogglePlay()
 }

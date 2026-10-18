@@ -41,6 +41,8 @@ struct EditorAlert: Identifiable {
 struct PendingConflict: Identifiable {
     let id = UUID()
     let conflict: TimingEditConflict
+    /// Human labels for anchors ("m17 b1 @ 00:44.600").
+    let anchorLabels: [AnchorID: String]
     let resolve: (TimingResolution) -> Void
 }
 
@@ -190,7 +192,12 @@ final class EditorModel: ObservableObject {
             let result = try build(resolution)
             if perform(result.command) { statusMessage = describe(result.report) }
         } catch let conflict as TimingEditConflict {
-            self.conflict = PendingConflict(conflict: conflict) { [weak self] choice in
+            var labels: [AnchorID: String] = [:]
+            for anchor in movement.timing.anchors {
+                let position = (try? map?.musicalPosition(at: anchor.cursor).label) ?? "pin"
+                labels[anchor.id] = "\(position) @\(TimeFormat.clock(anchor.seconds))"
+            }
+            self.conflict = PendingConflict(conflict: conflict, anchorLabels: labels) { [weak self] choice in
                 self?.conflict = nil
                 guard choice != .cancel else { return }
                 self?.performTiming(build, resolution: choice)

@@ -23,6 +23,8 @@ final class FieldCanvasView: NSView {
     private(set) var transform = CanvasTransform()
     private var didFit = false
     private var spaceDown = false
+    /// Space toggles playback when tapped; Space-drag pans.
+    private var spaceUsedForPan = false
 
     private enum Drag {
         case none
@@ -127,6 +129,7 @@ final class FieldCanvasView: NSView {
         guard let state else { return }
         let v = convert(event.locationInWindow, from: nil)
         if spaceDown || event.modifierFlags.contains(.control) {
+            spaceUsedForPan = spaceDown
             drag = .pan(start: v, center: transform.center)
             NSCursor.closedHand.set()
             return
@@ -252,14 +255,17 @@ final class FieldCanvasView: NSView {
             // Escape cancels a drag or tool preview before it clears the selection.
             if case .none = drag { delegate?.canvasClearSelection() } else { drag = .none; needsDisplay = true }
         case 49:
-            if !event.isARepeat { spaceDown = true; NSCursor.openHand.set() }
+            if !event.isARepeat { spaceDown = true; spaceUsedForPan = false; NSCursor.openHand.set() }
         default:
             super.keyDown(with: event)
         }
     }
 
     override func keyUp(with event: NSEvent) {
-        if event.keyCode == 49 { spaceDown = false; NSCursor.arrow.set() } else { super.keyUp(with: event) }
+        guard event.keyCode == 49 else { return super.keyUp(with: event) }
+        spaceDown = false
+        NSCursor.arrow.set()
+        if !spaceUsedForPan { delegate?.canvasTogglePlay() }
     }
 
     // MARK: Drawing
