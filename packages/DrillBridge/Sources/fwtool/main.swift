@@ -42,7 +42,7 @@ func embedAudio(_ wav: Data, into document: inout ShowDocument, session: Documen
 func demo(_ path: String) throws {
     let session = try DocumentSession(show: try SampleShow.make())
     var document = ShowDocument(show: session.show)
-    let rate = 22_050
+    let rate = 11_025
     let info = try embedAudio(clickTrack(seconds: 32, sampleRate: rate, bpm: 120, leadIn: 1.5), into: &document, session: session, name: "demo-click.wav")
     let movement = session.show.movements[0].id
     let map = try session.timingMap(for: movement)
@@ -148,6 +148,25 @@ func profile(performers: Int, sets: Int) throws {
     log("  commit 50-dot drag   \(TimeFormat.decimal(drag / 20 * 1000, places: 2)) ms avg (validate + undo snapshot)")
 }
 
+/// Deterministic evaluation as JSON (positions rounded to micrometers) for cross-platform fixtures.
+func evaluate(_ path: String, pulses: [Double]) throws {
+    let show = try DocumentFile.open(URL(fileURLWithPath: path)).show
+    let movement = show.movements[0].id
+    let evaluator = try SceneEvaluator(show: show, movementID: movement)
+    let map = evaluator.map
+    var frames: [[String: Any]] = []
+    for pulse in pulses {
+        let scene = evaluator.evaluate(pulse: pulse)
+        let positions = scene.performers.map { p -> [String: Any] in
+            ["id": p.id.description, "x": (p.x * 1e6).rounded() / 1e6, "y": (p.y * 1e6).rounded() / 1e6, "state": "\(p.state)"]
+        }
+        frames.append(["pulse": pulse, "setIndex": scene.setIndex, "audioTime": ((try map.audioTime(atPulse: Rational(Int64((pulse * 1000).rounded()), 1000))) * 1e6).rounded() / 1e6,
+                       "performers": positions])
+    }
+    let data = try JSONSerialization.data(withJSONObject: ["show": show.title, "frames": frames], options: [.prettyPrinted, .sortedKeys])
+    print(String(decoding: data, as: UTF8.self))
+}
+
 func info(_ path: String) throws {
     let document = try DocumentFile.open(URL(fileURLWithPath: path))
     let show = document.show
@@ -181,11 +200,14 @@ do {
         let document = try DocumentFile.open(URL(fileURLWithPath: args[1]))
         try CoordinateSheet.render(document.show, movementID: document.show.movements[0].id).write(to: URL(fileURLWithPath: args[2]))
         log("Wrote \(args[2])")
+    case "evaluate":
+        guard args.count >= 3 else { fail("usage: fwtool evaluate <in.fieldwork> <count> [count...]") }
+        try evaluate(args[1], pulses: args.dropFirst(2).compactMap(Double.init))
     case "info":
         guard args.count == 2 else { fail("usage: fwtool info <in.fieldwork>") }
         try info(args[1])
     default:
-        fail("usage: fwtool demo|acceptance|profile|pdf|info ...")
+        fail("usage: fwtool demo|acceptance|profile|pdf|info|evaluate ...")
     }
 } catch {
     fail("\(error)")
