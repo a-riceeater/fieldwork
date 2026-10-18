@@ -188,6 +188,52 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertEqual(session.show.movements[0].timing.measures.count, 8, "undo restores the timeline with the set")
     }
 
+    func testSplitMoveAddsSubsetWithInterpolatedPositions() throws {
+        let session = try makeSession()
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        try session.perform(try session.show.makeForm(.line(start: Point2(-7, 0), end: Point2(7, 0)), members: Array(ids.dropLast()), at: preset))
+        let set2 = SetID()
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 32, newSetID: set2))
+        try session.perform(try session.show.makeTranslate(Array(ids.dropLast()), at: set2, by: Point2(4, 8)))
+        let movementID = session.show.movements[0].id
+        let before = try SceneEvaluator(show: session.show, movementID: movementID)
+        let timing = session.show.movements[0].timing
+
+        let subset = SetID()
+        try session.perform(try session.show.makeSplitMove(into: set2, atCount: Rational(16), newSetID: subset))
+        XCTAssertEqual(session.show.sets.map(\.label), ["1", "1A", "2"])
+        XCTAssertEqual(session.show.set(subset)?.isSubset, true)
+        XCTAssertEqual(try session.show.moveCounts(into: subset), Rational(16))
+        XCTAssertEqual(try session.show.moveCounts(into: set2), Rational(16))
+        XCTAssertEqual(session.show.movements[0].timing, timing, "timing and later sets stay put")
+        let p = try XCTUnwrap(session.show.formation(subset)[ids[0]].position)
+        XCTAssertEqual(p.x, -7 + 2, accuracy: 1e-9)
+        XCTAssertEqual(p.y, 4, accuracy: 1e-9)
+        XCTAssertEqual(session.show.formation(subset)[ids.last!], .unresolved, "missing data stays explicit")
+
+        // Every count of the move evaluates to the same positions as before the split.
+        let after = try SceneEvaluator(show: session.show, movementID: movementID)
+        for pulse in stride(from: 0.0, through: 32, by: 0.5) {
+            for (a, b) in zip(before.evaluate(pulse: pulse).performers, after.evaluate(pulse: pulse).performers) {
+                XCTAssertEqual(a.state, b.state)
+                XCTAssertEqual(a.x, b.x, accuracy: 1e-9)
+                XCTAssertEqual(a.y, b.y, accuracy: 1e-9)
+            }
+        }
+
+        // Splitting again picks the next free letter; the ends of the move are rejected.
+        XCTAssertEqual(try session.show.makeSplitMove(into: set2, atCount: Rational(8)).name, "Split Move")
+        try session.perform(try session.show.makeSplitMove(into: set2, atCount: Rational(8)))
+        XCTAssertEqual(session.show.sets.map(\.label), ["1", "1A", "1B", "2"])
+        XCTAssertThrowsError(try session.show.makeSplitMove(into: set2, atCount: Rational(8)))
+        XCTAssertThrowsError(try session.show.makeSplitMove(into: set2, atCount: .zero))
+        XCTAssertThrowsError(try session.show.makeSplitMove(into: preset, atCount: Rational(1)))
+        session.undo()
+        session.undo()
+        XCTAssertEqual(session.show.sets.map(\.label), ["1", "2"])
+    }
+
     func testCompoundUndoRedoRestoresEverythingTogether() throws {
         let session = try makeSession()
         let preset = session.show.sets[0].id

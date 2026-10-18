@@ -155,6 +155,51 @@ extension Show {
         return commands.count == 1 ? commands[0] : .batch("Change Move Counts", commands)
     }
 
+    /// Splits the move into a set with a subset that arrives `count` counts into it
+    /// (1 → 2 becomes 1 → 1A → 2). The subset's formation is where everyone is at
+    /// that count of the straight move, so playback is unchanged. Timing and
+    /// later sets stay where they are.
+    public func makeSplitMove(into setID: SetID, atCount count: Rational, label: String? = nil,
+                              newSetID: SetID = SetID()) throws -> DrillCommand {
+        guard let set = set(setID), let previous = previousSet(before: setID) else {
+            throw DrillError("The preset has no incoming move to split.")
+        }
+        let map = try timingMap(for: set.movementID)
+        let startPulse = try map.pulse(at: previous.cursor)
+        let total = try map.pulse(at: set.cursor) - startPulse
+        guard Rational.zero < count, count < total else {
+            throw DrillError("Split the move somewhere between count 0 and count \(total).")
+        }
+        let pulse = startPulse + count
+        let evaluated = try SceneEvaluator(show: self, movementID: set.movementID, map: map).evaluate(pulse: pulse.doubleValue)
+        var formation = Formation()
+        for performer in evaluated.performers {
+            switch performer.state {
+            case .placed: formation[performer.id] = .placed(Position(x: performer.x, y: performer.y, z: performer.z, facing: performer.facing))
+            case .unresolved: formation[performer.id] = .unresolved
+            case .inactive: formation[performer.id] = .inactive
+            }
+        }
+        let subset = ArrivalSet(id: newSetID, movementID: set.movementID, label: label ?? subsetLabel(after: previous),
+                                cursor: try map.cursor(atPulse: pulse), isSubset: true)
+        return .batch("Split Move", [.createSet(subset, transition: Transition(toSetID: subset.id), formation: formation)])
+    }
+
+    /// The first free lettered label after a set: "1" gives "1A", then "1B";
+    /// a subset such as "1A" gives "1B".
+    public func subsetLabel(after previous: ArrivalSet) -> String {
+        var root = previous.label
+        if previous.isSubset {
+            let stripped = String(root.reversed().drop(while: \.isLetter).reversed())
+            if !stripped.isEmpty { root = stripped }
+        }
+        let used = Set(sets(in: previous.movementID).map(\.label))
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" where !used.contains(root + String(letter)) {
+            return root + String(letter)
+        }
+        return nextSetLabel(in: previous.movementID)
+    }
+
     /// Moves performers by a world offset at one set (arrow-key nudge or drag commit).
     public func makeTranslate(_ ids: [PerformerID], at setID: SetID, by delta: Point2) throws -> DrillCommand {
         var placements: [PerformerID: Placement] = [:]
