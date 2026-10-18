@@ -171,6 +171,14 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertFalse(session.isDirty)
         session.redo()
         XCTAssertTrue(session.isDirty)
+
+        // A background save captures a state; edits made meanwhile stay unsaved.
+        let captured = session.currentStateID
+        try session.perform(.renameShow("Edited During Save"))
+        session.markSaved(state: captured)
+        XCTAssertTrue(session.isDirty)
+        session.undo()
+        XCTAssertFalse(session.isDirty)
     }
 
     func testExactCoordinateAndNudge() throws {

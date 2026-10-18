@@ -50,6 +50,13 @@ public final class DocumentSession {
 
     /// Records that the current state has been written to disk.
     public func markSaved() { savedStateID = stateID }
+
+    /// Identifies the current state, so a save that captured it can be matched later.
+    public var currentStateID: UUID { stateID }
+
+    /// Marks a captured state as saved. Edits made while a background save
+    /// was running keep the session dirty.
+    public func markSaved(state: UUID) { savedStateID = state }
     /// Marks the session as differing from disk (for example after crash recovery).
     public func markUnsaved() { savedStateID = UUID() }
 
