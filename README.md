@@ -64,6 +64,12 @@ xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configurat
 
 No signing identity is committed. Personal settings go in `apps/macos/Config/Local.xcconfig`, which git ignores (see the `.template`).
 
+Run `./scripts/bootstrap-macos.sh` again after pulling changes that add, remove or
+rename app source files, or change `apps/macos/project.yml`. The generated Xcode
+project is ignored by git, and `xcodebuild` does not regenerate it. A stale project
+can report “cannot find in scope” for types defined in newly added files. Regenerate
+the project, then run the same `xcodebuild` command above.
+
 ## Capabilities
 
 **Built and tested (portable core, Windows):**
