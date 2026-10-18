@@ -67,7 +67,7 @@ struct EditorToolbar: ToolbarContent {
                 }
             }
             .pickerStyle(.segmented)
-            .help("Select (V), Line (L), Arc (A). Select performers, then drag on the field with Line or Arc.")
+            .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3). Select performers, then drag on the field with Line or Arc.")
             .tourAnchor("toolbar.forms")
             .accessibilityIdentifier("toolbar.forms")
         }
