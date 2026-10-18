@@ -161,6 +161,46 @@ struct StepIndicator: View {
     }
 }
 
+/// Two choice cards for how sets relate to the music.
+struct CountingModePicker: View {
+    @Binding var mode: CountingMode
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Tokens.Space.m) {
+            card(.measures, systemImage: "music.note.list",
+                 detail: "Sets show the measure and beat from the timeline. Best when you write to the score.")
+            card(.counts, systemImage: "number",
+                 detail: "Sets are pages of counts. Meter changes don't matter; type measure numbers yourself, like 222-223.")
+        }
+    }
+
+    private func card(_ option: CountingMode, systemImage: String, detail: String) -> some View {
+        Button { mode = option } label: {
+            HStack(alignment: .top, spacing: Tokens.Space.s) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.fwAccent)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(option.displayName).font(.system(size: 13, weight: .semibold))
+                    Text(detail).font(.system(size: 11)).foregroundStyle(Color.fwSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: mode == option ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(mode == option ? Color.fwAccent : Color.primary.opacity(0.25))
+            }
+            .padding(Tokens.Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .fwCard(cornerRadius: 12, selected: mode == option)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(option.displayName). \(detail)")
+        .accessibilityAddTraits(mode == option ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 // MARK: Field pictures
 
 extension Field {

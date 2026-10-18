@@ -10,12 +10,13 @@ struct ProjectSettingsSheet: View {
     @State private var preset: Field.Preset = .highSchoolFootball
     @State private var length = 40.0
     @State private var width = 30.0
+    @State private var countingMode: CountingMode = .measures
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Project Settings").font(.system(size: 20, weight: .bold))
-                Text("Field for \(model.show.title)").foregroundStyle(Color.fwSecondary)
+                Text(model.show.title).foregroundStyle(Color.fwSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal, .top], Tokens.Space.xl)
@@ -23,6 +24,9 @@ struct ProjectSettingsSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Tokens.Space.l) {
+                    Text("Counting").font(.system(size: 13, weight: .semibold))
+                    CountingModePicker(mode: $countingMode)
+                    Text("Field").font(.system(size: 13, weight: .semibold))
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: Tokens.Space.m)], spacing: Tokens.Space.m) {
                         ForEach(Field.Preset.allCases, id: \.self) { option in
                             FieldPresetCard(field: field(for: option), title: option.displayName, isSelected: preset == option) {
@@ -60,7 +64,7 @@ struct ProjectSettingsSheet: View {
                     .keyboardShortcut(.cancelAction)
                     .fwSecondaryButton()
                 Button("Apply") {
-                    if candidate == model.show.field { model.keepField() } else { model.applyField(candidate) }
+                    apply()
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -77,6 +81,20 @@ struct ProjectSettingsSheet: View {
             preset = field.preset
             length = field.length
             width = field.width
+            countingMode = model.show.countingMode
+        }
+    }
+
+    /// Commits every changed setting as one undoable step.
+    private func apply() {
+        var commands: [DrillCommand] = []
+        if candidate != model.show.field { commands.append(.setField(candidate)) }
+        if countingMode != model.show.countingMode { commands.append(.setCountingMode(countingMode)) }
+        if candidate == model.show.field { model.keepField() }
+        if commands.count == 1 {
+            model.perform(commands[0])
+        } else if !commands.isEmpty {
+            model.perform(.batch("Change Project Settings", commands))
         }
     }
 

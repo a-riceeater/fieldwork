@@ -35,6 +35,7 @@ struct NewShowRequest {
     var audioURL: URL?
     var setCount = 1
     var countsPerSet = 16
+    var countingMode: CountingMode = .measures
 
     /// Builds the show through the same commands the editor uses.
     func build() throws -> Show {
@@ -45,6 +46,7 @@ struct NewShowRequest {
             RosterSectionRequest(name: draft.name, prefix: draft.prefix.isEmpty ? String(draft.name.prefix(1)) : draft.prefix, count: draft.count,
                                  symbol: PerformerSymbol.allCases[index % PerformerSymbol.allCases.count], colorIndex: index)
         }
+        if countingMode != .measures { try session.perform(.setCountingMode(countingMode)) }
         if !requests.isEmpty { try session.perform(try session.show.makeRoster(requests)) }
         var last = session.show.sets[0].id
         for _ in 1..<max(1, setCount) {
@@ -415,20 +417,25 @@ struct NewShowFlow: View {
     }
 
     private var musicStep: some View {
-        page("Music and counts", "Set the meter and tempo. Music is optional and can be added later.") {
+        page("Music and counts", "Choose how you count, then set the tempo. Music is optional and can be added later.") {
+            CountingModePicker(mode: $request.countingMode)
+                .padding(.horizontal, Tokens.Space.xl + Tokens.Space.xs)
+                .padding(.top, Tokens.Space.l)
             Form {
-                SwiftUI.Section("Meter and tempo") {
-                    LabeledContent("Meter") {
-                        HStack(spacing: Tokens.Space.s) {
-                            Stepper(value: $request.numerator, in: 1...15) {
-                                Text("\(request.numerator)").monospacedDigit()
+                SwiftUI.Section(request.countingMode == .counts ? "Tempo" : "Meter and tempo") {
+                    if request.countingMode == .measures {
+                        LabeledContent("Meter") {
+                            HStack(spacing: Tokens.Space.s) {
+                                Stepper(value: $request.numerator, in: 1...15) {
+                                    Text("\(request.numerator)").monospacedDigit()
+                                }
+                                Text("/").foregroundStyle(Color.fwSecondary)
+                                Picker("Note value", selection: $request.denominator) {
+                                    ForEach([2, 4, 8], id: \.self) { Text("\($0)").tag($0) }
+                                }
+                                .labelsHidden()
+                                .frame(width: 64)
                             }
-                            Text("/").foregroundStyle(Color.fwSecondary)
-                            Picker("Note value", selection: $request.denominator) {
-                                ForEach([2, 4, 8], id: \.self) { Text("\($0)").tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(width: 64)
                         }
                     }
                     LabeledContent("Tempo") {
@@ -441,9 +448,11 @@ struct NewShowFlow: View {
                             Text("BPM").foregroundStyle(Color.fwSecondary)
                         }
                     }
-                    LabeledContent("Length") {
-                        Stepper(value: $request.measures, in: 1...999) {
-                            Text("\(request.measures) measures").monospacedDigit()
+                    if request.countingMode == .measures {
+                        LabeledContent("Length") {
+                            Stepper(value: $request.measures, in: 1...999) {
+                                Text("\(request.measures) measures").monospacedDigit()
+                            }
                         }
                     }
                 }
@@ -457,7 +466,7 @@ struct NewShowFlow: View {
                             Text(request.audioURL?.lastPathComponent ?? "No music yet")
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            Text(request.audioURL == nil ? "Counts only. Add music any time." : "Copied into the show when it's created.")
+                            Text(request.audioURL == nil ? "Playback follows the tempo. Add music any time." : "Copied into the show when it's created.")
                                 .font(.caption)
                                 .foregroundStyle(Color.fwSecondary)
                         }
@@ -504,7 +513,8 @@ struct NewShowFlow: View {
                     LabeledContent("Field", value: Field.make(request.field).name)
                     LabeledContent("Performers", value: "\(performerTotal)")
                     LabeledContent("Total counts", value: "\(max(0, request.setCount - 1) * request.countsPerSet)")
-                    LabeledContent("Music", value: request.audioURL?.lastPathComponent ?? "Counts only")
+                    LabeledContent("Counting", value: request.countingMode.displayName)
+                    LabeledContent("Music", value: request.audioURL?.lastPathComponent ?? "None yet")
                 }
             }
             .formStyle(.grouped)
