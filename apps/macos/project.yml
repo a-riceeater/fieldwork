@@ -1,9 +1,11 @@
 # XcodeGen spec (authoritative). Generate the project before opening Xcode:
 #   xcodegen generate --spec apps/macos/project.yml
 # The generated Fieldwork.xcodeproj is ignored by git; edit this file instead.
-# Pinned tool: XcodeGen 2.42.0 (see scripts/bootstrap-macos.sh).
+# Pinned tool: XcodeGen 2.46.0 (see scripts/bootstrap-macos.sh).
 name: Fieldwork
 options:
+  minimumXcodeGenVersion: "2.46.0"
+  projectFormat: xcode16_0
   bundleIdPrefix: org.fieldwork
   deploymentTarget:
     macOS: "14.0"
@@ -25,6 +27,7 @@ targets:
     platform: macOS
     sources:
       - path: Fieldwork
+        type: syncedFolder
         excludes:
           - "Info.plist"
           - "Fieldwork.entitlements"
@@ -54,7 +57,8 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - FieldworkTests
+      - path: FieldworkTests
+        type: syncedFolder
     dependencies:
       - target: Fieldwork
     settings:

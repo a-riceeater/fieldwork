@@ -64,11 +64,11 @@ xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configurat
 
 No signing identity is committed. Personal settings go in `apps/macos/Config/Local.xcconfig`, which git ignores (see the `.template`).
 
-Run `./scripts/bootstrap-macos.sh` again after pulling changes that add, remove or
-rename app source files, or change `apps/macos/project.yml`. The generated Xcode
-project is ignored by git, and `xcodebuild` does not regenerate it. A stale project
-can report “cannot find in scope” for types defined in newly added files. Regenerate
-the project, then run the same `xcodebuild` command above.
+The bootstrap script pins XcodeGen 2.46.0 and generates [synchronized source folders](https://github.com/yonaskolb/XcodeGen/blob/2.46.0/Docs/ProjectSpec.md#target-source)
+(Xcode 16 or newer). New, removed and renamed files in `Fieldwork` and
+`FieldworkTests` are discovered automatically by `xcodebuild`. Run bootstrap again
+when `apps/macos/project.yml` changes, including once when upgrading from an older
+generated project. The generated project remains ignored by git.
 
 ## Capabilities
 

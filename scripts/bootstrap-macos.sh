@@ -2,7 +2,7 @@
 # Installs the pinned XcodeGen into ./.tools and generates the Xcode project.
 # The generated apps/macos/Fieldwork.xcodeproj is ignored by git.
 set -eu
-XCODEGEN_VERSION="2.42.0"
+XCODEGEN_VERSION="2.46.0"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 tools="$root/.tools"
 bin="$tools/xcodegen-$XCODEGEN_VERSION/bin/xcodegen"
