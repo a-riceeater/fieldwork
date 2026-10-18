@@ -55,6 +55,38 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertNoThrow(try session.show.makeSectionPrefix(saxes.id, prefix: "TS"))
     }
 
+    func testRehearsalMarksMeasureMarkersAndCountingMode() throws {
+        let session = try makeSession()
+        let second = SetID()
+        try session.perform(try session.show.makeCreateSet(after: session.show.sets[0].id, counts: 16, newSetID: second))
+        let map = try TimingMap(track: session.show.movements[0].timing, assetID: nil)
+        var set = try XCTUnwrap(session.show.set(second))
+        XCTAssertEqual(session.show.measureLabel(for: set, map: map), try map.musicalPosition(at: set.cursor).label)
+        XCTAssertEqual(session.show.cumulativeCount(of: set, map: map), Rational(16))
+
+        try session.perform(.updateSetMarkers(second, rehearsalMark: " CC ", measureMarker: "222-223"))
+        set = try XCTUnwrap(session.show.set(second))
+        XCTAssertEqual(set.rehearsalMark, "CC")
+        XCTAssertEqual(session.show.measureLabel(for: set, map: map), "m. 222-223")
+
+        try session.perform(.setCountingMode(.counts))
+        try session.perform(.updateSetMarkers(second, rehearsalMark: "CC", measureMarker: ""))
+        set = try XCTUnwrap(session.show.set(second))
+        XCTAssertEqual(session.show.measureLabel(for: set, map: map), "")
+        session.undo()
+        session.undo()
+        XCTAssertEqual(session.show.countingMode, .measures)
+        XCTAssertThrowsError(try session.perform(.updateSetMarkers(second, rehearsalMark: String(repeating: "A", count: 17), measureMarker: "")))
+
+        // JSON written before these fields existed still decodes.
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(session.show)) as! [String: Any]
+        json["countingMode"] = nil
+        json["sets"] = (json["sets"] as! [[String: Any]]).map { var s = $0; s["rehearsalMark"] = nil; s["measureMarker"] = nil; return s }
+        let old = try JSONDecoder().decode(Show.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(old.countingMode, .measures)
+        XCTAssertEqual(old.set(second)?.rehearsalMark, "")
+    }
+
     func testFormRetainsGeometryAndOrder() throws {
         let session = try makeSession()
         let preset = session.show.sets[0].id

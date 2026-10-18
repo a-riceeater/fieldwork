@@ -15,6 +15,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
     case createSet(ArrivalSet, transition: Transition, formation: Formation)
     case deleteSet(SetID)
     case updateSet(SetID, label: String, notes: String)
+    case updateSetMarkers(SetID, rehearsalMark: String, measureMarker: String)
     case moveSetCursors([SetID: TimelineCursor])
     case setPlacements(SetID, [PerformerID: Placement])
     case applyForm(Form)
@@ -25,6 +26,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
     case setMovementAudio(MovementID, MediaAssetID?)
     case addMediaAsset(MediaAssetInfo)
     case setAnalysisSettings(AnalysisSettings)
+    case setCountingMode(CountingMode)
     case batch(String, [DrillCommand])
 
     /// Undo/redo menu description.
@@ -41,6 +43,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .createSet: return "Add Set"
         case .deleteSet: return "Delete Set"
         case .updateSet: return "Edit Set"
+        case .updateSetMarkers: return "Edit Set Markers"
         case .moveSetCursors: return "Change Set Timing"
         case .setPlacements(_, let p): return p.count == 1 ? "Move Performer" : "Move \(p.count) Performers"
         case .applyForm(let f): return "Apply \(f.geometry.kindName)"
@@ -51,6 +54,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .setMovementAudio: return "Set Movement Audio"
         case .addMediaAsset: return "Import Audio"
         case .setAnalysisSettings: return "Change Warning Thresholds"
+        case .setCountingMode: return "Change Counting"
         case .batch(let name, _): return name
         }
     }
@@ -69,6 +73,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .createSet: return "createSet"
         case .deleteSet: return "deleteSet"
         case .updateSet: return "updateSet"
+        case .updateSetMarkers: return "updateSetMarkers"
         case .moveSetCursors: return "moveSetCursors"
         case .setPlacements: return "setPlacements"
         case .applyForm: return "applyForm"
@@ -79,6 +84,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .setMovementAudio: return "setMovementAudio"
         case .addMediaAsset: return "addMediaAsset"
         case .setAnalysisSettings: return "setAnalysisSettings"
+        case .setCountingMode: return "setCountingMode"
         case .batch: return "batch"
         }
     }
@@ -167,6 +173,13 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
             show.sets[i].label = label
             show.sets[i].notes = notes
 
+        case .updateSetMarkers(let id, let mark, let marker):
+            guard let i = show.sets.firstIndex(where: { $0.id == id }) else { throw DrillError("Unknown set.") }
+            let mark = mark.trimmingCharacters(in: .whitespaces), marker = marker.trimmingCharacters(in: .whitespaces)
+            guard mark.count <= 16, marker.count <= 32 else { throw DrillError("Rehearsal marks and measure markers must be short.") }
+            show.sets[i].rehearsalMark = mark
+            show.sets[i].measureMarker = marker
+
         case .moveSetCursors(let cursors):
             var movements = Set<MovementID>()
             for (id, cursor) in cursors {
@@ -235,6 +248,9 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .setAnalysisSettings(let settings):
             guard settings.maxStride > 0, settings.minClearance >= 0 else { throw DrillError("Thresholds must be positive.") }
             show.analysis = settings
+
+        case .setCountingMode(let mode):
+            show.countingMode = mode
 
         case .batch(_, let commands):
             guard !commands.isEmpty else { throw DrillError("Nothing to change.") }

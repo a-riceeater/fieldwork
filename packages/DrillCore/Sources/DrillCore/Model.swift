@@ -108,14 +108,49 @@ public struct ArrivalSet: Hashable, Codable, Sendable, Identifiable {
     public var cursor: TimelineCursor
     public var isSubset: Bool
     public var notes: String
+    /// Rehearsal mark that starts at this set, such as "A" or "CC". Empty for none.
+    public var rehearsalMark: String
+    /// Author-entered measure reference, such as "222-223". Empty for none;
+    /// in measures mode the computed position is shown instead.
+    public var measureMarker: String
 
-    public init(id: SetID = SetID(), movementID: MovementID, label: String, cursor: TimelineCursor, isSubset: Bool = false, notes: String = "") {
+    public init(id: SetID = SetID(), movementID: MovementID, label: String, cursor: TimelineCursor, isSubset: Bool = false, notes: String = "",
+                rehearsalMark: String = "", measureMarker: String = "") {
         self.id = id
         self.movementID = movementID
         self.label = label
         self.cursor = cursor
         self.isSubset = isSubset
         self.notes = notes
+        self.rehearsalMark = rehearsalMark
+        self.measureMarker = measureMarker
+    }
+
+    /// Accepts sets written before rehearsal marks and measure markers existed.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(SetID.self, forKey: .id)
+        movementID = try c.decode(MovementID.self, forKey: .movementID)
+        label = try c.decode(String.self, forKey: .label)
+        cursor = try c.decode(TimelineCursor.self, forKey: .cursor)
+        isSubset = try c.decode(Bool.self, forKey: .isSubset)
+        notes = try c.decode(String.self, forKey: .notes)
+        rehearsalMark = try c.decodeIfPresent(String.self, forKey: .rehearsalMark) ?? ""
+        measureMarker = try c.decodeIfPresent(String.self, forKey: .measureMarker) ?? ""
+    }
+}
+
+/// How sets relate to the music. In `measures` mode set positions are shown
+/// as measures and beats from the timeline; in `counts` mode sets are pages of
+/// counts and any measure numbers are markers the author types in.
+public enum CountingMode: String, Codable, Sendable, CaseIterable {
+    case measures, counts
+
+    public var displayName: String {
+        switch self {
+        case .measures: return "Follow measures"
+        case .counts: return "Counts only"
+        }
     }
 }
 
@@ -241,10 +276,12 @@ public struct Show: Hashable, Codable, Sendable {
     public var forms: [Form]
     public var mediaAssets: [MediaAssetInfo]
     public var analysis: AnalysisSettings
+    public var countingMode: CountingMode
 
     public init(id: ShowID = ShowID(), title: String, field: Field, sections: [Section] = [], performers: [Performer] = [],
                 movements: [Movement], sets: [ArrivalSet], formations: [SetID: Formation] = [:], transitions: [Transition] = [],
-                forms: [Form] = [], mediaAssets: [MediaAssetInfo] = [], analysis: AnalysisSettings = AnalysisSettings()) {
+                forms: [Form] = [], mediaAssets: [MediaAssetInfo] = [], analysis: AnalysisSettings = AnalysisSettings(),
+                countingMode: CountingMode = .measures) {
         self.id = id
         self.title = title
         self.field = field
@@ -257,6 +294,41 @@ public struct Show: Hashable, Codable, Sendable {
         self.forms = forms
         self.mediaAssets = mediaAssets
         self.analysis = analysis
+        self.countingMode = countingMode
+    }
+
+    /// Accepts shows written before the counting mode existed (they follow measures).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(ShowID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        field = try c.decode(Field.self, forKey: .field)
+        sections = try c.decode([Section].self, forKey: .sections)
+        performers = try c.decode([Performer].self, forKey: .performers)
+        movements = try c.decode([Movement].self, forKey: .movements)
+        sets = try c.decode([ArrivalSet].self, forKey: .sets)
+        formations = try c.decode([SetID: Formation].self, forKey: .formations)
+        transitions = try c.decode([Transition].self, forKey: .transitions)
+        forms = try c.decode([Form].self, forKey: .forms)
+        mediaAssets = try c.decode([MediaAssetInfo].self, forKey: .mediaAssets)
+        analysis = try c.decode(AnalysisSettings.self, forKey: .analysis)
+        countingMode = try c.decodeIfPresent(CountingMode.self, forKey: .countingMode) ?? .measures
+    }
+
+    /// The set's place in the music as shown in lists and printouts: the
+    /// author's measure marker when present, otherwise the computed measure and
+    /// beat in measures mode, or nothing in counts mode.
+    public func measureLabel(for set: ArrivalSet, map: TimingMap?) -> String {
+        let marker = set.measureMarker.trimmingCharacters(in: .whitespaces)
+        if !marker.isEmpty { return marker.first?.isNumber == true ? "m. \(marker)" : marker }
+        guard countingMode == .measures, let map else { return "" }
+        return (try? map.musicalPosition(at: set.cursor).label) ?? ""
+    }
+
+    /// Counts from the start of the movement to the set's arrival.
+    public func cumulativeCount(of set: ArrivalSet, map: TimingMap?) -> Rational? {
+        guard let map else { return nil }
+        return try? map.pulse(at: set.cursor)
     }
 
     /// A valid empty show: one movement with a counts-only 4/4 timeline and a preset.
