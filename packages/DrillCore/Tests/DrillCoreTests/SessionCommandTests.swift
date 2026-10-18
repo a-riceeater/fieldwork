@@ -21,6 +21,16 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertEqual(session.show.performers.last?.label, "T10")
     }
 
+    func testInstrumentPresetsHaveDistinctLettersAndIncludeGuard() {
+        let prefixes = InstrumentPreset.all.map(\.prefix)
+        XCTAssertEqual(Set(prefixes).count, prefixes.count)
+        XCTAssertEqual(InstrumentPreset.named("flute")?.prefix, "F")
+        XCTAssertEqual(InstrumentPreset.named(" Trumpet ")?.prefix, "T")
+        XCTAssertEqual(InstrumentPreset.named("Color Guard")?.family, .colorGuard)
+        XCTAssertNil(InstrumentPreset.named("Kazoo"))
+        XCTAssertTrue(InstrumentPreset.Family.allCases.allSatisfy { !InstrumentPreset.family($0).isEmpty })
+    }
+
     func testFormRetainsGeometryAndOrder() throws {
         let session = try makeSession()
         let preset = session.show.sets[0].id
