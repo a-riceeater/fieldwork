@@ -1,0 +1,3 @@
+// Copy to Local.xcconfig (ignored) for personal signing overrides.
+// DEVELOPMENT_TEAM = ABCDE12345
+// CODE_SIGN_IDENTITY = Apple Development

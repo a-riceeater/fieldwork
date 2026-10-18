@@ -1,0 +1,74 @@
+# XcodeGen spec (authoritative). Generate the project before opening Xcode:
+#   xcodegen generate --spec apps/macos/project.yml
+# The generated Fieldwork.xcodeproj is ignored by git; edit this file instead.
+# Pinned tool: XcodeGen 2.42.0 (see scripts/bootstrap-macos.sh).
+name: Fieldwork
+options:
+  bundleIdPrefix: org.fieldwork
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+packages:
+  DrillTiming:
+    path: ../../packages/DrillTiming
+  DrillCore:
+    path: ../../packages/DrillCore
+  DrillDocument:
+    path: ../../packages/DrillDocument
+targets:
+  Fieldwork:
+    type: application
+    platform: macOS
+    sources:
+      - path: Fieldwork
+        excludes:
+          - "Info.plist"
+          - "Fieldwork.entitlements"
+    dependencies:
+      - package: DrillTiming
+        product: DrillTiming
+      - package: DrillCore
+        product: DrillCore
+      - package: DrillCore
+        product: FieldworkTour
+      - package: DrillDocument
+        product: DrillDocument
+      - package: DrillDocument
+        product: DrillMedia
+      - package: DrillDocument
+        product: DrillExport
+      - sdk: AVFoundation.framework
+      - sdk: PDFKit.framework
+    settings:
+      base:
+        INFOPLIST_FILE: Fieldwork/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Fieldwork/Fieldwork.entitlements
+        SWIFT_VERSION: "5.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+  FieldworkTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - FieldworkTests
+    dependencies:
+      - target: Fieldwork
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Fieldwork.app/Contents/MacOS/Fieldwork
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Fieldwork:
+    build:
+      targets:
+        Fieldwork: all
+        FieldworkTests: [test]
+    test:
+      targets:
+        - FieldworkTests

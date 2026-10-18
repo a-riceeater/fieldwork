@@ -1,0 +1,12 @@
+// Shared build settings. Replace the namespace below to rename the product.
+FW_BUNDLE_NAMESPACE = org.fieldwork
+PRODUCT_NAME = Fieldwork
+PRODUCT_BUNDLE_IDENTIFIER = $(FW_BUNDLE_NAMESPACE).Fieldwork
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+MACOSX_DEPLOYMENT_TARGET = 14.0
+CODE_SIGN_STYLE = Automatic
+// No team is committed. Put DEVELOPMENT_TEAM in Local.xcconfig (ignored by git).
+CODE_SIGN_IDENTITY = -
+
+#include? "Local.xcconfig"
