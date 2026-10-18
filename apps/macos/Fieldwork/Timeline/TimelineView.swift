@@ -39,6 +39,7 @@ protocol TimelineDelegate: AnyObject {
     func timelineSelectSet(_ id: SetID)
     func timelineMoveAnchor(_ id: AnchorID, to seconds: Double)
     func timelineRemoveAnchor(_ id: AnchorID)
+    func timelineTogglePlay()
 }
 
 /// Lanes, top to bottom: seconds ruler, measures ruler, waveform, sync anchors,
@@ -112,6 +113,18 @@ final class TimelineCanvasView: NSView {
     }
 
     // MARK: Interaction
+
+    override func keyDown(with event: NSEvent) {
+        guard event.keyCode == 49,
+              event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
+            return super.keyDown(with: event)
+        }
+        if !event.isARepeat { delegate?.timelineTogglePlay() }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if event.keyCode != 49 { super.keyUp(with: event) }
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
@@ -336,6 +349,7 @@ struct TimelineLanes: NSViewRepresentable {
         func timelineSelectSet(_ id: SetID) { model.selectSet(id) }
         func timelineMoveAnchor(_ id: AnchorID, to seconds: Double) { model.moveAnchor(id, toSeconds: seconds) }
         func timelineRemoveAnchor(_ id: AnchorID) { model.removeAnchor(id) }
+        func timelineTogglePlay() { model.togglePlay() }
     }
 }
 

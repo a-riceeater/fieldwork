@@ -18,9 +18,10 @@ struct EditorView: View {
                 HSplitView {
                     NavigatorView(model: model)
                         .frame(minWidth: 180, idealWidth: Tokens.Layout.navigator, maxWidth: 320)
-                    ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .bottomLeading) {
                         FieldCanvas(model: model)
                             .tourAnchor("canvas.field")
+                        // The canvas draws its set/count caption at the top left.
                         CanvasToolCluster(model: model)
                             .padding(Tokens.Space.m)
                     }

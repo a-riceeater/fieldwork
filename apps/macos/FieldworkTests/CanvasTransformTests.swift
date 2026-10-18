@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import DrillCore
 import DrillTiming
 @testable import Fieldwork
@@ -6,6 +7,31 @@ import DrillTiming
 /// App-level tests for pure view logic. (Portable behavior is covered by the
 /// package test suites, which also run on Windows.)
 final class CanvasTransformTests: XCTestCase {
+    @MainActor
+    func testTimelineSpaceTogglesPlaybackOncePerPress() throws {
+        let session = try DocumentSession(show: try Show.makeNew(title: "Playback", measures: 4))
+        let model = EditorModel(session: session, assets: [:])
+        defer { model.pause() }
+        let coordinator = TimelineLanes.Coordinator(model: model)
+        let timeline = TimelineCanvasView(frame: .zero)
+        timeline.delegate = coordinator
+        func space(_ type: NSEvent.EventType, repeating: Bool = false) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [],
+                                          timestamp: 0, windowNumber: 0, context: nil,
+                                          characters: " ", charactersIgnoringModifiers: " ",
+                                          isARepeat: repeating, keyCode: 49))
+        }
+
+        timeline.keyDown(with: try space(.keyDown))
+        XCTAssertTrue(model.isPlaying)
+        timeline.keyDown(with: try space(.keyDown, repeating: true))
+        XCTAssertTrue(model.isPlaying)
+        timeline.keyUp(with: try space(.keyUp))
+        XCTAssertTrue(model.isPlaying)
+        timeline.keyDown(with: try space(.keyDown))
+        XCTAssertFalse(model.isPlaying)
+    }
+
     @MainActor
     func testWholeCountsSettingControlsPauseSnappingAndPersists() throws {
         let suite = "FieldworkTests.\(UUID().uuidString)"
