@@ -60,7 +60,9 @@ public enum CoordinateSheet {
                 side = "Inactive"
                 front = "-"
             }
-            rows.append(CoordinateRow(setLabel: set.label, counts: counts, measure: try map.musicalPosition(at: set.cursor).label,
+            let measure = show.measureLabel(for: set, map: map)
+            rows.append(CoordinateRow(setLabel: set.rehearsalMark.isEmpty ? set.label : "\(set.label) (\(set.rehearsalMark))", counts: counts,
+                                      measure: measure.isEmpty ? "-" : measure,
                                       time: time, sideToSide: side, frontToBack: front))
         }
         return rows
@@ -77,7 +79,7 @@ public enum CoordinateSheet {
 
         let pdf = PDFWriter()
         let margin = 48.0
-        let columns: [(String, Double)] = [("Set", 40), ("Counts", 50), ("Music", 72), ("Time", 66), ("Side to side", 146), ("Front to back", 142)]
+        let columns: [(String, Double)] = [("Set", 54), ("Counts", 44), ("Music", 74), ("Time", 60), ("Side to side", 144), ("Front to back", 140)]
         let rowHeight = 17.0
         let stepNote = "Step size \(TimeFormat.decimal(show.field.stepSize, places: 4)) m (\(TimeFormat.decimal(5 * Field.yard / show.field.stepSize, places: 1)) to 5) · rounded to \(TimeFormat.decimal(options.rounding, places: 2)) step"
 
@@ -142,12 +144,13 @@ public enum CoordinateSheet {
     static func drawChart(_ pdf: PDFWriter, show: Show, set: ArrivalSet, map: TimingMap, margin: Double, includeIDs: Set<PerformerID>) {
         let field = show.field
         let counts = (try? show.moveCounts(into: set.id)).map { $0.isZero ? "Preset" : "\(TimeFormat.decimal($0.doubleValue, places: $0.isInteger ? 0 : 2)) counts" } ?? ""
-        let music = (try? map.musicalPosition(at: set.cursor).label) ?? ""
+        let music = show.measureLabel(for: set, map: map)
+        let count = show.cumulativeCount(of: set, map: map).map { "count \(TimeFormat.decimal($0.doubleValue, places: $0.isInteger ? 0 : 2))" } ?? ""
         pdf.setFill(.black)
         pdf.text(show.title, x: margin, baseline: margin + 4, size: 10)
-        pdf.text("Set \(set.label)", x: margin, baseline: margin + 30, size: 20, font: .bold)
+        pdf.text(set.rehearsalMark.isEmpty ? "Set \(set.label)" : "Set \(set.label) · \(set.rehearsalMark)", x: margin, baseline: margin + 30, size: 20, font: .bold)
         pdf.setFill(.gray)
-        pdf.text("\(music) · \(counts)", x: margin, baseline: margin + 48, size: 9)
+        pdf.text([music, count, counts].filter { !$0.isEmpty }.joined(separator: " · "), x: margin, baseline: margin + 48, size: 9)
 
         let width = pdf.pageWidth - 2 * margin
         let scale = width / field.length

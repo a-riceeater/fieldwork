@@ -128,6 +128,31 @@ final class ContainerTests: XCTestCase {
         XCTAssertThrowsError(try ShowDatabase.migrate(newer)) { XCTAssertEqual($0 as? DocumentError, .newerSchema(9)) }
     }
 
+    func testCountingModeAndSetMarkersRoundTripAndMigrateFromSchema1() throws {
+        var show = try SampleShow.make()
+        show.countingMode = .counts
+        show.sets[1].rehearsalMark = "CC"
+        show.sets[1].measureMarker = "222-223"
+        let reopened = try ShowDatabase.decode(try ShowDatabase.encode(show, writer: "test"))
+        XCTAssertEqual(reopened, show)
+
+        // Rebuild a schema 1 database by removing the schema 2 columns, then open it.
+        let base = try SampleShow.make()
+        let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
+        try db.execute("""
+        ALTER TABLE show DROP COLUMN counting_mode;
+        ALTER TABLE arrival_set DROP COLUMN rehearsal_mark;
+        ALTER TABLE arrival_set DROP COLUMN measure_marker;
+        """)
+        try db.setUserVersion(1)
+        try ShowDatabase.migrate(db)
+        XCTAssertEqual(db.userVersion, 2)
+        let migrated = try ShowDatabase.read(db)
+        XCTAssertEqual(migrated.countingMode, .measures)
+        XCTAssertTrue(migrated.sets.allSatisfy { $0.rehearsalMark.isEmpty && $0.measureMarker.isEmpty })
+        XCTAssertEqual(migrated, base)
+    }
+
     func testFileSaveKeepsPreviousVersionAndFailedSaveChangesNothing() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fw-save-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

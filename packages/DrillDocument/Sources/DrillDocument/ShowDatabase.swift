@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -47,9 +47,16 @@ enum ShowDatabase {
         performer_id TEXT NOT NULL REFERENCES performer(id), PRIMARY KEY (form_id, ordinal));
     """
 
+    /// Schema 2: counting mode on the show, rehearsal mark and measure marker on sets.
+    static let schemaV2Changes = """
+    ALTER TABLE show ADD COLUMN counting_mode TEXT NOT NULL DEFAULT 'measures' CHECK (counting_mode IN ('measures','counts'));
+    ALTER TABLE arrival_set ADD COLUMN rehearsal_mark TEXT NOT NULL DEFAULT '';
+    ALTER TABLE arrival_set ADD COLUMN measure_marker TEXT NOT NULL DEFAULT '';
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
-    static let migrations: [Int: Migration] = [:]
+    static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -71,12 +78,13 @@ enum ShowDatabase {
         let db = try SQLiteDatabase()
         try db.transaction {
             try db.execute(schemaV1)
+            try db.execute(schemaV2Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])
             try meta.run([.text("units"), .text("meters")])
-            try db.prepare("INSERT INTO show VALUES (?, ?, ?, ?)").run([.text(show.id.description), .text(show.title),
-                                                                         .double(show.analysis.maxStride), .double(show.analysis.minClearance)])
+            try db.prepare("INSERT INTO show (id, title, max_stride, min_clearance, counting_mode) VALUES (?, ?, ?, ?, ?)").run([.text(show.id.description), .text(show.title),
+                                                                         .double(show.analysis.maxStride), .double(show.analysis.minClearance), .text(show.countingMode.rawValue)])
             let f = show.field
             let sideLabels = String(data: try JSONEncoder().encode(f.sideLabels), encoding: .utf8)!
             try db.prepare("INSERT INTO field VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)").run([
@@ -121,10 +129,11 @@ enum ShowDatabase {
                                     .int(a.cursor.fraction.denominator), .text(a.assetID.description), .int(a.sampleFrame), .double(a.sampleRate), .bool(a.locked)])
                 }
             }
-            let set = try db.prepare("INSERT INTO arrival_set VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            let set = try db.prepare("INSERT INTO arrival_set VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             for (i, s) in show.sets.enumerated() {
                 try set.run([.text(s.id.description), .text(s.movementID.description), .int(i), .text(s.label), .text(s.cursor.eventID.description),
-                             .int(s.cursor.fraction.numerator), .int(s.cursor.fraction.denominator), .bool(s.isSubset), .text(s.notes)])
+                             .int(s.cursor.fraction.numerator), .int(s.cursor.fraction.denominator), .bool(s.isSubset), .text(s.notes),
+                             .text(s.rehearsalMark), .text(s.measureMarker)])
             }
             let transition = try db.prepare("INSERT INTO transition VALUES (?, ?, ?)")
             for t in show.transitions { try transition.run([.text(t.id.description), .text(t.toSetID.description), .text(t.model.rawValue)]) }
@@ -178,11 +187,12 @@ enum ShowDatabase {
     }
 
     static func read(_ db: SQLiteDatabase) throws -> Show {
-        let showRow = try db.prepare("SELECT id, title, max_stride, min_clearance FROM show")
+        let showRow = try db.prepare("SELECT id, title, max_stride, min_clearance, counting_mode FROM show")
         guard try showRow.step() else { throw DocumentError.corrupt("The show record is missing.") }
         let showID = try id(showRow.text(0), ShowID.self)
         let title = showRow.text(1)
         let analysis = AnalysisSettings(maxStride: showRow.double(2), minClearance: showRow.double(3))
+        guard let countingMode = CountingMode(rawValue: showRow.text(4)) else { throw DocumentError.corrupt("Unknown counting mode.") }
 
         let fieldRow = try db.prepare("SELECT name, preset, length, width, step_size, side_labels, front_label, back_label FROM field")
         guard try fieldRow.step() else { throw DocumentError.corrupt("The field record is missing.") }
@@ -259,11 +269,11 @@ enum ShowDatabase {
         }
 
         var sets: [ArrivalSet] = []
-        let set = try db.prepare("SELECT id, movement_id, label, event_id, fraction_num, fraction_den, is_subset, notes FROM arrival_set ORDER BY ordinal")
+        let set = try db.prepare("SELECT id, movement_id, label, event_id, fraction_num, fraction_den, is_subset, notes, rehearsal_mark, measure_marker FROM arrival_set ORDER BY ordinal")
         while try set.step() {
             sets.append(ArrivalSet(id: try id(set.text(0), SetID.self), movementID: try id(set.text(1), MovementID.self), label: set.text(2),
                                    cursor: TimelineCursor(eventID: try id(set.text(3), EventID.self), fraction: try rational(set.int64(4), set.int64(5))),
-                                   isSubset: set.int(6) != 0, notes: set.text(7)))
+                                   isSubset: set.int(6) != 0, notes: set.text(7), rehearsalMark: set.text(8), measureMarker: set.text(9)))
         }
         var transitions: [Transition] = []
         let transition = try db.prepare("SELECT id, to_set_id, model FROM transition ORDER BY rowid")
@@ -300,7 +310,7 @@ enum ShowDatabase {
         }
 
         let show = Show(id: showID, title: title, field: field, sections: sections, performers: performers, movements: movements, sets: sets,
-                        formations: formations, transitions: transitions, forms: forms, mediaAssets: assets, analysis: analysis)
+                        formations: formations, transitions: transitions, forms: forms, mediaAssets: assets, analysis: analysis, countingMode: countingMode)
         do { try show.validate() } catch { throw DocumentError.corrupt("The show data is inconsistent: \(error)") }
         return show
     }
