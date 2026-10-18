@@ -59,6 +59,8 @@ targets:
       - target: Fieldwork
     settings:
       base:
+        PRODUCT_NAME: $(TARGET_NAME)
+        PRODUCT_BUNDLE_IDENTIFIER: $(FW_BUNDLE_NAMESPACE).FieldworkTests
         SWIFT_VERSION: "5.0"
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Fieldwork.app/Contents/MacOS/Fieldwork

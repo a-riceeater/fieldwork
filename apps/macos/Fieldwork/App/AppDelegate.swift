@@ -6,6 +6,7 @@ import DrillDocument
 /// AppKit lifecycle so NSDocument owns document windows and saving. SwiftUI
 /// provides the content of every window.
 @main
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static var retained: AppDelegate?
     private var welcomeWindow: NSWindow?

@@ -29,7 +29,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
 
     @MainActor @objc func undo(_ sender: Any?) { model.undo() }
     @MainActor @objc func redo(_ sender: Any?) { model.redo() }
-    @MainActor @objc func selectAll(_ sender: Any?) { model.selectAll() }
+    @MainActor @objc override func selectAll(_ sender: Any?) { model.selectAll() }
     @MainActor @objc func deselectAll(_ sender: Any?) { model.selection = [] }
 
     // MARK: Set
