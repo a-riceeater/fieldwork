@@ -8,6 +8,10 @@ import DrillDocument
 /// (temporary file + atomic replace) save using bytes from `DocumentCodec`.
 /// A separate recovery journal (not the document file) records every
 /// committed command so a crash loses nothing.
+///
+/// The Objective-C name is fixed so Info.plist's `NSDocumentClass` can name it
+/// as plain `FieldworkDocument`; the two must match or macOS refuses to open
+/// `.fieldwork` files and Save As loses its file type.
 @objc(FieldworkDocument)
 final class FieldworkDocument: NSDocument {
     private(set) var model: EditorModel?

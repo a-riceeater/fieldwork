@@ -40,7 +40,7 @@
 				<string>$(FW_BUNDLE_NAMESPACE).show</string>
 			</array>
 			<key>NSDocumentClass</key>
-			<string>$(PRODUCT_MODULE_NAME).FieldworkDocument</string>
+			<string>FieldworkDocument</string>
 		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
