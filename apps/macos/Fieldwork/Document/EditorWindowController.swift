@@ -37,6 +37,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func addSet16(_ sender: Any?) { model.addSet(counts: 16) }
     @MainActor @objc func addSet8(_ sender: Any?) { model.addSet(counts: 8) }
     @MainActor @objc func deleteSet(_ sender: Any?) { model.deleteCurrentSet() }
+    @MainActor @objc func splitMoveAtPlayhead(_ sender: Any?) { model.splitMoveAtPlayhead() }
     @MainActor @objc func previousSet(_ sender: Any?) { model.stepSet(-1) }
     @MainActor @objc func nextSet(_ sender: Any?) { model.stepSet(1) }
     @MainActor @objc func addSection(_ sender: Any?) { model.showAddSection = true }
@@ -95,6 +96,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(toolArc(_:)): menuItem.state = model.tool == .arc ? .on : .off; return true
         case #selector(deleteSet(_:)):
             return model.show.previousSet(before: model.currentSetID) != nil && model.isEditable
+        case #selector(splitMoveAtPlayhead(_:)):
+            menuItem.title = model.playheadSplit.map { "Split Move at Count \($0.count)" } ?? "Split Move at Playhead"
+            return model.playheadSplit != nil && model.readOnlyReason == nil
         case #selector(placeUnplaced(_:)):
             return model.isEditable && model.unplacedCount > 0
         case #selector(arrangeLine(_:)), #selector(arrangeArc(_:)), #selector(arrangeBlock(_:)), #selector(arrangeCircle(_:)):

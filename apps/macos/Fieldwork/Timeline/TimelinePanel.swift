@@ -65,6 +65,11 @@ struct TimelinePanel: View {
                 .accessibilityIdentifier("transport.play")
             Button { model.stepSet(1) } label: { Image(systemName: "forward.end.fill") }
                 .help("Next set").accessibilityLabel("Next set")
+            Button { model.splitMoveAtPlayhead() } label: { Image(systemName: "scissors") }
+                .help(model.playheadSplit.map { "Split this move at count \($0.count), adding a subset" }
+                      ?? "Pause between two sets to split the move there")
+                .accessibilityLabel("Split move at playhead")
+                .disabled(model.playheadSplit == nil || model.readOnlyReason != nil)
             Picker("Rate", selection: $model.playbackRate) {
                 Text("0.5×").tag(0.5)
                 Text("0.75×").tag(0.75)

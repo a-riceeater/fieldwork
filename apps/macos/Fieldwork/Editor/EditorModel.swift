@@ -260,6 +260,35 @@ final class EditorModel: ObservableObject {
         perform { try self.show.makeSetMoveCounts(self.currentSetID, counts: counts) }
     }
 
+    /// Splits the move into `setID` with a subset `count` counts in, then shows the subset.
+    func splitMove(into setID: SetID, atCount count: Int) {
+        let id = SetID()
+        perform { try self.show.makeSplitMove(into: setID, atCount: Rational(count), newSetID: id) }
+        guard let subset = show.set(id) else { return }
+        selectSet(id)
+        statusMessage = "Added subset \(subset.label) at count \(count) of the move."
+    }
+
+    /// The move the playhead is inside and the whole count it rests nearest, when between sets.
+    var playheadSplit: (setID: SetID, count: Int)? {
+        guard isBetweenSets, !isPlaying, let evaluator else { return nil }
+        let pulse = currentPulse
+        let k = evaluator.setIndex(atPulse: pulse)
+        guard k + 1 < evaluator.sets.count else { return nil }
+        let count = Int((pulse - evaluator.pulses[k]).rounded())
+        guard count > 0, Double(count) < evaluator.pulses[k + 1] - evaluator.pulses[k] else { return nil }
+        return (evaluator.sets[k + 1].id, count)
+    }
+
+    /// Splits the move under the playhead at the nearest whole count.
+    func splitMoveAtPlayhead() {
+        guard let split = playheadSplit else {
+            report(DrillError("Pause the playhead inside a move, between two sets, to split it there."))
+            return
+        }
+        splitMove(into: split.setID, atCount: split.count)
+    }
+
     func renameCurrentSet(_ label: String) {
         guard let set = currentSet, set.label != label else { return }
         perform(.updateSet(set.id, label: label, notes: set.notes))

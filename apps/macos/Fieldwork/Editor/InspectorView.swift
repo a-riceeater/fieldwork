@@ -130,6 +130,9 @@ struct SetInspector: View {
                     let counts = (try? model.show.moveCounts(into: set.id)) ?? .zero
                     NumberField(label: "Move counts", value: counts.doubleValue, places: 0) { model.setMoveCounts(Int($0.rounded())) }
                     Text("Later sets shift so their moves keep their lengths.").font(.caption).foregroundStyle(Color.fwSecondary)
+                    if counts.isInteger, counts.numerator > 1 {
+                        SplitMoveControl(model: model, setID: set.id, total: Int(counts.numerator))
+                    }
                 } else {
                     Text("Preset · count 0").foregroundStyle(Color.fwSecondary)
                 }
@@ -154,6 +157,42 @@ struct SetInspector: View {
 
     private func saveMarkers() {
         model.setCurrentSetMarkers(rehearsalMark: mark.trimmingCharacters(in: .whitespaces), measureMarker: marker.trimmingCharacters(in: .whitespaces))
+    }
+}
+
+/// Splits the move into a set with a subset at a chosen count (1 → 2 becomes 1 → 1A → 2).
+struct SplitMoveControl: View {
+    @ObservedObject var model: EditorModel
+    var setID: SetID
+    var total: Int
+    @State private var count = 0
+
+    var body: some View {
+        HStack(spacing: Tokens.Space.s) {
+            Stepper(value: $count, in: 1...(total - 1)) {
+                Text("Split at count \(count)").monospacedDigit()
+            }
+            Spacer()
+            Menu("Split") {
+                Button("At Count \(count)") { model.splitMove(into: setID, atCount: count) }
+                Divider()
+                preset("Quarter", total / 4)
+                preset("Halfway", total / 2)
+                preset("Three Quarters", total * 3 / 4)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Add a subset partway through this move. Its positions come from the move itself.")
+        }
+        .disabled(model.readOnlyReason != nil || model.isPlaying)
+        .onAppear { count = max(total / 2, 1) }
+        .onChange(of: total) { _, newValue in count = max(newValue / 2, 1) }
+        .onChange(of: setID) { _, _ in count = max(total / 2, 1) }
+    }
+
+    private func preset(_ name: String, _ count: Int) -> some View {
+        let at = min(max(count, 1), total - 1)
+        return Button("\(name) · Count \(at)") { model.splitMove(into: setID, atCount: at) }
     }
 }
 
