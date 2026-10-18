@@ -2,8 +2,9 @@ import SwiftUI
 import DrillTiming
 import DrillCore
 
-/// Context-sensitive inspector: show/field/set/timing settings when nothing is
-/// selected; exact coordinates for one performer; group operations for several.
+/// Context-sensitive inspector: set/timing settings when nothing is selected;
+/// exact coordinates for one performer; group operations for several. Field
+/// settings live in the Project Settings sheet.
 struct InspectorView: View {
     @ObservedObject var model: EditorModel
 
@@ -13,7 +14,6 @@ struct InspectorView: View {
                 switch model.selection.count {
                 case 0:
                     SetInspector(model: model)
-                    FieldInspector(model: model)
                     TimingInspector(model: model)
                     IssuesInspector(model: model)
                 case 1:
@@ -104,38 +104,6 @@ struct SetInspector: View {
                 }
             }
         }
-    }
-}
-
-struct FieldInspector: View {
-    @ObservedObject var model: EditorModel
-    @State private var preset: Field.Preset = .highSchoolFootball
-    @State private var length = 40.0
-    @State private var width = 30.0
-
-    var body: some View {
-        InspectorSection(title: "Field") {
-            Text(model.show.field.name).foregroundStyle(Color.fwSecondary)
-            Picker("Preset", selection: $preset) {
-                ForEach(Field.Preset.allCases, id: \.self) { Text($0.displayName).tag($0) }
-            }
-            .tourAnchor("field.selector")
-            .accessibilityIdentifier("field.selector")
-            if preset == .custom {
-                NumberField(label: "Length (m)", value: length, places: 2) { length = $0 }
-                NumberField(label: "Width (m)", value: width, places: 2) { width = $0 }
-            }
-            HStack {
-                Button("Apply") {
-                    let field = preset == .custom ? Field.custom(length: length, width: width, stepSize: model.show.field.stepSize) : Field.make(preset)
-                    model.applyField(field)
-                }
-                Button("Keep Current") { model.keepField() }
-            }
-            Text("Step size \(TimeFormat.decimal(model.show.field.stepSize, places: 4)) m · \(TimeFormat.decimal(5 * Field.yard / model.show.field.stepSize, places: 1)) to 5")
-                .font(.caption).foregroundStyle(Color.fwSecondary)
-        }
-        .onAppear { preset = model.show.field.preset }
     }
 }
 

@@ -40,6 +40,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func previousSet(_ sender: Any?) { model.stepSet(-1) }
     @MainActor @objc func nextSet(_ sender: Any?) { model.stepSet(1) }
     @MainActor @objc func addSection(_ sender: Any?) { model.showAddSection = true }
+    @MainActor @objc func projectSettings(_ sender: Any?) { model.showProjectSettings = true }
 
     // MARK: Tools and view
 

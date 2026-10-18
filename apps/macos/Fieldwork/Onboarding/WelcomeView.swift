@@ -181,7 +181,7 @@ struct NewShowFlow: View {
                 ForEach(Field.Preset.allCases.filter { $0 != .custom }, id: \.self) { Text($0.displayName).tag($0) }
             }
             .pickerStyle(.radioGroup)
-            Text("Custom dimensions, hashes and step size can be edited in the inspector.").font(.caption).foregroundStyle(Color.fwSecondary)
+            Text("Custom dimensions can be set later in File › Project Settings….").font(.caption).foregroundStyle(Color.fwSecondary)
         }
     }
 

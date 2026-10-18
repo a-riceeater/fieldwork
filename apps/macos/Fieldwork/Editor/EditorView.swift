@@ -42,6 +42,7 @@ struct EditorView: View {
         .sheet(item: $model.conflict) { pending in ConflictSheet(pending: pending) }
         .sheet(isPresented: $model.showExport) { ExportSheet(model: model) }
         .sheet(isPresented: $model.showAddSection) { AddSectionSheet(model: model) }
+        .sheet(isPresented: $model.showProjectSettings) { ProjectSettingsSheet(model: model) }
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
         }

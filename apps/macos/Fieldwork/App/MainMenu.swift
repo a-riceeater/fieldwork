@@ -33,6 +33,8 @@ enum MainMenu {
             item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]),
             item("Revert to Saved", #selector(NSDocument.revertToSaved(_:))),
             .separator(),
+            item("Project Settings…", #selector(EditorWindowController.projectSettings(_:)), ",", [.command, .option]),
+            .separator(),
             item("Import Audio…", #selector(EditorWindowController.importAudio(_:)), "i", [.command, .shift]),
             item("Export Coordinates…", #selector(EditorWindowController.exportCoordinates(_:)), "e", [.command, .shift]),
         ]))

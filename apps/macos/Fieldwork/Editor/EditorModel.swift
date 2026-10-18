@@ -77,6 +77,7 @@ final class EditorModel: ObservableObject {
     @Published var tour: Tour
     @Published var showExport = false
     @Published var showAddSection = false
+    @Published var showProjectSettings = false
     @Published private(set) var peaks: WaveformPeaks?
     @Published private(set) var audioStatus = "No audio"
     @Published var readOnlyReason: String?

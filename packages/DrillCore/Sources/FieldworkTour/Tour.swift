@@ -114,7 +114,7 @@ public struct Tour: Sendable {
                  requirements: [["addPerformers"]], fallback: "Open the Roster tab and choose Add Section."),
         TourStep(id: "field", targetID: "field.selector", title: "Choose a field",
                  body: "Pick a field preset or keep the current one.",
-                 requirements: [["setField", TourEvent.fieldKept]], fallback: "Field settings are in the inspector when nothing is selected."),
+                 requirements: [["setField", TourEvent.fieldKept]], fallback: "Open File › Project Settings… (Option-Command-Comma) and choose Apply."),
         TourStep(id: "audio", targetID: "timeline.importAudio", title: "Add music",
                  body: "Import a WAV or MP3, or continue with counts only.",
                  requirements: [["addMediaAsset", TourEvent.countsOnly]], fallback: "Use File → Import Audio, or choose Counts Only in the timeline."),
