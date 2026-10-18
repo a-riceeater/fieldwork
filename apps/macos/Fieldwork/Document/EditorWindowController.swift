@@ -41,6 +41,11 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func nextSet(_ sender: Any?) { model.stepSet(1) }
     @MainActor @objc func addSection(_ sender: Any?) { model.showAddSection = true }
     @MainActor @objc func projectSettings(_ sender: Any?) { model.showProjectSettings = true }
+    @MainActor @objc func placeUnplaced(_ sender: Any?) { model.placeUnplaced() }
+    @MainActor @objc func arrangeLine(_ sender: Any?) { model.placeSelection(in: .line) }
+    @MainActor @objc func arrangeArc(_ sender: Any?) { model.placeSelection(in: .arc) }
+    @MainActor @objc func arrangeBlock(_ sender: Any?) { model.placeSelection(in: .block) }
+    @MainActor @objc func arrangeCircle(_ sender: Any?) { model.placeSelection(in: .circle) }
 
     // MARK: Tools and view
 
@@ -90,6 +95,10 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(toolArc(_:)): menuItem.state = model.tool == .arc ? .on : .off; return true
         case #selector(deleteSet(_:)):
             return model.show.previousSet(before: model.currentSetID) != nil && model.isEditable
+        case #selector(placeUnplaced(_:)):
+            return model.isEditable && model.unplacedCount > 0
+        case #selector(arrangeLine(_:)), #selector(arrangeArc(_:)), #selector(arrangeBlock(_:)), #selector(arrangeCircle(_:)):
+            return model.isEditable && !model.selection.isEmpty
         case #selector(addSet16(_:)), #selector(addSet8(_:)), #selector(addSection(_:)), #selector(importAudio(_:)):
             return model.readOnlyReason == nil
         default:

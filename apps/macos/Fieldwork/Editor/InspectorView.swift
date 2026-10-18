@@ -137,6 +137,9 @@ struct SetInspector: View {
                 if unresolved > 0 {
                     Label("\(unresolved) without a position", systemImage: "questionmark.circle")
                         .foregroundStyle(Color.fwWarning)
+                    Button("Place All on the Field") { model.placeUnplaced() }
+                        .disabled(!model.isEditable)
+                        .help("Put everyone without a position into blocks by section")
                 }
             }
         }
@@ -319,7 +322,12 @@ struct GroupInspector: View {
             if points.count < model.selection.count {
                 Label("\(model.selection.count - points.count) without a position", systemImage: "questionmark.circle").foregroundStyle(Color.fwWarning)
             }
-            Text("Choose Line or Arc in the toolbar, then drag on the field to place the selection in order.")
+            Text("Arrange").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.fwSecondary)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: Tokens.Space.xs) {
+                ArrangeButtons(model: model)
+            }
+            .disabled(!model.isEditable)
+            Text("Shapes are placed in label order where the selection is (or at midfield). To draw one yourself, choose Line or Arc in the toolbar and drag on the field.")
                 .font(.caption).foregroundStyle(Color.fwSecondary)
         }
     }

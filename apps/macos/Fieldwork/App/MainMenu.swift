@@ -56,6 +56,13 @@ enum MainMenu {
             item("Arc Tool", #selector(EditorWindowController.toolArc(_:)), "3", [.command, .option]),
             .separator(),
             item("Add Section…", #selector(EditorWindowController.addSection(_:)), "k", [.command, .shift]),
+            item("Place All Unplaced Performers", #selector(EditorWindowController.placeUnplaced(_:))),
+            submenu("Arrange Selection", [
+                item("Line", #selector(EditorWindowController.arrangeLine(_:))),
+                item("Arc", #selector(EditorWindowController.arrangeArc(_:))),
+                item("Block", #selector(EditorWindowController.arrangeBlock(_:))),
+                item("Circle", #selector(EditorWindowController.arrangeCircle(_:))),
+            ]),
             item("Add 16-Count Set", #selector(EditorWindowController.addSet16(_:)), "\r", [.command]),
             item("Add 8-Count Set", #selector(EditorWindowController.addSet8(_:)), "\r", [.command, .option]),
             item("Delete Set", #selector(EditorWindowController.deleteSet(_:)), "\u{8}", [.command, .shift]),

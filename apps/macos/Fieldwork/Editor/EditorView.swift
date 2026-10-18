@@ -25,6 +25,8 @@ struct EditorView: View {
                         CanvasToolCluster(model: model)
                             .padding(Tokens.Space.m)
                     }
+                    .overlay(alignment: .top) { UnplacedBanner(model: model) }
+                    .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
                     .frame(minWidth: 420, maxWidth: .infinity)
                     InspectorView(model: model)
                         .frame(minWidth: 240, idealWidth: Tokens.Layout.inspector, maxWidth: 360)

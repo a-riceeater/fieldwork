@@ -62,6 +62,8 @@ final class EditorModel: ObservableObject {
     @Published var tool: EditorTool = .select
     @Published var snapEnabled = true
     @Published var snapSteps: Double = 1
+    /// Interval between neighbors for quick shapes and Place All, in steps.
+    @Published var shapeSpacingSteps: Double = 2
     @Published var axisLock: AxisLock = .none
     @Published var playheadSeconds: Double = 0
     /// True while the canvas shows an interpolated frame between sets.
@@ -309,6 +311,32 @@ final class EditorModel: ObservableObject {
         }
         let members = show.sequentialOrder(Array(selection))
         perform { try self.show.makeForm(geometry, members: members, at: self.currentSetID) }
+        // Back to Select so the next click picks performers instead of drawing again.
+        tool = .select
+    }
+
+    /// Performers without a position on the current set.
+    var unplacedCount: Int {
+        let formation = show.formation(currentSetID)
+        return show.performers.filter { formation[$0.id] == .unresolved }.count
+    }
+
+    func placeSelection(in shape: QuickShape) {
+        guard isEditable else {
+            statusMessage = "Select a set to arrange performers."
+            return
+        }
+        perform { try self.show.makeQuickShape(shape, members: Array(self.selection), at: self.currentSetID, spacingSteps: self.shapeSpacingSteps) }
+        tool = .select
+    }
+
+    func placeUnplaced() {
+        guard isEditable else {
+            statusMessage = "Select a set to place performers."
+            return
+        }
+        perform { try self.show.makePlaceUnplaced(at: self.currentSetID, spacingSteps: self.shapeSpacingSteps) }
+        requestCanvas(.fitField)
     }
 
     func commitHandle(_ formID: FormID, geometry: FormGeometry) {
