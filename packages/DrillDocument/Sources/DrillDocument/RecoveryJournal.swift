@@ -28,11 +28,21 @@ public final class RecoveryJournal {
 
     /// Starts a fresh journal from a snapshot (on open, new document and after each save).
     public func begin(base: ShowDocument) throws {
+        try begin(writingBase: { try DocumentFile.save(base, to: baseURL) })
+    }
+
+    /// Starts from bytes that already decode as a document (the file just
+    /// opened or saved), so starting the journal costs a file write, not an encode.
+    public func begin(encodedBase data: Data) throws {
+        try begin(writingBase: { try DocumentFile.write(verified: data, to: baseURL) })
+    }
+
+    private func begin(writingBase writeBase: () throws -> Void) throws {
         try? handle?.close()
         handle = nil
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: assetsURL)
-        try DocumentFile.save(base, to: baseURL)
+        try writeBase()
         try? FileManager.default.removeItem(at: DocumentFile.backupURL(for: baseURL))
         FileManager.default.createFile(atPath: journalURL.path, contents: Data())
         handle = try FileHandle(forWritingTo: journalURL)

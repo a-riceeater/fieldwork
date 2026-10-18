@@ -204,6 +204,30 @@ final class ContainerTests: XCTestCase {
         XCTAssertEqual(restoredDocument.assets.count, 1)
     }
 
+    func testPlatformHashesMatchThePortableImplementation() {
+        // On Apple platforms SHA256/CRC32 use CryptoKit and zlib; both must agree with the portable code.
+        for count in [0, 1, 55, 56, 63, 64, 65, 1000, 70_001] {
+            let data = Data((0..<count).map { UInt8(truncatingIfNeeded: $0 &* 131 &+ 7) })
+            XCTAssertEqual(SHA256.digest(data), SHA256.portableDigest(data), "SHA-256 of \(count) bytes")
+            XCTAssertEqual(CRC32.checksum(data), CRC32.portableChecksum(data), "CRC-32 of \(count) bytes")
+        }
+    }
+
+    func testJournalStartedFromEncodedBytesRecovers() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fw-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let document = try makeDocument()
+        let journal = RecoveryJournal(directory: dir)
+        try journal.begin(encodedBase: try DocumentCodec.encode(document))
+        let session = try DocumentSession(show: document.show)
+        session.observe { try? journal.append($0) }
+        try session.perform(.renameShow("From Bytes"))
+        let recovery = try XCTUnwrap(try RecoveryJournal.recover(from: dir))
+        let (restored, restoredDocument) = try RecoveryJournal.restore(recovery)
+        XCTAssertEqual(restored.show, session.show)
+        XCTAssertEqual(restoredDocument.assets, document.assets)
+    }
+
     func testCorruptDatabaseBytesAreRejected() {
         XCTAssertThrowsError(try ShowDatabase.decode(Data(repeating: 7, count: 4096)))
     }

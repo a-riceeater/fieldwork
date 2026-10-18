@@ -32,6 +32,13 @@ public enum DocumentFile {
         do { _ = try DocumentCodec.decode(data) } catch {
             throw DocumentError.io("Save was cancelled because the new file failed verification: \(error). The existing file was not changed.")
         }
+        try write(verified: data, to: url)
+    }
+
+    /// Writes bytes that already passed `DocumentCodec.decode` (for example the
+    /// bytes just saved or opened) with the same temporary-file and atomic
+    /// replace steps, without encoding again.
+    public static func write(verified data: Data, to url: URL) throws {
         let directory = url.deletingLastPathComponent()
         let temp = directory.appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
         do {

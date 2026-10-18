@@ -102,11 +102,15 @@ public enum DocumentCodec {
         try document.show.validate()
         let database = try ShowDatabase.encode(document.show, writer: FormatIdentity.writer)
         var members: [(path: String, data: Data)] = [("show.sqlite", database)]
+        // Each asset is hashed once: the check against its content address doubles as its manifest hash.
+        var hashes: [String: String] = [:]
         // Only assets referenced by the show are written; unreferenced bytes are dropped on save.
-        for asset in document.show.mediaAssets {
+        for asset in document.show.mediaAssets where hashes[asset.archivePath] == nil {
             guard let data = document.assets[asset.archivePath] else { throw DocumentError.missingAsset(asset.archivePath) }
-            guard SHA256.hex(data) == asset.sha256 else { throw DocumentError.missingAsset(asset.archivePath) }
-            if !members.contains(where: { $0.path == asset.archivePath }) { members.append((asset.archivePath, data)) }
+            let hash = SHA256.hex(data)
+            guard hash == asset.sha256 else { throw DocumentError.missingAsset(asset.archivePath) }
+            hashes[asset.archivePath] = hash
+            members.append((asset.archivePath, data))
         }
         for (path, data) in document.extensionMembers.sorted(by: { $0.key < $1.key }) { members.append((path, data)) }
         let manifest = Manifest(
@@ -117,7 +121,7 @@ public enum DocumentCodec {
             showID: document.show.id.description,
             capabilities: ["drill.core.v1", "timing.anchors.v1"] + (document.show.mediaAssets.isEmpty ? [] : ["media.audio.v1"]),
             requiredCapabilities: ["drill.core.v1"],
-            members: members.map { ManifestMember(path: $0.path, sha256: SHA256.hex($0.data), bytes: Int64($0.data.count)) },
+            members: members.map { ManifestMember(path: $0.path, sha256: hashes[$0.path] ?? SHA256.hex($0.data), bytes: Int64($0.data.count)) },
             extensions: document.extensions)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

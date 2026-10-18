@@ -1,7 +1,14 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
+#if canImport(Darwin) && canImport(zlib)
+import zlib
+#endif
 
-/// Portable SHA-256 (FIPS 180-4) for asset content hashes. Foundation on
-/// Windows has no CryptoKit, so the core carries its own implementation.
+/// SHA-256 (FIPS 180-4) for asset content hashes. Apple platforms use
+/// hardware-accelerated CryptoKit; Foundation on Windows has no CryptoKit, so
+/// the core also carries a portable implementation with identical output.
 public enum SHA256 {
     private static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -22,6 +29,14 @@ public enum SHA256 {
     }
 
     public static func digest(_ data: Data) -> [UInt8] {
+        #if canImport(CryptoKit)
+        return Array(CryptoKit.SHA256.hash(data: data))
+        #else
+        return portableDigest(data)
+        #endif
+    }
+
+    static func portableDigest(_ data: Data) -> [UInt8] {
         var h: [UInt32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
         let bitLength = UInt64(data.count) * 8
         var tail = [UInt8](data.suffix(data.count % 64))
@@ -75,6 +90,24 @@ public enum CRC32 {
     }
 
     public static func checksum(_ data: Data) -> UInt32 {
+        #if canImport(Darwin) && canImport(zlib)
+        return data.withUnsafeBytes { raw -> UInt32 in
+            guard let base = raw.bindMemory(to: Bytef.self).baseAddress else { return 0 }
+            var crc = zlib.crc32(0, nil, 0)
+            var offset = 0
+            while offset < raw.count {
+                let length = min(raw.count - offset, 1 << 30)
+                crc = zlib.crc32(crc, base + offset, uInt(length))
+                offset += length
+            }
+            return UInt32(truncatingIfNeeded: crc)
+        }
+        #else
+        return portableChecksum(data)
+        #endif
+    }
+
+    static func portableChecksum(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
         data.withUnsafeBytes { raw in
             for byte in raw { crc = table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8) }
