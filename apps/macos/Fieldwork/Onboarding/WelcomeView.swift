@@ -11,6 +11,18 @@ struct NewShowRequest {
         var name: String
         var prefix: String
         var count: Int
+
+        init(name: String, prefix: String, count: Int) {
+            self.name = name
+            self.prefix = prefix
+            self.count = count
+        }
+
+        /// A section from the instrument list, with its drill letter.
+        init(preset: String, count: Int) {
+            let instrument = InstrumentPreset.named(preset)
+            self.init(name: instrument?.name ?? preset, prefix: instrument?.prefix ?? String(preset.prefix(1)), count: count)
+        }
     }
 
     var title = "Untitled Show"
@@ -117,10 +129,12 @@ struct NewShowFlow: View {
     var create: (NewShowRequest) -> Void
     var cancel: () -> Void
     @State private var request = NewShowRequest(sections: [
-        .init(name: "Trumpet", prefix: "T", count: 8),
-        .init(name: "Mellophone", prefix: "M", count: 6),
-        .init(name: "Low Brass", prefix: "B", count: 8),
-        .init(name: "Battery", prefix: "D", count: 10),
+        .init(preset: "Trumpet", count: 8),
+        .init(preset: "Mellophone", count: 6),
+        .init(preset: "Baritone", count: 4),
+        .init(preset: "Tuba", count: 4),
+        .init(preset: "Snare Drum", count: 4),
+        .init(preset: "Color Guard", count: 8),
     ])
     @State private var step = 0
     private let titles = ["Field", "Ensemble", "Music", "First sets"]
@@ -189,15 +203,20 @@ struct NewShowFlow: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s) {
             ForEach($request.sections) { $section in
                 HStack {
-                    TextField("Section", text: $section.name).frame(width: 180)
-                    TextField("Prefix", text: $section.prefix).frame(width: 60)
+                    InstrumentPicker(name: $section.name, prefix: $section.prefix).labelsHidden().frame(width: 300)
+                    TextField("Letter", text: $section.prefix).frame(width: 60)
+                        .accessibilityLabel("Label letter for \(section.name)")
                     Stepper("\(section.count)", value: $section.count, in: 0...200).frame(width: 110)
                     Button { request.sections.removeAll { $0.id == section.id } } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Remove \(section.name)")
                 }
             }
-            Button { request.sections.append(.init(name: "Section", prefix: "S", count: 4)) } label: { Label("Add Section", systemImage: "plus") }
+            Button {
+                let used = Set(request.sections.map { $0.name.lowercased() })
+                let next = InstrumentPreset.all.first { !used.contains($0.name.lowercased()) }
+                request.sections.append(next.map { .init(name: $0.name, prefix: $0.prefix, count: 4) } ?? .init(name: "", prefix: "", count: 4))
+            } label: { Label("Add Section", systemImage: "plus") }
                 .buttonStyle(.borderless)
             Text("\(request.sections.reduce(0) { $0 + $1.count }) performers. Labels such as T1, T2 stay with each performer for the whole show.")
                 .font(.caption).foregroundStyle(Color.fwSecondary)

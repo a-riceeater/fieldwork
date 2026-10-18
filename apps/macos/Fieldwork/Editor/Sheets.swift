@@ -15,9 +15,17 @@ struct AddSectionSheet: View {
     var body: some View {
         Form {
             Text("Add a section").font(.headline)
-            TextField("Name", text: $name)
-                .onChange(of: name) { _, value in if let first = value.first { prefix = String(first).uppercased() } }
-            TextField("Label prefix", text: $prefix)
+            LabeledContent("Section") {
+                InstrumentPicker(name: $name, prefix: $prefix).labelsHidden()
+            }
+            TextField("Label letter", text: $prefix)
+            if let existing = model.show.sections.first(where: { $0.name.caseInsensitiveCompare(name.trimmingCharacters(in: .whitespaces)) == .orderedSame }) {
+                Text("Adds performers to the existing \(existing.name) section, continuing its \(existing.prefix) labels.")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+            } else if let clash = model.show.sections.first(where: { $0.prefix == prefix }) {
+                Label("\(clash.name) already uses \(prefix). Labels stay unique but will be hard to tell apart.", systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(Color.fwWarning)
+            }
             Stepper("\(count) performers", value: $count, in: 1...400)
             Picker("Symbol", selection: $symbol) {
                 ForEach(PerformerSymbol.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
