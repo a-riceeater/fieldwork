@@ -67,37 +67,39 @@ struct NavigatorView: View {
             TextField("Search performers", text: $search)
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal, Tokens.Space.s)
-            List {
+            // Native list selection: click selects one, Command-click adds or removes, Shift-click selects a range.
+            List(selection: $model.selection) {
                 ForEach(model.show.sections) { section in
                     let members = model.show.performers(in: section.id).filter { search.isEmpty || $0.label.localizedCaseInsensitiveContains(search) }
                     Section {
                         ForEach(members) { performer in
-                            Button {
-                                model.selection = [performer.id]
-                            } label: {
-                                HStack {
-                                    Circle().fill(Color(nsColor: Tokens.sectionColor(section.colorIndex))).frame(width: 8, height: 8)
-                                    Text(performer.label).monospacedDigit()
-                                    Spacer()
-                                    if model.show.formation(model.currentSetID)[performer.id].position == nil {
-                                        Label("No position", systemImage: "questionmark.circle")
-                                            .labelStyle(.iconOnly)
-                                            .foregroundStyle(Color.fwWarning)
-                                            .help("No position at this set")
-                                    }
+                            HStack {
+                                Circle().fill(Color(nsColor: Tokens.sectionColor(section.colorIndex))).frame(width: 8, height: 8)
+                                Text(performer.label).monospacedDigit()
+                                Spacer()
+                                if model.show.formation(model.currentSetID)[performer.id].position == nil {
+                                    Label("No position", systemImage: "questionmark.circle")
+                                        .labelStyle(.iconOnly)
+                                        .foregroundStyle(Color.fwWarning)
+                                        .help("No position at this set")
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(model.selection.contains(performer.id) ? Color.fwAccent.opacity(0.15) : Color.clear)
                         }
                     } header: {
                         HStack {
                             Text("\(section.name) (\(model.show.performers(in: section.id).count))")
                             Spacer()
                             SectionLetterButton(model: model, section: section)
-                            Button("Select") { model.selectSection(section.id) }
-                                .buttonStyle(.borderless)
-                                .font(.caption)
+                            Button("Select") {
+                                if NSEvent.modifierFlags.contains(.command) {
+                                    model.selection.formUnion(model.show.performers(in: section.id).map(\.id))
+                                } else {
+                                    model.selectSection(section.id)
+                                }
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .help("Select this section. Command-click to add it to the selection.")
                         }
                     }
                 }

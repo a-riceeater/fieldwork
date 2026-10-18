@@ -29,9 +29,11 @@ final class FieldCanvasView: NSView {
     private enum Drag {
         case none
         case pan(start: CGPoint, center: Point2)
-        case moveDots(ids: [PerformerID], anchor: Point2, start: Point2, delta: Point2)
+        /// `narrowTo` is set when the press landed on a dot inside a larger
+        /// selection: releasing without dragging selects just that dot.
+        case moveDots(ids: [PerformerID], anchor: Point2, start: Point2, delta: Point2, narrowTo: PerformerID?)
         case box(start: CGPoint, current: CGPoint, additive: Bool)
-        case form(start: Point2, end: Point2)
+        case form(start: Point2, end: Point2, startView: CGPoint)
         case handle(form: CanvasForm, index: Int, geometry: FormGeometry)
     }
 
@@ -145,7 +147,7 @@ final class FieldCanvasView: NSView {
                 return
             }
             let p = snapped(world(v), event: event)
-            drag = .form(start: p, end: p)
+            drag = .form(start: p, end: p, startView: v)
         case .select:
             if let dot = hitDot(at: v) {
                 let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
@@ -159,13 +161,16 @@ final class FieldCanvasView: NSView {
                     delegate?.canvasSelect([dot.id], additive: false)
                     ids = [dot.id]
                 }
+                let narrowTo = dot.selected && ids.count > 1 ? dot.id : nil
                 if state.editable {
-                    drag = .moveDots(ids: ids, anchor: dot.point, start: world(v), delta: .zero)
+                    drag = .moveDots(ids: ids, anchor: dot.point, start: world(v), delta: .zero, narrowTo: narrowTo)
                 } else {
+                    if let narrowTo { delegate?.canvasSelect([narrowTo], additive: false) }
                     delegate?.canvasMessage("Select a set to move performers. The canvas is showing a moment between sets.")
                 }
             } else {
-                drag = .box(start: v, current: v, additive: event.modifierFlags.contains(.shift))
+                let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
+                drag = .box(start: v, current: v, additive: additive)
             }
         }
         needsDisplay = true
@@ -178,14 +183,14 @@ final class FieldCanvasView: NSView {
             return
         case .pan(let start, let center):
             transform.center = center - Point2(Double((v.x - start.x) / transform.scale), Double((v.y - start.y) / transform.scale))
-        case .moveDots(let ids, let anchor, let start, _):
+        case .moveDots(let ids, let anchor, let start, _, let narrowTo):
             let raw = constrain(world(v) - start)
             let target = snapped(anchor + raw, event: event)
-            drag = .moveDots(ids: ids, anchor: anchor, start: start, delta: constrain(target - anchor))
+            drag = .moveDots(ids: ids, anchor: anchor, start: start, delta: constrain(target - anchor), narrowTo: narrowTo)
         case .box(let start, _, let additive):
             drag = .box(start: start, current: v, additive: additive)
-        case .form(let start, _):
-            drag = .form(start: start, end: snapped(world(v), event: event))
+        case .form(let start, _, let startView):
+            drag = .form(start: start, end: snapped(world(v), event: event), startView: startView)
         case .handle(let form, let index, _):
             drag = .handle(form: form, index: index, geometry: form.geometry.movingHandle(index, to: snapped(world(v), event: event)))
         }
@@ -200,8 +205,12 @@ final class FieldCanvasView: NSView {
         }
         guard let state else { return }
         switch drag {
-        case .moveDots(let ids, _, _, let delta):
-            if delta.length > 1e-9 { delegate?.canvasCommitMove(ids, delta: delta) }
+        case .moveDots(let ids, _, _, let delta, let narrowTo):
+            if delta.length > 1e-9 {
+                delegate?.canvasCommitMove(ids, delta: delta)
+            } else if let narrowTo {
+                delegate?.canvasSelect([narrowTo], additive: false)
+            }
         case .box(let start, let current, let additive):
             let rect = CGRect(x: min(start.x, current.x), y: min(start.y, current.y), width: abs(current.x - start.x), height: abs(current.y - start.y))
             if rect.width < 3 && rect.height < 3 {
@@ -210,9 +219,15 @@ final class FieldCanvasView: NSView {
                 let ids = Set(state.dots.filter { rect.contains(view($0.point)) }.map(\.id))
                 delegate?.canvasSelect(ids, additive: additive)
             }
-        case .form(let start, let end):
+        case .form(let start, let end, let startView):
             guard start.distance(to: end) > 0.25 else {
-                delegate?.canvasMessage("Drag on the field to draw the \(state.tool == .arc ? "arc" : "line").")
+                // A click (not a drag) with Line or Arc still selects performers.
+                if let dot = hitDot(at: startView) {
+                    let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
+                    delegate?.canvasSelect([dot.id], additive: additive)
+                } else {
+                    delegate?.canvasMessage("Drag on the field to draw the \(state.tool == .arc ? "arc" : "line").")
+                }
                 return
             }
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
@@ -344,7 +359,7 @@ final class FieldCanvasView: NSView {
         // Dots (with drag preview offset).
         var previewDelta = Point2.zero
         var movingIDs = Set<PerformerID>()
-        if case .moveDots(let ids, _, _, let delta) = drag { previewDelta = delta; movingIDs = Set(ids) }
+        if case .moveDots(let ids, _, _, let delta, _) = drag { previewDelta = delta; movingIDs = Set(ids) }
         let r = dotRadius
         let showLabels = transform.scale >= 10
         let labelFont = NSFont.systemFont(ofSize: max(8, min(11, transform.scale * 0.6)), weight: .medium)
@@ -372,7 +387,7 @@ final class FieldCanvasView: NSView {
             ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
             ctx.setLineWidth(1)
             ctx.stroke(rect)
-        case .form(let start, let end):
+        case .form(let start, let end, _):
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
             ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
             ctx.setLineWidth(2)
@@ -383,7 +398,7 @@ final class FieldCanvasView: NSView {
                 let v = view(p)
                 ctx.fillEllipse(in: CGRect(x: v.x - r, y: v.y - r, width: 2 * r, height: 2 * r))
             }
-        case .moveDots(_, _, _, let delta) where delta.length > 0:
+        case .moveDots(_, _, _, let delta, _) where delta.length > 0:
             let steps = delta.length / field.stepSize
             drawCaption("Δ \(String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), steps)) steps", at: CGPoint(x: 12, y: 32))
         default:
