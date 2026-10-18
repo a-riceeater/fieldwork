@@ -9,10 +9,19 @@ public struct MusicalPosition: Hashable, Sendable {
     public var beatFraction: Rational
     public var holdOffsetSeconds: Double?
 
+    /// Compact display label. Beat progress is truncated to hundredths so the
+    /// label never advances to the next beat or measure before the cursor does.
     public var label: String {
         var text = "m\(measureNumber) b\(beat)"
-        if !beatFraction.isZero { text += "+\(beatFraction)" }
-        if let hold = holdOffsetSeconds { text += " hold +\(TimeFormat.seconds(hold))" }
+        if let hold = holdOffsetSeconds {
+            text += "+\(beatFraction) hold +\(TimeFormat.seconds(hold))"
+        } else if beatFraction == .one {
+            // The final cursor has no next beat to advance to.
+            text += "+1"
+        } else if !beatFraction.isZero {
+            let hundredths = (beatFraction * Rational(100)).floor
+            text += "." + (hundredths < 10 ? "0" : "") + String(hundredths)
+        }
         return text
     }
 }
