@@ -4,7 +4,7 @@ An open-source, native marching drill editor. You define performers and fields, 
 
 “Fieldwork” is a provisional name. The product namespace lives in `FormatIdentity` (`packages/DrillDocument`), `apps/macos/Config/Base.xcconfig` and `Info.plist`.
 
-> **Status: early alpha, not released.** The portable core has been built and tested on Windows. The macOS app source is written but **has never been compiled**: no Mac was available while writing it. See [Capabilities](#capabilities) and [docs/PROGRESS.md](docs/PROGRESS.md).
+> **Status: early alpha, not released.** The portable core has been built and tested on Windows and macOS. The macOS app now builds unsigned with Xcode 26.6; the full interactive acceptance flow remains unverified. See [Capabilities](#capabilities) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Repository layout
 
@@ -14,7 +14,7 @@ An open-source, native marching drill editor. You define performers and fields, 
 | `packages/DrillCore` | Show model (meters), field presets, roster, sets, forms, semantic commands with atomic undo, scene evaluation, analysis, onboarding tour state |
 | `packages/DrillDocument` | `.fieldwork` container (ZIP + manifest + SQLite), atomic file save, recovery journal (`DrillDocument`); WAV decoding and waveform peaks (`DrillMedia`); coordinate PDF (`DrillExport`); vendored SQLite |
 | `packages/DrillBridge` | `FieldworkCore` DLL with a versioned C ABI (`include/fieldwork_core.h`) and the `fwtool` CLI |
-| `apps/macos` | SwiftUI/AppKit/AVFoundation Mac app (XcodeGen spec, sources, tests). **Not yet built.** |
+| `apps/macos` | SwiftUI/AppKit/AVFoundation Mac app (XcodeGen spec, sources, tests). **Unsigned Debug build verified.** |
 | `apps/windows/BridgeSmoke` | C# console app that drives the core through the C ABI |
 | `spec/` | Format specification and golden fixtures |
 | `examples/` | Original demo show (`first-light.fieldwork`, with a generated click track) |
@@ -28,7 +28,7 @@ Planning documents: [DESIGN.md](DESIGN.md), [ARCHITECTURE.md](ARCHITECTURE.md), 
 | Platform | Toolchain | Verified |
 |---|---|---|
 | Windows 11 x64 | Swift 6.4 (`swift-6.4-RELEASE`, x86_64-unknown-windows-msvc), .NET SDK 10.0.401 | Yes: portable tests, DLL, C# smoke test, `fwtool` |
-| macOS 14+ | Xcode with Swift 6 (package manifests use tools version 6.0), XcodeGen 2.42.0 | **No.** The exact Xcode version will be pinned on the first successful Mac build. |
+| macOS 14+ | Xcode 26.6 (17F113), Apple Swift 6.3.3, XcodeGen 2.42.0 | Unsigned Debug build and 3 app tests on macOS 26.6.1 arm64; macOS 14 runtime not yet tested. |
 
 ## Build and test
 
@@ -55,7 +55,7 @@ swift run -c release fwtool info examples/first-light.fieldwork
 swift run -c release fwtool pdf in.fieldwork out.pdf
 ```
 
-macOS app (untested; expect the first build to need fixes):
+macOS app (unsigned Debug build verified with Xcode 26.6):
 
 ```sh
 ./scripts/bootstrap-macos.sh          # downloads pinned XcodeGen, generates the project
@@ -99,7 +99,7 @@ No signing identity is committed. Personal settings go in `apps/macos/Config/Loc
 - Windows interop: C ABI DLL driven from C# (create → edit → encode → reopen → evaluate → errors).
 - Onboarding: the tour state machine advances only on observed actions; Back, Skip, Close and restart work.
 
-**Written, not compiled (macOS app):**
+**Compiled (macOS app; interactive behavior still unverified):**
 
 - NSDocument document type with a single save path.
 - AppKit field canvas: select, Shift-select, box select, drag with one commit, Space-drag pan, zoom, nudge, snap with Option bypass, axis lock, line and arc tools, form handles.

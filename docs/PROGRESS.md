@@ -1,5 +1,19 @@
 # Progress log
 
+## 2026-10-17: First verified macOS build
+
+Environment: macOS 26.6.1 (25G76), arm64, Xcode 26.6 (17F113), Apple Swift 6.3.3. This is the verified Mac build baseline; older deployment targets and Intel remain unverified.
+
+- Added the required `override` to the window controller's Select All responder action.
+- Isolated the AppKit application delegate to the main actor so its Getting Started action can call the editor controller synchronously.
+- Gave the app test target its own product name and bundle identifier in the authoritative XcodeGen spec. Shared xcconfig settings previously named both modules `Fieldwork`, producing duplicate module outputs when testing.
+- Regenerated the project with the pinned XcodeGen 2.42.0 using `./scripts/bootstrap-macos.sh`.
+- The requested unsigned Debug `xcodebuild ... build` command passes.
+- `xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Debug CODE_SIGNING_ALLOWED=NO test` passes: 3 app tests, 0 failures.
+- `./scripts/test-portable.sh` passes on this Mac: DrillTiming 17, DrillCore 20, DrillDocument 16 and DrillBridge 2 tests, all with 0 failures.
+
+The interactive acceptance flow, native audio playback/latency, MP3 decoding, accessibility, coach marks and canvas profiling remain unverified. The earlier entry below records the original Windows-only implementation status.
+
 ## 2026-10-17: M0 foundations and the portable half of M1
 
 Environment: Windows 11 Home (10.0.26200), Intel Core i5-10400 @ 2.90 GHz, 23.7 GB RAM, Swift 6.4 (`swift-6.4-RELEASE`), .NET SDK 10.0.401. **No Mac or Xcode was available.** No `xcodebuild`, macOS playback, notarization or Mac UI test was run, and none is claimed.
