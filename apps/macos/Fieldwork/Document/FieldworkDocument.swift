@@ -45,8 +45,12 @@ final class FieldworkDocument: NSDocument {
         startJournal()
     }
 
-    @MainActor
     override func makeWindowControllers() {
+        MainActor.assumeIsolated { makeEditorWindow() }
+    }
+
+    @MainActor
+    private func makeEditorWindow() {
         if model == nil {
             do {
                 let show = try pendingShow ?? Show.makeNew(title: "Untitled Show")

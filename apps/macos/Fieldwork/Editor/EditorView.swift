@@ -38,52 +38,12 @@ struct EditorView: View {
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
             CoachMarkOverlay(model: model, anchors: anchors)
         }
-        .toolbar { EditorToolbar(model: model) }
+        .toolbar { toolbarContent }
         .sheet(item: $model.conflict) { pending in ConflictSheet(pending: pending) }
         .sheet(isPresented: $model.showExport) { ExportSheet(model: model) }
         .sheet(isPresented: $model.showAddSection) { AddSectionSheet(model: model) }
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
-        }
-    }
-}
-
-struct EditorToolbar: ToolbarContent {
-    @ObservedObject var model: EditorModel
-
-    var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
-            Button { model.undo() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
-                .help(model.session.undoName.map { "Undo \($0)" } ?? "Nothing to undo")
-                .disabled(!model.session.canUndo)
-            Button { model.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
-                .help(model.session.redoName.map { "Redo \($0)" } ?? "Nothing to redo")
-                .disabled(!model.session.canRedo)
-        }
-        ToolbarItem(placement: .principal) {
-            Picker("Tool", selection: $model.tool) {
-                ForEach(EditorTool.allCases) { tool in
-                    Label(tool.title, systemImage: tool.symbol).tag(tool)
-                }
-            }
-            .pickerStyle(.segmented)
-            .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3). Select performers, then drag on the field with Line or Arc.")
-            .tourAnchor("toolbar.forms")
-            .accessibilityIdentifier("toolbar.forms")
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            Toggle(isOn: $model.snapEnabled) { Label("Snap", systemImage: "squareshape.split.3x3") }
-                .help("Snap to \(TimeFormat.decimal(model.snapSteps, places: 2))-step grid. Hold Option while dragging to bypass.")
-            Picker("Axis", selection: $model.axisLock) {
-                Text("Free").tag(AxisLock.none)
-                Text("Side-to-side").tag(AxisLock.horizontal)
-                Text("Front-to-back").tag(AxisLock.vertical)
-            }
-            .help("Axis lock for drags")
-            Button { model.showExport = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
-                .help("Preview and export a coordinate PDF")
-                .tourAnchor("toolbar.export")
-                .accessibilityIdentifier("toolbar.export")
         }
     }
 }
@@ -209,5 +169,44 @@ struct TourAnchorKey: PreferenceKey {
     static var defaultValue: [String: Anchor<CGRect>] = [:]
     static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
         value.merge(nextValue()) { $1 }
+    }
+}
+
+extension EditorView {
+    @ToolbarContentBuilder
+    var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            Button { model.undo() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
+                .help(model.session.undoName.map { "Undo \($0)" } ?? "Nothing to undo")
+                .disabled(!model.session.canUndo)
+            Button { model.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
+                .help(model.session.redoName.map { "Redo \($0)" } ?? "Nothing to redo")
+                .disabled(!model.session.canRedo)
+        }
+        ToolbarItem(placement: .principal) {
+            Picker("Tool", selection: $model.tool) {
+                ForEach(EditorTool.allCases) { tool in
+                    Label(tool.title, systemImage: tool.symbol).tag(tool)
+                }
+            }
+            .pickerStyle(.segmented)
+            .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3). Select performers, then drag on the field with Line or Arc.")
+            .tourAnchor("toolbar.forms")
+            .accessibilityIdentifier("toolbar.forms")
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Toggle(isOn: $model.snapEnabled) { Label("Snap", systemImage: "squareshape.split.3x3") }
+                .help("Snap to \(TimeFormat.decimal(model.snapSteps, places: 2))-step grid. Hold Option while dragging to bypass.")
+            Picker("Axis", selection: $model.axisLock) {
+                Text("Free").tag(AxisLock.none)
+                Text("Side-to-side").tag(AxisLock.horizontal)
+                Text("Front-to-back").tag(AxisLock.vertical)
+            }
+            .help("Axis lock for drags")
+            Button { model.showExport = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                .help("Preview and export a coordinate PDF")
+                .tourAnchor("toolbar.export")
+                .accessibilityIdentifier("toolbar.export")
+        }
     }
 }

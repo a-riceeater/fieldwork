@@ -32,7 +32,6 @@ struct NavigatorView: View {
                         SetRow(set: set, isPreset: index == 0, counts: (try? model.show.moveCounts(into: set.id)) ?? .zero,
                                music: (try? map?.musicalPosition(at: set.cursor).label) ?? "",
                                time: model.hasAudio ? (try? map?.audioTime(at: set.cursor)).flatMap { $0 }.map(TimeFormat.clock) : nil)
-                            .tag(set.id)
                     }
                 }
             }
