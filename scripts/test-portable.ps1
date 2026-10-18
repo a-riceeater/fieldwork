@@ -1,6 +1,7 @@
 # Runs the portable Swift test suites, builds the C ABI DLL and runs the C#
 # interop smoke test. Requires the Swift for Windows toolchain and the .NET SDK.
-$ErrorActionPreference = 'Stop'
+# Native tools write progress to stderr; rely on exit codes, not ErrorActionPreference.
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 
 foreach ($package in 'DrillTiming', 'DrillCore', 'DrillDocument', 'DrillBridge') {
