@@ -31,6 +31,30 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertTrue(InstrumentPreset.Family.allCases.allSatisfy { !InstrumentPreset.family($0).isEmpty })
     }
 
+    func testSectionLetterChangeRelabelsPerformersAndUndoes() throws {
+        let session = try makeSession(performers: 3)
+        let trumpets = try XCTUnwrap(session.show.sections.first)
+        var custom = try XCTUnwrap(session.show.performers.last)
+        custom.label = "Lead"
+        try session.perform(.updatePerformer(custom))
+        try session.perform(try session.show.makeRoster([RosterSectionRequest(name: "Tenor Saxophone", prefix: "N", count: 2)]))
+
+        try session.perform(try session.show.makeSectionPrefix(trumpets.id, prefix: " TP "))
+        XCTAssertEqual(session.show.section(trumpets.id)?.prefix, "TP")
+        XCTAssertEqual(session.show.performers.map(\.label), ["TP1", "TP2", "Lead", "N1", "N2"])
+        // Later additions continue with the new letter.
+        try session.perform(try session.show.makeRoster([RosterSectionRequest(name: "Trumpet", prefix: "T", count: 1)]))
+        XCTAssertEqual(session.show.performers.last?.label, "TP3")
+        session.undo()
+        session.undo()
+        XCTAssertEqual(session.show.performers.map(\.label), ["T1", "T2", "Lead", "N1", "N2"])
+
+        let saxes = try XCTUnwrap(session.show.sections.last)
+        XCTAssertThrowsError(try session.show.makeSectionPrefix(saxes.id, prefix: "T"))
+        XCTAssertThrowsError(try session.show.makeSectionPrefix(saxes.id, prefix: "  "))
+        XCTAssertNoThrow(try session.show.makeSectionPrefix(saxes.id, prefix: "TS"))
+    }
+
     func testFormRetainsGeometryAndOrder() throws {
         let session = try makeSession()
         let preset = session.show.sets[0].id

@@ -49,6 +49,30 @@ extension Show {
         return commands.count == 1 ? commands[0] : .batch(performers.count == 1 ? "Add Performer" : "Add \(performers.count) Performers", commands)
     }
 
+    /// Changes a section's label letter and relabels its performers that use it
+    /// (T3 → TS3) as one undoable edit. Labels changed by hand are kept.
+    public func makeSectionPrefix(_ id: SectionID, prefix: String) throws -> DrillCommand {
+        let prefix = prefix.trimmingCharacters(in: .whitespaces)
+        guard !prefix.isEmpty else { throw DrillError("A section needs a label letter.") }
+        guard var section = section(id) else { throw DrillError("That section no longer exists.") }
+        guard section.prefix != prefix else { throw DrillError("Nothing to change.") }
+        let old = section.prefix
+        section.prefix = prefix
+        var relabeled: [Performer] = []
+        for var performer in performers(in: id) {
+            let number = performer.label.dropFirst(old.count)
+            guard performer.label.hasPrefix(old), !number.isEmpty, number.allSatisfy(\.isNumber) else { continue }
+            performer.label = prefix + number
+            relabeled.append(performer)
+        }
+        let renamedIDs = Set(relabeled.map(\.id))
+        let kept = Set(performers.filter { !renamedIDs.contains($0.id) }.map(\.label))
+        if let clash = relabeled.first(where: { kept.contains($0.label) }) {
+            throw DrillError("\(clash.label) is already used by another performer. Choose a different letter.")
+        }
+        return .batch("Change Section Letter", [.updateSection(section)] + relabeled.map { .updatePerformer($0) })
+    }
+
     /// Timeline extension (as a replaced track) so that `pulse` exists, or nil if it already does.
     func extendedTiming(_ movement: Movement, toInclude pulse: Rational) throws -> TimingTrack? {
         var track = movement.timing
