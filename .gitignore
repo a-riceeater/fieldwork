@@ -17,3 +17,6 @@ apps/windows/**/obj/
 # Local outputs
 /out/
 .DS_Store
+
+# Pinned tools downloaded by scripts
+/.tools/

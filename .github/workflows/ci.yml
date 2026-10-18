@@ -1,0 +1,36 @@
+# Not yet observed running on GitHub. The Windows steps mirror commands that
+# were run locally; the macOS job has never been run (see docs/PROGRESS.md).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows-portable:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: compnerd/gha-setup-swift@v0.3.0
+        with:
+          branch: swift-6.4-release
+          tag: 6.4-RELEASE
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Portable tests, DLL and C# interop smoke test
+        shell: pwsh
+        run: ./scripts/test-portable.ps1
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portable tests
+        run: ./scripts/test-portable.sh
+      - name: Generate Xcode project
+        run: ./scripts/bootstrap-macos.sh
+      - name: Unsigned build and app tests
+        run: >
+          xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork
+          -configuration Debug CODE_SIGNING_ALLOWED=NO test
