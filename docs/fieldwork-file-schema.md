@@ -2,7 +2,7 @@
 
 This document explains, field by field, what is inside a `.fieldwork` show file and how a reader or writer must treat it. It is a companion to the normative summary in [`spec/fieldwork-format.md`](../spec/fieldwork-format.md). Where they differ, the code in `packages/DrillDocument` is authoritative, and both documents should be fixed.
 
-Covers: container format version **1.0**, database schema **4**.
+Covers: container format version **1.0**, database schema **5**.
 
 Sources: `DocumentFormat.swift`, `ZipArchive.swift`, `ShowDatabase.swift`, `DocumentFile.swift` and `RecoveryJournal.swift` in `packages/DrillDocument/Sources/DrillDocument`, the model and validation in `packages/DrillCore`, and the timing model in `packages/DrillTiming`.
 
@@ -15,7 +15,7 @@ A `.fieldwork` file is a plain ZIP archive. It holds one JSON manifest, one SQLi
 ```
 first-light.fieldwork            (ZIP, every member stored uncompressed)
 ├── manifest.json                identity, versions, capabilities, SHA-256 of every other member
-├── show.sqlite                  the whole show: field, roster, timing, sets, positions, forms, notes
+├── show.sqlite                  the whole show: field, roster, timing, sets, positions, paths, forms, notes
 ├── assets/
 │   └── 62a868de…26ac0.wav       embedded audio, named by the SHA-256 of its bytes
 └── extensions/                  optional; third-party or future data, kept byte-for-byte
@@ -42,7 +42,7 @@ The namespace is provisional and defined in one place, `FormatIdentity`:
 | Uniform Type Identifier (macOS) | `org.fieldwork.show` |
 | Current format version | `1.0` |
 | Writer string | `Fieldwork 0.1.0` |
-| Known capabilities | `drill.core.v1`, `timing.anchors.v1`, `media.audio.v1` |
+| Known capabilities | `drill.core.v1`, `timing.anchors.v1`, `media.audio.v1`, `drill.paths.v1` |
 
 ---
 
@@ -119,8 +119,8 @@ The manifest is UTF-8 JSON with sorted keys, pretty-printed. It is the only memb
 | `minReaderVersion` | `{major, minor}` | Oldest reader version that can open the file. Version 1 writers write `1.0`. |
 | `writer` | string | Free-form name and version of the writing application. For information only. |
 | `showID` | string | The show's UUID, the same value as `show.id` in the database. |
-| `capabilities` | string[] | Features the file uses. `drill.core.v1` and `timing.anchors.v1` are always present. `media.audio.v1` is added when the show has at least one media asset. |
-| `requiredCapabilities` | string[] | Features a reader must understand before it may edit the file. Version 1 writes `["drill.core.v1"]`. |
+| `capabilities` | string[] | Features the file uses. `drill.core.v1` and `timing.anchors.v1` are always present. `media.audio.v1` is added when the show has at least one media asset. `drill.paths.v1` is added when any performer has a path (§6.6). |
+| `requiredCapabilities` | string[] | Features a reader must understand before it may edit the file. Version 1 writes `["drill.core.v1"]`, plus `drill.paths.v1` when any path exists, so a reader without paths opens the show read-only instead of saving it with the routes flattened. |
 | `members` | `{path, sha256, bytes}`[] | Every member except `manifest.json`. `sha256` is 64 lowercase hex characters. `bytes` is the exact length. |
 | `extensions` | `{namespace, required}`[] | Extension namespaces present under `extensions/`, and whether each must be understood. |
 
@@ -158,7 +158,7 @@ Audio is never modified or trimmed. Alignment is expressed through sample-frame 
 
 ### Versioning
 
-`PRAGMA user_version` holds the **schema version** (currently `4`). It is independent of the container format version. Schema changes happen inside format 1.0 and are handled by migration (see §8).
+`PRAGMA user_version` holds the **schema version** (currently `5`). It is independent of the container format version. Schema changes happen inside format 1.0 and are handled by migration (see §8).
 
 ### Units and conventions
 
@@ -171,7 +171,7 @@ Audio is never modified or trimmed. Alignment is expressed through sample-frame 
 | Note values, fractions | **Exact rationals**, stored as an `_num` / `_den` integer pair. Note values are in whole notes, so `1/4` is a quarter note and `3/8` is a dotted quarter. The denominator must be greater than 0; a reader rejects anything else as corrupt. |
 | Identifiers | **Uppercase UUID strings** (`8F0C1A2B-…`). They never change while the show is edited and are safe to reference from outside. |
 | Booleans | `INTEGER` 0 or 1. |
-| Order | Lists are ordered by an explicit `ordinal` column (0-based), never by `rowid`. The exceptions are `media_asset`, `audio_anchor` and `transition`, which are read in insertion order. |
+| Order | Lists are ordered by an explicit `ordinal` column (0-based), never by `rowid`. The exceptions are `media_asset`, `audio_anchor` and `transition`, which are read in insertion order. `path_segment` rows are read by `(transition_id, performer_id, ordinal)`. |
 
 Foreign keys are declared, and the writer runs `PRAGMA foreign_key_check` before serializing. The reader uses only fixed, prepared `SELECT` statements. It **never executes SQL stored in a document**.
 
@@ -196,6 +196,8 @@ erDiagram
     movement ||--o{ arrival_set : "has sets"
     timing_event ||--o{ arrival_set : "arrives at cursor"
     arrival_set ||--o| transition : "incoming move"
+    transition ||--o{ path_segment : "per-performer routes"
+    performer ||--o{ path_segment : "follows"
     arrival_set ||--o{ placement : "formation"
     performer ||--o{ placement : "position at set"
     arrival_set ||--o{ form : "retained shapes"
@@ -206,9 +208,9 @@ erDiagram
 
 `meta` and `show` stand alone. Every table except `meta` and `show` is linked to the rest by foreign keys.
 
-### 6.2 Full schema (version 4)
+### 6.2 Full schema (version 5)
 
-This is exactly the schema a current writer creates: schema 1, followed by the changes for schemas 2, 3 and 4.
+This is exactly the schema a current writer creates: schema 1, followed by the changes for schemas 2, 3, 4 and 5.
 
 ```sql
 -- Schema 1
@@ -261,7 +263,13 @@ ALTER TABLE performer ADD COLUMN symbol TEXT;
 CREATE TABLE field_note (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
     x REAL NOT NULL, y REAL NOT NULL, text TEXT NOT NULL);
 
-PRAGMA user_version = 4;
+-- Schema 5
+CREATE TABLE path_segment (transition_id TEXT NOT NULL REFERENCES transition(id), performer_id TEXT NOT NULL REFERENCES performer(id),
+    ordinal INTEGER NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('hold','line','arc')),
+    counts_num INTEGER NOT NULL, counts_den INTEGER NOT NULL, x1 REAL, y1 REAL, sweep REAL,
+    PRIMARY KEY (transition_id, performer_id, ordinal));
+
+PRAGMA user_version = 5;
 ```
 
 Because schemas 2 and 3 add columns with `ALTER TABLE`, those columns come **last** in their tables. The writer inserts rows positionally, so the column order above is part of the format.
@@ -442,7 +450,7 @@ A writer must not save anchors that violate these rules: two anchors at the same
 | `frame_count` | INTEGER | Decoded length in frames. Duration is `frame_count / sample_rate`. |
 | `channel_count` | INTEGER | For example `1` for mono. |
 
-### 6.6 Drill: sets, moves, positions, forms and notes
+### 6.6 Drill: sets, moves, paths, positions, forms and notes
 
 #### `arrival_set`
 
@@ -468,7 +476,45 @@ The **first set of each movement is the preset** (count 0 by convention). It has
 |---|---|---|
 | `id` | TEXT UUID | |
 | `to_set_id` | TEXT UNIQUE → `arrival_set.id` | The set this move arrives at. The move starts at the previous set in the same movement. |
-| `model` | TEXT | Version 1 has only `straight`: constant-speed straight travel over the move's counts. Unknown values are read as `straight`. |
+| `model` | TEXT | Version 1 has only `straight`: constant-speed straight travel over the move's counts. Unknown values are read as `straight`. It is the model for performers **without** a path; performers with `path_segment` rows follow their path. Writers keep `straight` here even when paths exist, so an old reader never silently reinterprets the move. |
+
+#### `path_segment` *(schema 5)*
+
+A **path** is the route one performer takes during one move: an ordered list of holds, straight legs and circular arcs, each lasting an exact number of counts. A performer with no rows in a move travels straight, as in schema 4. Imported drill (for example from per-count `.3du` positions) keeps curved and staggered moves this way without inventing subsets.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `transition_id` | TEXT → `transition.id` | The move. Part of the primary key. |
+| `performer_id` | TEXT → `performer.id` | Part of the primary key. |
+| `ordinal` | INTEGER | 0-based order within `(transition, performer)`, with no gaps. Part of the primary key. |
+| `kind` | TEXT | `hold` (stand still), `line` (straight leg at constant speed) or `arc` (circular arc at constant speed). A reader refuses any other kind as damage; it never flattens it to `straight`. |
+| `counts_num`, `counts_den` | INTEGER pair | Duration in **count pulses**, an exact rational greater than 0. Corners can fall between counts, so durations need not be whole. |
+| `x1`, `y1` | REAL m, NULL | The segment's end point. NULL for `hold`, required for `line` and `arc`. |
+| `sweep` | REAL °, NULL | `arc` only: the signed turn, 0 < \|sweep\| < 360. **Positive is clockwise** seen from above, which bulges to the **left** of start→end, the same side as a positive `form.bulge`. NULL otherwise. |
+
+A path's **start** is implicit: the performer's `placement` at the previous set. Each segment starts where the previous one ends; a hold ends where it starts. The **end** of the last `line` or `arc` must be the performer's placement at `to_set_id`, and writers store that placement's exact doubles.
+
+**Evaluation.** For a move from a set at pulse `p_k`, a performer with a path is evaluated at `u = pulse − p_k` counts, clamped to the move:
+
+1. Walk the segments, adding durations, to the one that contains `u`. A boundary belongs to the **later** segment.
+2. Let `s = (u − segmentStart) / segmentCounts` and `P0` the segment's start. A `hold` is at `P0`; a `line` is at `P0 + (P1 − P0)·s`; an `arc` with sweep θ (radians) is at:
+   ```
+   c = P1 − P0,  L = |c|,  M = (P0 + P1)/2,  n = (−c.y, c.x)/L      // left normal
+   h = (L/2) / tan(θ/2)
+   C = M − n·h,  r = |P0 − C|,  φ0 = atan2(P0.y − C.y, P0.x − C.x)
+   P(s) = C + r·(cos(φ0 − θ·s), sin(φ0 − θ·s))
+   ```
+   and exactly `P1` at `s = 1`.
+3. `z` and facing interpolate over the whole move as for straight travel. The performer is moving unless the current segment is a hold.
+
+**Canonical form.** Writers store only canonical paths, so the same show always encodes to the same bytes:
+
+- No rows at all when the route is one straight line over the whole move, or only holds (start = end).
+- No zero-length `line` (it is a `hold`); no two adjacent holds.
+- No two adjacent lines in the same direction at the same pace, and no two adjacent arcs on the same circle at the same angular pace (tolerance 1e-9 m and 1e-9 rad).
+- No arc with a sagitta below 1e-6 m (it is a line). A full loop is two arcs.
+
+Rows are inserted by arrival-set ordinal, then performer ordinal, then segment ordinal.
 
 #### `placement`
 
@@ -556,6 +602,17 @@ The writer validates the whole show before encoding, and the reader validates it
 - Forms reference an existing set, their members are unique existing performers, and no performer is in two forms on the same set.
 - Notes reference an existing set, have finite positions and contain at most 2,000 characters.
 
+**Paths** *(schema 5)*, for each path on transition *t* into set *B*, which starts at the previous set *A*, for performer *p*:
+
+- *t* exists and is not the preset's (the preset has no transition), and *p* exists.
+- *p* is `placed` at both *A* and *B*.
+- There is at least one segment, and ordinals run 0…n−1 with no gaps or duplicates.
+- Every duration is greater than 0, and they add up **exactly** to the move's length in count pulses, `pulse(B) − pulse(A)`.
+- `line` and `arc` have finite `x1`, `y1`. A `hold` has NULL point and sweep, and a `line` has a NULL sweep.
+- An `arc` has a finite sweep with 0 < |sweep| < 360 and a chord longer than 1e-6 m.
+- The path ends within 1e-6 m of *p*'s placement at *B*.
+- `counts_num` and `counts_den` are integers that fit in 64 bits, with `counts_den` > 0. Anything else is damage.
+
 **References**
 
 - `PRAGMA foreign_key_check` returns nothing.
@@ -570,13 +627,16 @@ The writer validates the whole show before encoding, and the reader validates it
 | 2 | `show.counting_mode`; `arrival_set.rehearsal_mark`, `arrival_set.measure_marker` | `measures`, `''`, `''` |
 | 3 | `performer.symbol` | NULL (follow the section) |
 | 4 | New `field_note` table | Empty |
+| 5 | New `path_segment` table | Empty: every performer moves straight |
 
 When opening a file:
 
 1. The reader loads `show.sqlite` into **memory**.
 2. If `user_version` is **greater** than the reader's schema, it refuses: "schema N is newer than this version supports". The file is not changed.
 3. If it is lower, the reader applies each step `v → v+1` in its own transaction on the in-memory copy, then reads the result. The archive on disk is **never touched**.
-4. The next save writes a fresh schema 4 database.
+4. The next save writes a fresh schema 5 database.
+
+Fieldwork itself always writes schema 5, with or without paths. Other writers (such as a converter) may write schema 4 when they have no paths; readers open both. `spec/fixtures/paths.fieldwork` is a schema 5 file that uses every segment kind.
 
 `examples/first-light.fieldwork` is currently a schema 1 file. It has no `counting_mode`, `rehearsal_mark`, `measure_marker`, `symbol` or `field_note`, and it opens through this migration path.
 
@@ -599,7 +659,7 @@ Format-level (manifest) changes and schema-level changes are separate. Adding a 
 ### Encode (`DocumentCodec.encode`)
 
 1. Validate the show.
-2. Build a fresh schema 4 database in memory, insert all rows, run `foreign_key_check` and serialize.
+2. Build a fresh schema 5 database in memory, insert all rows (paths in canonical form), run `foreign_key_check` and serialize.
 3. Collect referenced assets and confirm their hashes.
 4. Append extension members, sorted by path.
 5. Write the manifest, including the hash of every member, then the ZIP with the manifest first.
@@ -618,7 +678,7 @@ On macOS the app saves through `NSDocument` and uses only `DocumentCodec`, so ex
 
 - **View state:** selection, hover, zoom and pan, panel sizes, visible timeline range, playback position and tour progress. These are per-user local settings.
 - **Undo history:** it is in memory only and is not saved.
-- **Derived data:** analysis warnings, waveform peaks, fitted tempo reports and intermediate positions. All are recomputed from the stored data.
+- **Derived data:** analysis warnings, waveform peaks, fitted tempo reports and intermediate positions. Paths are stored, but the points along them, path lengths and bounding boxes are recomputed from the segments.
 - **A separate tempo value:** tempo exists only as compiled `baseline_seconds`.
 - **The recovery journal**, described next.
 
@@ -650,6 +710,12 @@ sqlite3 show.sqlite "SELECT s.label, p.label, pl.state, pl.x, pl.y
                      JOIN arrival_set s ON s.id = pl.set_id
                      JOIN performer p ON p.id = pl.performer_id
                      ORDER BY s.ordinal, p.ordinal;"
+sqlite3 show.sqlite "SELECT s.label, p.label, ps.ordinal, ps.kind, ps.counts_num || '/' || ps.counts_den, ps.x1, ps.y1, ps.sweep
+                     FROM path_segment ps
+                     JOIN transition t ON t.id = ps.transition_id
+                     JOIN arrival_set s ON s.id = t.to_set_id
+                     JOIN performer p ON p.id = ps.performer_id
+                     ORDER BY s.ordinal, p.ordinal, ps.ordinal;"
 ```
 
 Or use the bundled tool:
