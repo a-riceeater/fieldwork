@@ -13,6 +13,9 @@ struct InspectorView: View {
             VStack(alignment: .leading, spacing: Tokens.Space.l) {
                 switch model.selection.count {
                 case 0:
+                    if let note = model.focusedNote {
+                        NoteInspector(model: model, note: note).id(note.id)
+                    }
                     SetInspector(model: model)
                     TimingInspector(model: model)
                     IssuesInspector(model: model)
@@ -144,6 +147,9 @@ struct SetInspector: View {
                         .disabled(!model.isEditable)
                         .help("Put everyone without a position into blocks by section")
                 }
+                Button { model.addNote() } label: { Label("Add Note", systemImage: "note.text.badge.plus") }
+                    .disabled(!model.isEditable)
+                    .help("Add a text box on the field at this set. Click it on the field to edit it here.")
             }
         }
     }
@@ -157,6 +163,60 @@ struct SetInspector: View {
 
     private func saveMarkers() {
         model.setCurrentSetMarkers(rehearsalMark: mark.trimmingCharacters(in: .whitespaces), measureMarker: marker.trimmingCharacters(in: .whitespaces))
+    }
+}
+
+/// Edits the focused field note. The box itself is only dragged on the field;
+/// its text is typed here and commits as one edit when focus leaves.
+struct NoteInspector: View {
+    @ObservedObject var model: EditorModel
+    var note: FieldNote
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        InspectorSection(title: "Note") {
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 96)
+                .padding(4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                .focused($focused)
+                .disabled(!model.isEditable)
+                .accessibilityLabel("Note text")
+            if text.count > FieldNote.maxLength {
+                Label("Notes are limited to \(FieldNote.maxLength) characters.", systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(Color.fwWarning)
+            }
+            Text("Shown on the field at this set and hidden during playback. Drag the box on the field to move it.")
+                .font(.caption).foregroundStyle(Color.fwSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Done") {
+                    save()
+                    model.focusedNoteID = nil
+                }
+                Spacer()
+                Button("Delete Note", role: .destructive) { model.deleteNote(note.id) }
+                    .disabled(!model.isEditable)
+            }
+        }
+        .onAppear {
+            text = note.text
+            if note.text.isEmpty, model.isEditable { DispatchQueue.main.async { focused = true } }
+        }
+        .onChange(of: note.text) { _, newValue in if !focused { text = newValue } }
+        .onChange(of: text) { _, newValue in
+            if focused { model.noteDraft = FieldNote(id: note.id, setID: note.setID, position: note.position, text: newValue) }
+        }
+        .onChange(of: focused) { _, isFocused in if !isFocused { save() } }
+        .onDisappear(perform: save)
+    }
+
+    private func save() {
+        guard model.show.fieldNote(note.id) != nil else { return }
+        model.editNote(note.id, text: text)
     }
 }
 

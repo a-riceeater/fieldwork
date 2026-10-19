@@ -41,6 +41,14 @@ struct CanvasDot: Equatable {
     var selected: Bool
 }
 
+/// A text box on the field. `position` is its top-left corner in meters.
+struct CanvasNote: Equatable {
+    var id: NoteID
+    var text: String
+    var position: Point2
+    var focused: Bool
+}
+
 struct CanvasForm: Equatable {
     var id: FormID
     var geometry: FormGeometry
@@ -51,6 +59,8 @@ struct CanvasForm: Equatable {
 struct CanvasState: Equatable {
     var field: Field
     var dots: [CanvasDot]
+    /// Notes on the current set; empty during playback and between sets.
+    var notes: [CanvasNote]
     /// Forms on the current set whose members are selected (handles shown when editable).
     var forms: [CanvasForm]
     /// Straight incoming paths (previous arrival → this arrival) for selected performers.
@@ -65,7 +75,7 @@ struct CanvasState: Equatable {
     var caption: String
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
-        a.field == b.field && a.dots == b.dots && a.forms == b.forms && a.editable == b.editable && a.tool == b.tool
+        a.field == b.field && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
             && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
             && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }
@@ -84,4 +94,7 @@ protocol FieldCanvasDelegate: AnyObject {
     func canvasClearSelection()
     func canvasMessage(_ text: String)
     func canvasTogglePlay()
+    func canvasFocusNote(_ id: NoteID)
+    func canvasCommitNoteMove(_ id: NoteID, to position: Point2)
+    func canvasDeleteNote(_ id: NoteID)
 }

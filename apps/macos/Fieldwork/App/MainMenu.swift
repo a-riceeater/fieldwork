@@ -67,6 +67,7 @@ enum MainMenu {
             item("Add 8-Count Set", #selector(EditorWindowController.addSet8(_:)), "\r", [.command, .option]),
             item("Delete Set", #selector(EditorWindowController.deleteSet(_:)), "\u{8}", [.command, .shift]),
             item("Split Move at Playhead", #selector(EditorWindowController.splitMoveAtPlayhead(_:))),
+            item("Add Note", #selector(EditorWindowController.addNote(_:)), "n", [.command, .option]),
             .separator(),
             item("Previous Set", #selector(EditorWindowController.previousSet(_:)), "[", [.command]),
             item("Next Set", #selector(EditorWindowController.nextSet(_:)), "]", [.command]),

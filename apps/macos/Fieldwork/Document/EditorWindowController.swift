@@ -59,6 +59,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func zoomInField(_ sender: Any?) { model.requestCanvas(.zoomIn) }
     @MainActor @objc func zoomOutField(_ sender: Any?) { model.requestCanvas(.zoomOut) }
     @MainActor @objc func toggleCirclesOnly(_ sender: Any?) { model.circlesOnly.toggle() }
+    @MainActor @objc func addNote(_ sender: Any?) { model.addNote() }
 
     // MARK: Playback, audio, export, help
 
@@ -89,6 +90,8 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(togglePlayback(_:)):
             menuItem.title = model.isPlaying ? "Pause" : "Play"
             return true
+        case #selector(addNote(_:)):
+            return model.isEditable
         case #selector(toggleCirclesOnly(_:)):
             menuItem.state = model.circlesOnly ? .on : .off
             return true

@@ -57,7 +57,13 @@ final class EditorModel: ObservableObject {
     var assets: [String: Data]
 
     @Published private(set) var revision = 0
-    @Published var selection: Set<PerformerID> = []
+    @Published var selection: Set<PerformerID> = [] {
+        didSet { if !selection.isEmpty { focusedNoteID = nil } }
+    }
+    /// The field note shown in the inspector. Notes are focused, never selected with performers.
+    @Published var focusedNoteID: NoteID?
+    /// Text being typed into the focused note, drawn on the field before it commits.
+    @Published var noteDraft: FieldNote?
     @Published var currentSetID: SetID
     @Published var tool: EditorTool = .select
     @Published var snapEnabled = true
@@ -188,6 +194,7 @@ final class EditorModel: ObservableObject {
         }
         if show.set(currentSetID) == nil { currentSetID = setsInMovement.last?.id ?? show.sets[0].id }
         selection = selection.filter { show.performer($0) != nil }
+        if let id = focusedNoteID, show.fieldNote(id) == nil { focusedNoteID = nil }
         if case .batch(_, let list) = event.command, list.contains(where: { if case .setMovementAudio = $0 { return true }; return false }) {
             loadAudioForCurrentMovement()
         }
@@ -233,6 +240,7 @@ final class EditorModel: ObservableObject {
     // MARK: Sets and navigation
 
     func selectSet(_ id: SetID) {
+        if id != currentSetID { focusedNoteID = nil }
         currentSetID = id
         isBetweenSets = false
         if let set = show.set(id), let t = try? map?.audioTime(at: set.cursor) {
@@ -324,6 +332,50 @@ final class EditorModel: ObservableObject {
     /// The symbol the canvas draws for a performer, honoring the circles-only preference.
     func displaySymbol(for performer: Performer) -> PerformerSymbol {
         circlesOnly ? .circle : show.symbol(for: performer)
+    }
+
+    // MARK: Field notes
+
+    /// The focused note when it is on the current set and the field shows that set.
+    var focusedNote: FieldNote? {
+        guard showsFieldNotes, let id = focusedNoteID, let note = show.fieldNote(id), note.setID == currentSetID else { return nil }
+        return note
+    }
+
+    /// Notes belong to a set, so they are hidden during playback and between sets.
+    var showsFieldNotes: Bool { !isPlaying && !isBetweenSets }
+
+    func focusNote(_ id: NoteID) {
+        selection = []
+        focusedNoteID = id
+    }
+
+    /// Adds an empty note on the current set and focuses it so its text can be typed in the inspector.
+    func addNote() {
+        guard isEditable, let set = currentSet else {
+            statusMessage = "Select a set to add a note to it."
+            return
+        }
+        let field = show.field
+        // Upper left of the field, stepping down for each note so new boxes do not stack exactly.
+        let step = Double(show.fieldNotes(on: set.id).count % 6) * 4
+        let note = FieldNote(setID: set.id, position: Point2(-field.length / 4, field.width / 4 - step))
+        if perform(.addFieldNote(note)) { focusNote(note.id) }
+    }
+
+    func moveNote(_ id: NoteID, to position: Point2) {
+        perform(.moveFieldNote(id, position))
+    }
+
+    func editNote(_ id: NoteID, text: String) {
+        if noteDraft?.id == id { noteDraft = nil }
+        guard let note = show.fieldNote(id), note.text != text else { return }
+        perform(.editFieldNote(id, text))
+    }
+
+    func deleteNote(_ id: NoteID) {
+        if noteDraft?.id == id { noteDraft = nil }
+        if perform(.deleteFieldNote(id)) { focusedNoteID = nil }
     }
 
     func selectSection(_ id: SectionID) {

@@ -35,6 +35,7 @@ final class FieldCanvasView: NSView {
         case box(start: CGPoint, current: CGPoint, additive: Bool)
         case form(start: Point2, end: Point2, startView: CGPoint)
         case handle(form: CanvasForm, index: Int, geometry: FormGeometry)
+        case moveNote(id: NoteID, start: Point2, delta: Point2)
     }
 
     private var drag: Drag = .none
@@ -111,6 +112,28 @@ final class FieldCanvasView: NSView {
         return nil
     }
 
+    /// Note text scales with zoom like the field, within readable limits.
+    private var noteFontSize: CGFloat { max(8, min(15, transform.scale * 1.3)) }
+
+    /// The note's box in view coordinates and its text, laid out top-down from the anchor.
+    private func layout(_ note: CanvasNote, offset: Point2 = .zero) -> (box: CGRect, text: NSAttributedString) {
+        let size = noteFontSize
+        let empty = note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let font = empty ? NSFontManager.shared.convert(NSFont.systemFont(ofSize: size), toHaveTrait: .italicFontMask) : NSFont.systemFont(ofSize: size)
+        let text = NSAttributedString(string: empty ? "Empty note" : note.text,
+                                      attributes: [.font: font, .foregroundColor: empty ? NSColor.gray : NSColor.black])
+        let measured = text.boundingRect(with: CGSize(width: size * 16, height: .greatestFiniteMagnitude),
+                                         options: [.usesLineFragmentOrigin, .usesFontLeading])
+        let pad = size * 0.5
+        let width = ceil(measured.width) + 2 * pad, height = ceil(measured.height) + 2 * pad
+        let topLeft = view(note.position + offset)
+        return (CGRect(x: topLeft.x, y: topLeft.y - height, width: width, height: height), text)
+    }
+
+    private func hitNote(at v: CGPoint) -> CanvasNote? {
+        state?.notes.last { layout($0).box.contains(v) }
+    }
+
     private func snapped(_ p: Point2, event: NSEvent) -> Point2 {
         guard let state, state.snapEnabled, !event.modifierFlags.contains(.option) else { return p }
         return state.field.snap(p, steps: state.snapSteps)
@@ -138,6 +161,13 @@ final class FieldCanvasView: NSView {
         }
         if let (form, index) = hitHandle(at: v) {
             drag = .handle(form: form, index: index, geometry: form.geometry)
+            return
+        }
+        // Clicking a note focuses it for editing in the inspector; dragging moves it.
+        if hitDot(at: v) == nil, let note = hitNote(at: v) {
+            delegate?.canvasFocusNote(note.id)
+            if state.editable { drag = .moveNote(id: note.id, start: world(v), delta: .zero) }
+            needsDisplay = true
             return
         }
         switch state.tool {
@@ -193,6 +223,8 @@ final class FieldCanvasView: NSView {
             drag = .form(start: start, end: snapped(world(v), event: event), startView: startView)
         case .handle(let form, let index, _):
             drag = .handle(form: form, index: index, geometry: form.geometry.movingHandle(index, to: snapped(world(v), event: event)))
+        case .moveNote(let id, let start, _):
+            drag = .moveNote(id: id, start: start, delta: constrain(world(v) - start))
         }
         needsDisplay = true
     }
@@ -234,6 +266,10 @@ final class FieldCanvasView: NSView {
             delegate?.canvasCommitForm(geometry)
         case .handle(let form, _, let geometry):
             if geometry != form.geometry { delegate?.canvasCommitHandle(form.id, geometry: geometry) }
+        case .moveNote(let id, _, let delta):
+            if delta.length > 1e-9, let note = state.notes.first(where: { $0.id == id }) {
+                delegate?.canvasCommitNoteMove(id, to: note.position + delta)
+            }
         case .pan, .none:
             break
         }
@@ -269,6 +305,9 @@ final class FieldCanvasView: NSView {
         case 53:
             // Escape cancels a drag or tool preview before it clears the selection.
             if case .none = drag { delegate?.canvasClearSelection() } else { drag = .none; needsDisplay = true }
+        case 51, 117:
+            // Delete removes the focused note; performers are removed from the roster instead.
+            if let note = state?.notes.first(where: \.focused) { delegate?.canvasDeleteNote(note.id) } else { super.keyDown(with: event) }
         case 49:
             if !event.isARepeat { spaceDown = true; spaceUsedForPan = false; NSCursor.openHand.set() }
         default:
@@ -327,6 +366,20 @@ final class FieldCanvasView: NSView {
             ctx.strokeLineSegments(between: [view(a), view(b)])
         }
         ctx.setLineDash(phase: 0, lengths: [])
+
+        // Field notes sit under the forms and dots so performers stay clickable.
+        for note in state.notes {
+            var offset = Point2.zero
+            if case .moveNote(let id, _, let delta) = drag, id == note.id { offset = delta }
+            let (box, text) = layout(note, offset: offset)
+            NSColor.white.withAlphaComponent(0.94).setFill()
+            box.fill()
+            ctx.setStrokeColor(note.focused ? Tokens.fieldAccent.cgColor : NSColor.black.withAlphaComponent(0.75).cgColor)
+            ctx.setLineWidth(note.focused ? 2 : 1)
+            ctx.stroke(box.insetBy(dx: 0.5, dy: 0.5))
+            let pad = noteFontSize * 0.5
+            text.draw(with: box.insetBy(dx: pad, dy: pad), options: [.usesLineFragmentOrigin, .usesFontLeading])
+        }
 
         // Forms and their handles.
         for form in state.forms {
@@ -445,6 +498,7 @@ final class FieldCanvasView: NSView {
     private func updateAccessibility() {
         guard let state else { return }
         let selected = state.dots.filter(\.selected).count
-        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected. Arrow keys nudge the selection.")
+        let notes = state.notes.isEmpty ? "" : " \(state.notes.count) note\(state.notes.count == 1 ? "" : "s")."
+        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected.\(notes) Arrow keys nudge the selection.")
     }
 }

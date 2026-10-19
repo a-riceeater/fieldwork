@@ -30,15 +30,22 @@ struct FieldCanvas: NSViewRepresentable {
         init(model: EditorModel) { self.model = model }
 
         func canvasSelect(_ ids: Set<PerformerID>, additive: Bool) {
+            if !additive { model.focusedNoteID = nil }
             if additive { model.selection.formSymmetricDifference(ids) } else { model.selection = ids }
         }
         func canvasCommitMove(_ ids: [PerformerID], delta: Point2) { model.commitMove(ids, by: delta) }
         func canvasCommitForm(_ geometry: FormGeometry) { model.commitForm(geometry) }
         func canvasCommitHandle(_ form: FormID, geometry: FormGeometry) { model.commitHandle(form, geometry: geometry) }
         func canvasNudge(dx: Double, dy: Double) { model.nudge(dx: dx, dy: dy) }
-        func canvasClearSelection() { model.selection = [] }
+        func canvasClearSelection() {
+            model.selection = []
+            model.focusedNoteID = nil
+        }
         func canvasMessage(_ text: String) { model.statusMessage = text }
         func canvasTogglePlay() { model.togglePlay() }
+        func canvasFocusNote(_ id: NoteID) { model.focusNote(id) }
+        func canvasCommitNoteMove(_ id: NoteID, to position: Point2) { model.moveNote(id, to: position) }
+        func canvasDeleteNote(_ id: NoteID) { model.deleteNote(id) }
     }
 }
 
@@ -94,8 +101,16 @@ extension EditorModel {
                 }
             }
         }
+        var notes: [CanvasNote] = []
+        if showsFieldNotes {
+            let focused = focusedNote?.id
+            notes = show.fieldNotes(on: currentSetID).map { note in
+                let text = noteDraft?.id == note.id ? noteDraft!.text : note.text
+                return CanvasNote(id: note.id, text: text, position: note.position, focused: note.id == focused)
+            }
+        }
         let flagged = Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
-        return CanvasState(field: show.field, dots: dots, forms: forms, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
+        return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
                            snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption)
     }
 }
