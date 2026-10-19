@@ -198,6 +198,14 @@ public enum DrillAnalyzer {
     static func closestApproach(_ a: Mover, _ b: Mover) -> (distance: Double, count: Double, sampled: Bool) {
         let total = a.counts
         guard total > 0 else { return (a.end.distance(to: b.end), 0, false) }
+        // Two straight movers: one linear interval, solved without splitting.
+        if a.route == nil, b.route == nil {
+            let d0 = a.start - b.start
+            let dv = (a.end - a.start) - (b.end - b.start)
+            let vv = dv.dot(dv)
+            let t = vv > 1e-12 ? min(max(-d0.dot(dv) / vv, 0), 1) : 0
+            return ((d0 + dv * t).length, total * t, false)
+        }
         let cuts = Array(Set((a.breakpoints + b.breakpoints).map { min(max($0, 0), total) })).sorted()
         var best = (distance: Double.infinity, count: 0.0, sampled: false)
         func distance(_ u: Double) -> Double { a.point(at: u).distance(to: b.point(at: u)) }
