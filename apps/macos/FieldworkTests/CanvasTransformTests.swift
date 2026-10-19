@@ -77,6 +77,20 @@ final class CanvasTransformTests: XCTestCase {
         XCTAssertEqual(model.playheadSeconds, 5, accuracy: 1e-9)
     }
 
+    @MainActor
+    func testScrubbingKeepsTheSetChosenForAlignment() throws {
+        let session = try DocumentSession(show: try Show.makeNew(title: "Align", measures: 8))
+        let model = EditorModel(session: session, assets: [:])
+        model.addSet(counts: 8)
+        let preset = model.setsInMovement[0].id, second = model.setsInMovement[1].id
+        model.selectSet(preset)
+        model.seek(to: 10)
+        XCTAssertEqual(model.currentSetID, second)
+        XCTAssertEqual(model.alignSetID, preset)
+        model.selectSet(second)
+        XCTAssertEqual(model.alignSetID, second)
+    }
+
     func testWorldViewRoundTripAndZoomAnchor() {
         let bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
         var transform = CanvasTransform(scale: 6, center: Point2(10, -5))

@@ -65,6 +65,9 @@ final class EditorModel: ObservableObject {
     /// Text being typed into the focused note, drawn on the field before it commits.
     @Published var noteDraft: FieldNote?
     @Published var currentSetID: SetID
+    /// The set Align Set Here pins: the last set the user chose. Scrubbing changes the
+    /// set shown on the field, but not this, so a set can be aligned anywhere in the music.
+    @Published private(set) var alignSetID: SetID
     @Published var tool: EditorTool = .select
     @Published var snapEnabled = true
     @Published var snapSteps: Double = 1
@@ -115,6 +118,7 @@ final class EditorModel: ObservableObject {
         self.assets = assets
         self.readOnlyReason = readOnlyReason
         currentSetID = session.show.sets[0].id
+        alignSetID = session.show.sets[0].id
         tour = TourStore.load()
         revision = session.revision
         loadAudioForCurrentMovement()
@@ -129,6 +133,7 @@ final class EditorModel: ObservableObject {
     var hasAudio: Bool { movement.audioAssetID != nil }
     var isEditable: Bool { readOnlyReason == nil && !isPlaying && !isBetweenSets }
     var currentSet: ArrivalSet? { show.set(currentSetID) }
+    var alignSet: ArrivalSet? { show.set(alignSetID) }
     var setsInMovement: [ArrivalSet] { show.sets(in: movementID) }
 
     var evaluator: SceneEvaluator? {
@@ -193,6 +198,7 @@ final class EditorModel: ObservableObject {
             TourStore.save(tour)
         }
         if show.set(currentSetID) == nil { currentSetID = setsInMovement.last?.id ?? show.sets[0].id }
+        if show.set(alignSetID) == nil { alignSetID = currentSetID }
         selection = selection.filter { show.performer($0) != nil }
         if let id = focusedNoteID, show.fieldNote(id) == nil { focusedNoteID = nil }
         if case .batch(_, let list) = event.command, list.contains(where: { if case .setMovementAudio = $0 { return true }; return false }) {
@@ -209,10 +215,14 @@ final class EditorModel: ObservableObject {
     }
 
     /// Runs a timing edit; contradictions become a choice sheet instead of a change.
-    func performTiming(_ build: @escaping (TimingResolution?) throws -> (command: DrillCommand, report: FitReport), resolution: TimingResolution? = nil) {
+    func performTiming(_ build: @escaping (TimingResolution?) throws -> (command: DrillCommand, report: FitReport),
+                       resolution: TimingResolution? = nil, then committed: (() -> Void)? = nil) {
         do {
             let result = try build(resolution)
-            if perform(result.command) { statusMessage = describe(result.report) }
+            if perform(result.command) {
+                statusMessage = describe(result.report)
+                committed?()
+            }
         } catch let conflict as TimingEditConflict {
             var labels: [AnchorID: String] = [:]
             for anchor in movement.timing.anchors {
@@ -222,7 +232,7 @@ final class EditorModel: ObservableObject {
             self.conflict = PendingConflict(conflict: conflict, anchorLabels: labels) { [weak self] choice in
                 self?.conflict = nil
                 guard choice != .cancel else { return }
-                self?.performTiming(build, resolution: choice)
+                self?.performTiming(build, resolution: choice, then: committed)
             }
         } catch {
             report(error)
@@ -242,6 +252,7 @@ final class EditorModel: ObservableObject {
     func selectSet(_ id: SetID) {
         if id != currentSetID { focusedNoteID = nil }
         currentSetID = id
+        alignSetID = id
         if !isPlaying { isBetweenSets = false }
         if let set = show.set(id), let t = try? map?.audioTime(at: set.cursor) {
             playheadSeconds = t
@@ -535,12 +546,17 @@ final class EditorModel: ObservableObject {
         } catch { report(error) }
     }
 
-    /// "Align selected set arrival here".
-    func alignCurrentSetHere() {
+    /// "Align selected set arrival here": pins the set the user chose, not the one
+    /// the old timing happened to place at the playhead.
+    func alignSelectedSetHere() {
         do {
             let frame = try playheadFrame()
-            let setID = currentSetID
-            performTiming { resolution in try self.show.makeAlignSetArrival(setID, sampleFrame: frame, resolution: resolution) }
+            let setID = alignSetID
+            performTiming({ resolution in try self.show.makeAlignSetArrival(setID, sampleFrame: frame, resolution: resolution) }) {
+                // The set now arrives at the playhead, so show it and keep it editable.
+                self.currentSetID = setID
+                self.isBetweenSets = false
+            }
         } catch { report(error) }
     }
 

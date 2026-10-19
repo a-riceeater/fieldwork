@@ -137,8 +137,8 @@ struct TimelinePanel: View {
                 .tourAnchor("timeline.alignHere")
                 .accessibilityIdentifier("timeline.alignHere")
                 .disabled(!model.hasAudio)
-            Button("Align Set \(model.currentSet?.label ?? "") Here") { model.alignCurrentSetHere() }
-                .help("Pin the current set's arrival to the playhead")
+            Button("Align Set \(model.alignSet?.label ?? "") Here") { model.alignSelectedSetHere() }
+                .help("Pin the arrival of the set you last chose to the playhead, wherever it is in the music")
                 .disabled(!model.hasAudio)
         }
         .font(.system(size: 12))
