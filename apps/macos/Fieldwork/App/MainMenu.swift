@@ -40,8 +40,8 @@ enum MainMenu {
         ]))
 
         main.addItem(submenu("Edit", [
-            item("Undo", #selector(EditorWindowController.undo(_:)), "z"),
-            item("Redo", #selector(EditorWindowController.redo(_:)), "z", [.command, .shift]),
+            item("Undo", #selector(AppDelegate.undoEdit(_:)), "z"),
+            item("Redo", #selector(AppDelegate.redoEdit(_:)), "z", [.command, .shift]),
             .separator(),
             item("Cut", #selector(NSText.cut(_:)), "x"),
             item("Copy", #selector(NSText.copy(_:)), "c"),

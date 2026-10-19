@@ -27,8 +27,6 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
 
     // MARK: Edit
 
-    @MainActor @objc func undo(_ sender: Any?) { model.undo() }
-    @MainActor @objc func redo(_ sender: Any?) { model.redo() }
     @MainActor @objc override func selectAll(_ sender: Any?) { model.selectAll() }
     @MainActor @objc func deselectAll(_ sender: Any?) { model.selection = [] }
 
@@ -78,12 +76,6 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(undo(_:)):
-            menuItem.title = model.session.undoName.map { "Undo \($0)" } ?? "Undo"
-            return model.session.canUndo && model.readOnlyReason == nil
-        case #selector(redo(_:)):
-            menuItem.title = model.session.redoName.map { "Redo \($0)" } ?? "Redo"
-            return model.session.canRedo && model.readOnlyReason == nil
         case #selector(toggleSnap(_:)):
             menuItem.state = model.snapEnabled ? .on : .off
             return true
