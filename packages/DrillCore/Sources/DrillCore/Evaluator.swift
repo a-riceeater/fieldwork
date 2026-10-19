@@ -34,6 +34,8 @@ public struct SceneEvaluator: Sendable {
     public let sets: [ArrivalSet]
     public let pulses: [Double]
     private let formations: [[PerformerID: Placement]]
+    /// `routes[k]` holds the resolved paths of the move into `sets[k]` (empty for the preset).
+    private let routes: [[PerformerID: ResolvedPath]]
 
     public init(show: Show, movementID: MovementID, map: TimingMap? = nil) throws {
         self.show = show
@@ -41,9 +43,25 @@ public struct SceneEvaluator: Sendable {
         let map = try map ?? show.timingMap(for: movementID)
         self.map = map
         let keyed = try show.setPulses(in: movementID, map: map)
-        sets = keyed.map(\.set)
+        let sets = keyed.map(\.set)
+        self.sets = sets
         pulses = keyed.map { $0.pulse.doubleValue }
-        formations = sets.map { show.formation($0.id).placements }
+        let formations = sets.map { show.formation($0.id).placements }
+        self.formations = formations
+        routes = sets.indices.map { k -> [PerformerID: ResolvedPath] in
+            guard k > 0, let transition = show.transition(into: sets[k].id), !transition.paths.isEmpty else { return [:] }
+            var resolved: [PerformerID: ResolvedPath] = [:]
+            for (id, path) in transition.paths {
+                guard case .placed(let start)? = formations[k - 1][id] else { continue }
+                resolved[id] = ResolvedPath(path, from: start.point)
+            }
+            return resolved
+        }
+    }
+
+    /// The resolved path a performer follows in the move into `sets[index]`, if not straight.
+    public func route(into index: Int, performer: PerformerID) -> ResolvedPath? {
+        routes.indices.contains(index) ? routes[index][performer] : nil
     }
 
     public func pulse(of setID: SetID) -> Double? {
@@ -78,6 +96,8 @@ public struct SceneEvaluator: Sendable {
         result.reserveCapacity(show.performers.count)
         let from = formations[k]
         let to = hasNext ? formations[k + 1] : [:]
+        let paths = hasNext ? routes[k + 1] : [:]
+        let u = pulse - pulses[k]
         for performer in show.performers {
             let a = from[performer.id] ?? .unresolved
             if !hasNext {
@@ -89,6 +109,12 @@ public struct SceneEvaluator: Sendable {
             case (.placed(let p), .placed(let q)):
                 let t = progress
                 let facing = SceneEvaluator.interpolateAngle(p.facing, q.facing, t)
+                if let path = paths[performer.id] {
+                    let (point, moving) = path.point(at: u)
+                    result.append(EvaluatedPerformer(id: performer.id, x: point.x, y: point.y, z: p.z + (q.z - p.z) * t,
+                                                     facing: facing, state: .placed, isMoving: moving))
+                    continue
+                }
                 let moving = p.point.distance(to: q.point) > 1e-9
                 result.append(EvaluatedPerformer(id: performer.id, x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t, z: p.z + (q.z - p.z) * t,
                                                  facing: facing, state: .placed, isMoving: moving))

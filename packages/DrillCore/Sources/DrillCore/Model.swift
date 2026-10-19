@@ -175,7 +175,8 @@ public struct Formation: Hashable, Codable, Sendable {
 }
 
 public enum TransitionModel: String, Codable, Sendable {
-    /// Straight travel at constant speed over the move's counts.
+    /// Straight travel at constant speed over the move's counts. Performers with
+    /// a path in `Transition.paths` follow it instead.
     case straight
 }
 
@@ -184,11 +185,23 @@ public struct Transition: Hashable, Codable, Sendable, Identifiable {
     public var id: TransitionID
     public var toSetID: SetID
     public var model: TransitionModel
+    /// Performers listed here follow their path; everyone else moves straight.
+    public var paths: [PerformerID: PerformerPath]
 
-    public init(id: TransitionID = TransitionID(), toSetID: SetID, model: TransitionModel = .straight) {
+    public init(id: TransitionID = TransitionID(), toSetID: SetID, model: TransitionModel = .straight, paths: [PerformerID: PerformerPath] = [:]) {
         self.id = id
         self.toSetID = toSetID
         self.model = model
+        self.paths = paths
+    }
+
+    /// Accepts moves written before paths existed.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(TransitionID.self, forKey: .id)
+        toSetID = try c.decode(SetID.self, forKey: .toSetID)
+        model = try c.decode(TransitionModel.self, forKey: .model)
+        paths = try c.decodeIfPresent([PerformerID: PerformerPath].self, forKey: .paths) ?? [:]
     }
 }
 
