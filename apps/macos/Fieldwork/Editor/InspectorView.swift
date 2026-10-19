@@ -21,6 +21,7 @@ struct InspectorView: View {
                     IssuesInspector(model: model)
                 case 1:
                     PerformerInspector(model: model, id: model.selection.first!)
+                    PathInspector(model: model)
                     FormInspector(model: model)
                 default:
                     // A whole form selected is shape editing, so the form comes first.
@@ -31,6 +32,7 @@ struct InspectorView: View {
                         GroupInspector(model: model)
                         FormInspector(model: model)
                     }
+                    PathInspector(model: model)
                 }
             }
             .padding(Tokens.Space.m)
@@ -504,5 +506,80 @@ struct FormInspector: View {
                 Text("Drag a ring to reshape; spacing stays equal along the form. Drag the line or any performer to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
         }
+    }
+}
+
+/// The selection's routes through the move into the current set: hold phases,
+/// pace, straightening and, for one performer, each segment's counts and step size.
+struct PathInspector: View {
+    @ObservedObject var model: EditorModel
+    @State private var startLate = 0
+    @State private var arriveEarly = 0
+
+    var body: some View {
+        if let set = model.currentSet, let move = model.currentMove {
+            let ids = Array(model.selection)
+            let curved = ids.filter { move.transition.paths[$0] != nil }.count
+            let total = move.counts
+            InspectorSection(title: "Move into Set \(set.label)") {
+                Text("\(formatted(total)) counts · \(curved == 0 ? "straight" : "\(curved) of \(ids.count) on a path")")
+                    .font(.caption).monospacedDigit().foregroundStyle(Color.fwSecondary)
+                if ids.count == 1, let info = try? model.show.pathSegmentInfo(into: set.id, performer: ids[0]), !info.isEmpty {
+                    ForEach(info, id: \.index) { row in
+                        Text(describe(row))
+                            .font(.system(size: 11)).monospacedDigit()
+                    }
+                }
+                let maxHold = max(0, Int(total.doubleValue.rounded(.up)) - 1)
+                Stepper(value: $startLate, in: 0...maxHold) { Text("Start late by \(startLate) count\(startLate == 1 ? "" : "s")").monospacedDigit() }
+                Stepper(value: $arriveEarly, in: 0...maxHold) { Text("Arrive early by \(arriveEarly) count\(arriveEarly == 1 ? "" : "s")").monospacedDigit() }
+                Button("Apply Holds") { model.setHolds(start: Rational(startLate), end: Rational(arriveEarly)) }
+                    .disabled(!model.isEditable)
+                    .help("Mark time at the start and end of the move. The legs in between keep their shape and are paced into the remaining counts.")
+                HStack {
+                    Button("Even Out Pace") { model.evenPaceSelection() }
+                        .disabled(!model.isEditable || curved == 0)
+                        .help("Share the moving counts by leg length so the whole path is one step size. Holds keep their counts.")
+                    Button("Straighten") { model.straightenSelection() }
+                        .disabled(!model.isEditable || curved == 0)
+                        .help("Return the selection to one straight line at an even step")
+                }
+                Toggle("Show every performer's path", isOn: $model.showsAllPaths)
+                Text("Edits keep each leg's counts. On the field, drag the path to add a waypoint, drag a ring to move it, double-click a ring to remove it, and drag a diamond to curve a leg. Hold Option to skip snapping.")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .onAppear(perform: loadHolds)
+            .onChange(of: model.selection) { _, _ in loadHolds() }
+            .onChange(of: model.revision) { _, _ in loadHolds() }
+            .onChange(of: model.currentSetID) { _, _ in loadHolds() }
+        }
+    }
+
+    private func formatted(_ value: Rational) -> String {
+        TimeFormat.decimal(value.doubleValue, places: value.isInteger ? 0 : 2)
+    }
+
+    private func describe(_ row: PathSegmentInfo) -> String {
+        let span = "counts \(formatted(row.startCount))–\(formatted(row.startCount + row.counts))"
+        guard row.kind != "hold" else { return "\(row.index + 1). Hold · \(span)" }
+        let turn = row.sweep.map { " \(TimeFormat.decimal(abs($0), places: 0))° \($0 > 0 ? "clockwise" : "counter-clockwise")" } ?? ""
+        let pace = row.stepsPerFiveYards.isFinite ? "\(TimeFormat.decimal(row.stepsPerFiveYards, places: 1)) to 5" : "in place"
+        let steps = TimeFormat.decimal(row.length / model.show.field.stepSize, places: 1)
+        return "\(row.index + 1). \(row.kind == "arc" ? "Arc\(turn)" : "Line") · \(span) · \(steps) steps · \(pace)"
+    }
+
+    /// Starts the steppers from the current holds when one performer is selected.
+    private func loadHolds() {
+        guard model.selection.count == 1, let id = model.selection.first,
+              let route = try? model.show.route(into: model.currentSetID, performer: id) else {
+            startLate = 0
+            arriveEarly = 0
+            return
+        }
+        let lead = route.segments.prefix { $0.isHold }.reduce(Rational.zero) { $0 + $1.counts }
+        let trail = route.segments.reversed().prefix { $0.isHold }.reduce(Rational.zero) { $0 + $1.counts }
+        startLate = Int(lead.floor)
+        arriveEarly = Int(trail.floor)
     }
 }
