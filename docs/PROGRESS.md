@@ -1,5 +1,35 @@
 # Progress log
 
+## 2026-10-19: Per-performer paths (P0 and P1 of `FIELDWORK_PATHS.md`)
+
+Environment: Windows 11 Home (10.0.26200), Swift 6.4 (`swift-6.4-RELEASE`), .NET SDK. **No Mac was available**, so the macOS part was written but not compiled or run.
+
+### Completed behavior
+
+- **Model** (`DrillCore/Path.swift`): `PathSegment` (`hold`, `line`, `arc`) with exact `Rational` counts, `PerformerPath` on `Transition.paths`, arc geometry with tight bounds, split, scale, end moves and canonical form. `Transition` still decodes without `paths`, so older journals and fixtures replay. `transition.model` stays `straight`.
+- **Evaluator:** follows a performer's path when there is one; `isMoving` is false during a hold; `z` and facing interpolate as before. `makeSplitMove`, playback and the bridge scenes use the same evaluator.
+- **Validation:** the path invariants (placed ends, counts that add up exactly, finite points, arc sweep and chord, end on the arrival).
+- **Commands:** new `setPaths`. Placement edits move the last leg's end (arcs keep their sweep), changing move counts scales segments exactly, splitting a move cuts each path at the count, deleting a set joins the two routes so its positions become waypoints, unresolved or inactive ends and removed performers drop paths, and new sets start straight. Builders: hold phases (start late, arrive early), insert, move and delete waypoints, curve a leg by sagitta with snap, even pace, straighten, per-segment info.
+- **Analysis:** stride uses the fastest segment and reports its count range; close passes split at both performers' joints, are exact on straight pieces and sampled (8 per count, then refined) on arcs, and are marked as sampled; arc bulges outside the field are flagged.
+- **Document:** schema 5 `path_segment`, migration 4 → 5, canonical deterministic rows, a reader that rejects unknown kinds, gaps, bad NULLs and non-integer durations, and `drill.paths.v1` in both capability lists when any path exists.
+- **fwtool:** `info` reports path counts; `paths-fixture` writes the synthetic `spec/fixtures/paths.fieldwork` (golden output in `spec/fixtures/paths-evaluation.json`).
+- **macOS (not compiled):** paths drawn for the selection or everyone (View › Show All Paths) with count ticks, hold markers and dashed warning paths; drag the path to add a waypoint, drag or double-click a waypoint ring, drag a leg's diamond to curve it; a path inspector with hold phases, Even Out Pace, Straighten and per-segment counts, length and `n to 5`.
+
+### Commands actually run
+
+| Command | Result |
+|---|---|
+| `scripts/test-portable.ps1` | DrillTiming 20, DrillCore 46 (18 new path tests), DrillDocument 28 (6 new), DrillBridge 2; release `FieldworkCore.dll`; C# interop smoke test passes; exit 0 |
+| `fwtool paths-fixture spec/fixtures/paths.fieldwork` then `fwtool info` | 6 paths with 10 segments in 2 of 2 moves |
+| `fwtool profile 350 150` (release, no paths) | Evaluate frame 35.2 µs, full analysis 58–60 ms, 50-dot drag commit 3.02 ms, round trip identical |
+
+### Not done
+
+- **The Mac UI code has not been compiled.** Expect compile fixes on the first Mac build.
+- P2 generators (follow-the-leader, block rotation) and a `cubic` segment kind.
+- "Keep holds fixed" when stretching a move; it scales every segment today.
+- The converter acceptance run on a real drill belongs to the converter's owner and was not run here.
+
 ## 2026-10-19: Start move readouts at count one
 
 Move readouts now use one-based marching counts rather than elapsed counts from
