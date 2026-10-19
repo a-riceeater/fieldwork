@@ -1,0 +1,501 @@
+{
+  "frames" : [
+    {
+      "audioTime" : 0,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -8,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 10
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        }
+      ],
+      "pulse" : 0,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 0.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -8,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 1.950903,
+          "y" : 9.807853
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 1,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 7.071068,
+          "y" : -7.071068
+        }
+      ],
+      "pulse" : 1,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 1,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -8,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 3.826834,
+          "y" : 9.238795
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 2,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : -10
+        }
+      ],
+      "pulse" : 2,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 1.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -7,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 5.555702,
+          "y" : 8.314696
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 3,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : -7.071068,
+          "y" : -7.071068
+        }
+      ],
+      "pulse" : 3,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 2,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -6,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 7.071068,
+          "y" : 7.071068
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : -10,
+          "y" : 0
+        }
+      ],
+      "pulse" : 4,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 2.25,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -5.5,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 7.730105,
+          "y" : 6.343933
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.5,
+          "y" : 0
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : -9.238795,
+          "y" : 3.826834
+        }
+      ],
+      "pulse" : 4.5,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 2.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -5,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 8.314696,
+          "y" : 5.555702
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.5,
+          "y" : 0.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : -7.071068,
+          "y" : 7.071068
+        }
+      ],
+      "pulse" : 5,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 3,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -4,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 9.238795,
+          "y" : 3.826834
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.5,
+          "y" : 1.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 10
+        }
+      ],
+      "pulse" : 6,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 3.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -3,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 9.807853,
+          "y" : 1.950903
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.5,
+          "y" : 2.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 10
+        }
+      ],
+      "pulse" : 7,
+      "setIndex" : 0
+    },
+    {
+      "audioTime" : 4,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -2,
+          "y" : -4
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.5,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 10
+        }
+      ],
+      "pulse" : 8,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 4.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -0.5,
+          "y" : -3.598076
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 4.818182,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 9
+        }
+      ],
+      "pulse" : 9,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : 0.598076,
+          "y" : -2.5
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 5.454545,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 8
+        }
+      ],
+      "pulse" : 10,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 5.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : 1,
+          "y" : -1
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 6.090909,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 7
+        }
+      ],
+      "pulse" : 11,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 6,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : 0.598076,
+          "y" : 0.5
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 6.727273,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 6
+        }
+      ],
+      "pulse" : 12,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 6.5,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -0.5,
+          "y" : 1.598076
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 7.363636,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 5
+        }
+      ],
+      "pulse" : 13,
+      "setIndex" : 1
+    },
+    {
+      "audioTime" : 7,
+      "performers" : [
+        {
+          "id" : "C10E7796-E79C-45DA-8E39-C3E156549CA8",
+          "state" : "placed",
+          "x" : -2,
+          "y" : 2
+        },
+        {
+          "id" : "6037A3A1-144F-4B52-98D0-D115E15B49DA",
+          "state" : "placed",
+          "x" : 10,
+          "y" : 0
+        },
+        {
+          "id" : "5BD7A4EA-F614-43F4-9174-C504AD83982C",
+          "state" : "placed",
+          "x" : 8,
+          "y" : 3.5
+        },
+        {
+          "id" : "21549D99-7BAF-44F8-BF8B-12040ADCCE1F",
+          "state" : "placed",
+          "x" : 0,
+          "y" : 4
+        }
+      ],
+      "pulse" : 14,
+      "setIndex" : 2
+    }
+  ],
+  "show" : "Fixture: Paths"
+}

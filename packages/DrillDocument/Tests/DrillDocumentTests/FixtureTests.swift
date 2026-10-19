@@ -36,4 +36,29 @@ final class FixtureTests: XCTestCase {
             }
         }
     }
+
+    /// Synthetic paths fixture with every segment kind. Regenerate with
+    /// `fwtool paths-fixture spec/fixtures/paths.fieldwork`, then
+    /// `fwtool evaluate spec/fixtures/paths.fieldwork 0 1 2 3 4 4.5 5 6 7 8 9 10 11 12 13 14`.
+    func testPathsFixtureMatchesGoldenEvaluation() throws {
+        let document = try DocumentFile.open(Self.repoRoot.appendingPathComponent("spec/fixtures/paths.fieldwork"))
+        let golden = try JSONSerialization.jsonObject(with: Data(contentsOf: Self.repoRoot.appendingPathComponent("spec/fixtures/paths-evaluation.json"))) as! [String: Any]
+        let show = document.show
+        XCTAssertEqual(golden["show"] as? String, show.title)
+        XCTAssertNil(document.readOnlyReason)
+        let kinds = Set(show.transitions.flatMap { $0.paths.values.flatMap { $0.segments.map(\.kindName) } })
+        XCTAssertEqual(kinds, ["hold", "line", "arc"])
+        let evaluator = try SceneEvaluator(show: show, movementID: show.movements[0].id)
+        for frame in golden["frames"] as! [[String: Any]] {
+            let scene = evaluator.evaluate(pulse: frame["pulse"] as! Double)
+            XCTAssertEqual(scene.setIndex, frame["setIndex"] as? Int)
+            let expected = frame["performers"] as! [[String: Any]]
+            XCTAssertEqual(expected.count, scene.performers.count)
+            for (e, actual) in zip(expected, scene.performers) {
+                XCTAssertEqual(e["id"] as? String, actual.id.description)
+                XCTAssertEqual(actual.x, e["x"] as! Double, accuracy: 1e-6)
+                XCTAssertEqual(actual.y, e["y"] as! Double, accuracy: 1e-6)
+            }
+        }
+    }
 }
