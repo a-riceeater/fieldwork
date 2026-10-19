@@ -73,6 +73,11 @@ final class EditorModel: ObservableObject {
     @Published var wholeCountsOnly: Bool {
         didSet { preferences.set(wholeCountsOnly, forKey: "FieldworkWholeCountsOnly") }
     }
+    /// Draws every performer as a circle in their section color, ignoring
+    /// section and individual symbols. A per-user view preference, not show data.
+    @Published var circlesOnly: Bool {
+        didSet { preferences.set(circlesOnly, forKey: "FieldworkCirclesOnly") }
+    }
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
     @Published var conflict: PendingConflict?
@@ -99,6 +104,7 @@ final class EditorModel: ObservableObject {
     init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil, preferences: UserDefaults = .standard) {
         self.preferences = preferences
         wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
+        circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
         self.session = session
         self.assets = assets
         self.readOnlyReason = readOnlyReason
@@ -303,6 +309,21 @@ final class EditorModel: ObservableObject {
 
     func setSectionPrefix(_ id: SectionID, prefix: String) {
         perform { try self.show.makeSectionPrefix(id, prefix: prefix) }
+    }
+
+    func setSectionSymbol(_ id: SectionID, symbol: PerformerSymbol) {
+        perform { try self.show.makeSectionSymbol(id, symbol: symbol) }
+    }
+
+    /// Gives performers their own symbol, or nil to follow their section again.
+    func setSymbol(_ ids: [PerformerID], symbol: PerformerSymbol?) {
+        let wanted = Set(ids)
+        perform { try self.show.makePerformerSymbol(self.show.performers.map(\.id).filter(wanted.contains), symbol: symbol) }
+    }
+
+    /// The symbol the canvas draws for a performer, honoring the circles-only preference.
+    func displaySymbol(for performer: Performer) -> PerformerSymbol {
+        circlesOnly ? .circle : show.symbol(for: performer)
     }
 
     func selectSection(_ id: SectionID) {

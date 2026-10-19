@@ -338,3 +338,96 @@ struct FieldPresetCard: View {
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
+
+// MARK: Performer symbols
+
+/// A performer symbol in a section color, drawn like the field canvas draws it.
+struct SymbolGlyph: View {
+    var symbol: PerformerSymbol
+    var colorIndex: Int
+    var size: CGFloat = 9
+
+    var body: some View {
+        Canvas { ctx, canvasSize in
+            let r = min(canvasSize.width, canvasSize.height) / 2
+            let c = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+            let color = Color(nsColor: Tokens.sectionColor(colorIndex))
+            let stroke = StrokeStyle(lineWidth: max(1.5, r * 0.35), lineCap: .round)
+            var path = Path()
+            switch symbol {
+            case .circle:
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)), with: .color(color))
+            case .square:
+                ctx.fill(Path(CGRect(x: c.x - r * 0.9, y: c.y - r * 0.9, width: 1.8 * r, height: 1.8 * r)), with: .color(color))
+            case .triangle:
+                path.addLines([CGPoint(x: c.x, y: c.y - r), CGPoint(x: c.x + r, y: c.y + r * 0.8), CGPoint(x: c.x - r, y: c.y + r * 0.8)])
+                path.closeSubpath()
+                ctx.fill(path, with: .color(color))
+            case .diamond:
+                path.addLines([CGPoint(x: c.x, y: c.y - r), CGPoint(x: c.x + r, y: c.y), CGPoint(x: c.x, y: c.y + r), CGPoint(x: c.x - r, y: c.y)])
+                path.closeSubpath()
+                ctx.fill(path, with: .color(color))
+            case .cross:
+                path.move(to: CGPoint(x: c.x - r, y: c.y - r)); path.addLine(to: CGPoint(x: c.x + r, y: c.y + r))
+                path.move(to: CGPoint(x: c.x - r, y: c.y + r)); path.addLine(to: CGPoint(x: c.x + r, y: c.y - r))
+                ctx.stroke(path, with: .color(color), style: stroke)
+            case .slash:
+                path.move(to: CGPoint(x: c.x - r, y: c.y + r)); path.addLine(to: CGPoint(x: c.x + r, y: c.y - r))
+                ctx.stroke(path, with: .color(color), style: stroke)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A row of symbol buttons. With `allowsSection`, the first choice is
+/// "follow the section" (reported as nil).
+struct SymbolPicker: View {
+    /// The current choice; nil means following the section.
+    var selection: PerformerSymbol?
+    var colorIndex: Int
+    var allowsSection = false
+    /// The section's symbol when every performer shares one section.
+    var sectionSymbol: PerformerSymbol? = nil
+    /// False when a multiple selection has mixed choices, so nothing is highlighted.
+    var showsSelection = true
+    var pick: (PerformerSymbol?) -> Void
+
+    var body: some View {
+        HStack(spacing: Tokens.Space.xs) {
+            if allowsSection {
+                choice(nil, glyph: sectionSymbol ?? .circle,
+                       name: sectionSymbol.map { "Section symbol (\($0.displayName))" } ?? "Each performer's section symbol")
+                Divider().frame(height: 18)
+            }
+            ForEach(PerformerSymbol.allCases, id: \.self) { symbol in
+                choice(symbol, glyph: symbol, name: symbol.displayName)
+            }
+        }
+    }
+
+    private func choice(_ value: PerformerSymbol?, glyph: PerformerSymbol, name: String) -> some View {
+        let selected = showsSelection && value == selection
+        return Button { pick(value) } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(selected ? Color.fwAccent.opacity(0.18) : Color.primary.opacity(0.05))
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(selected ? Color.fwAccent : Color.clear, lineWidth: 1.5)
+                SymbolGlyph(symbol: glyph, colorIndex: colorIndex, size: 11)
+                if value == nil {
+                    Text("S").font(.system(size: 7, weight: .bold)).foregroundStyle(Color.fwSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(2)
+                }
+            }
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(name)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}

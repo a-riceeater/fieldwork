@@ -201,6 +201,8 @@ extension EditorView {
         ToolbarItemGroup(placement: .primaryAction) {
             Toggle(isOn: $model.snapEnabled) { Label("Snap", systemImage: "squareshape.split.3x3") }
                 .help("Snap to \(TimeFormat.decimal(model.snapSteps, places: 2))-step grid. Hold Option while dragging to bypass.")
+            Toggle(isOn: $model.circlesOnly) { Label("Circles", systemImage: "circle.grid.3x3.fill") }
+                .help("Draw everyone as a circle in their section color (View › Draw Everyone as Circles)")
             Picker("Axis", selection: $model.axisLock) {
                 Text("Free").tag(AxisLock.none)
                 Text("Side-to-side").tag(AxisLock.horizontal)

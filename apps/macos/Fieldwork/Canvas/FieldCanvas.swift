@@ -57,7 +57,7 @@ extension EditorModel {
                 guard let p = formation[performer.id].position else { continue }
                 let section = sections[performer.sectionID]
                 dots.append(CanvasDot(id: performer.id, label: performer.label, point: p.point, colorIndex: section?.colorIndex ?? 0,
-                                      symbol: section?.symbol ?? .circle, selected: selection.contains(performer.id)))
+                                      symbol: displaySymbol(for: performer), selected: selection.contains(performer.id)))
             }
             if let set = currentSet {
                 let music = (try? map?.musicalPosition(at: set.cursor).label) ?? ""
@@ -71,7 +71,7 @@ extension EditorModel {
                 guard let performer = byID[p.id] else { continue }
                 let section = sections[performer.sectionID]
                 dots.append(CanvasDot(id: p.id, label: performer.label, point: Point2(p.x, p.y), colorIndex: section?.colorIndex ?? 0,
-                                      symbol: section?.symbol ?? .circle, selected: selection.contains(p.id)))
+                                      symbol: displaySymbol(for: performer), selected: selection.contains(p.id)))
             }
             let from = evaluator.sets[scene.setIndex].label
             if let next = scene.nextSetIndex {

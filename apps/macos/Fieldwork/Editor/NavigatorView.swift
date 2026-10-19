@@ -74,7 +74,7 @@ struct NavigatorView: View {
                     Section {
                         ForEach(members) { performer in
                             HStack {
-                                Circle().fill(Color(nsColor: Tokens.sectionColor(section.colorIndex))).frame(width: 8, height: 8)
+                                SymbolGlyph(symbol: model.displaySymbol(for: performer), colorIndex: section.colorIndex)
                                 Text(performer.label).monospacedDigit()
                                 Spacer()
                                 if model.show.formation(model.currentSetID)[performer.id].position == nil {
@@ -89,6 +89,7 @@ struct NavigatorView: View {
                         HStack {
                             Text("\(section.name) (\(model.show.performers(in: section.id).count))")
                             Spacer()
+                            SectionSymbolButton(model: model, section: section)
                             SectionLetterButton(model: model, section: section)
                             Button("Select") {
                                 if NSEvent.modifierFlags.contains(.command) {
@@ -162,6 +163,47 @@ struct SetRow: View {
         }
         if isPreset { return ["Preset · count 0", music].filter { !$0.isEmpty }.joined(separator: " · ") }
         return music.isEmpty ? "Move \(move)" : "Arrival \(music) · move \(move)"
+    }
+}
+
+/// Shows a section's symbol; clicking it picks the symbol every member uses,
+/// except members given their own symbol in the inspector.
+struct SectionSymbolButton: View {
+    @ObservedObject var model: EditorModel
+    var section: DrillCore.Section
+    @State private var editing = false
+
+    var body: some View {
+        Button { editing = true } label: {
+            SymbolGlyph(symbol: section.symbol, colorIndex: section.colorIndex)
+                .padding(2)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help("Change the symbol for \(section.name)")
+        .accessibilityLabel("Symbol \(section.symbol.displayName) for \(section.name). Change")
+        .disabled(!model.isEditable)
+        .popover(isPresented: $editing, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s) {
+                Text("\(section.name) symbol").font(.headline)
+                SymbolPicker(selection: section.symbol, colorIndex: section.colorIndex) { symbol in
+                    if let symbol, symbol != section.symbol { model.setSectionSymbol(section.id, symbol: symbol) }
+                    editing = false
+                }
+                let custom = model.show.performers(in: section.id).filter { $0.symbol != nil }.count
+                Text(custom == 0 ? "Every \(section.name) performer uses this symbol."
+                     : "\(custom) performer\(custom == 1 ? " has" : "s have") their own symbol and keep\(custom == 1 ? "s" : "") it.")
+                    .font(.caption).foregroundStyle(Color.fwSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.circlesOnly {
+                    Text("Symbols are hidden while View › Draw Everyone as Circles is on.")
+                        .font(.caption).foregroundStyle(Color.fwSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(Tokens.Space.l)
+            .frame(width: 280)
+        }
     }
 }
 

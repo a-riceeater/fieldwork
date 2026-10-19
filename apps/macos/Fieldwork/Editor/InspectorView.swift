@@ -319,8 +319,10 @@ struct PerformerInspector: View {
         if let performer = model.show.performer(id) {
             let placement = model.show.formation(model.currentSetID)[id]
             let describer = CoordinateDescriber(field: model.show.field)
+            let section = model.show.section(performer.sectionID)
             InspectorSection(title: "Performer \(performer.label)") {
-                Text(model.show.section(performer.sectionID)?.name ?? "").foregroundStyle(Color.fwSecondary)
+                Text(section?.name ?? "").foregroundStyle(Color.fwSecondary)
+                SymbolRow(model: model, ids: [id])
                 if let p = placement.position {
                     NumberField(label: "x (m)", value: p.x) { model.setCoordinate(id, x: $0, y: p.y) }
                     NumberField(label: "y (m)", value: p.y) { model.setCoordinate(id, x: p.x, y: $0) }
@@ -361,6 +363,7 @@ struct GroupInspector: View {
             if points.count < model.selection.count {
                 Label("\(model.selection.count - points.count) without a position", systemImage: "questionmark.circle").foregroundStyle(Color.fwWarning)
             }
+            SymbolRow(model: model, ids: Array(model.selection))
             Text("Arrange").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.fwSecondary)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: Tokens.Space.xs) {
                 ArrangeButtons(model: model)
@@ -368,6 +371,30 @@ struct GroupInspector: View {
             .disabled(!model.isEditable)
             Text("Shapes are placed in label order where the selection is (or at midfield). To draw one yourself, choose Line or Arc in the toolbar and drag on the field.")
                 .font(.caption).foregroundStyle(Color.fwSecondary)
+        }
+    }
+}
+
+/// Symbol choice for one or more performers: their section's symbol or their own.
+struct SymbolRow: View {
+    @ObservedObject var model: EditorModel
+    var ids: [PerformerID]
+
+    var body: some View {
+        let performers = ids.compactMap(model.show.performer)
+        let sections = Set(performers.map(\.sectionID))
+        let choices = Set(performers.map(\.symbol))
+        let section = sections.count == 1 ? sections.first.flatMap(model.show.section) : nil
+        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            Text("Symbol").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.fwSecondary)
+            SymbolPicker(selection: choices.first ?? nil, colorIndex: section?.colorIndex ?? 0, allowsSection: true,
+                         sectionSymbol: section?.symbol, showsSelection: choices.count == 1) { symbol in
+                if choices != [symbol] { model.setSymbol(ids, symbol: symbol) }
+            }
+            .disabled(!model.isEditable)
+            if model.circlesOnly {
+                Text("Hidden while View › Draw Everyone as Circles is on.").font(.caption).foregroundStyle(Color.fwSecondary)
+            }
         }
     }
 }

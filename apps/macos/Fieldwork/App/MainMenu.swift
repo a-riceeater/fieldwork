@@ -80,6 +80,8 @@ enum MainMenu {
             item("Zoom In", #selector(EditorWindowController.zoomInField(_:)), "+"),
             item("Zoom Out", #selector(EditorWindowController.zoomOutField(_:)), "-"),
             .separator(),
+            item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
+            .separator(),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ]))
 
