@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import QuartzCore
 import DrillTiming
 import DrillCore
 import DrillDocument
@@ -118,6 +119,9 @@ final class EditorModel: ObservableObject {
     let transport = PlaybackTransport()
     private let preferences: UserDefaults
     private var displayTimer: Timer?
+    private var displayLink: CADisplayLink?
+    private weak var playbackView: NSView?
+    private var displayTarget: PlaybackDisplayTarget?
     private var lastPlaybackSetIndex: Int?
     private var evaluatorCache: (revision: Int, evaluator: SceneEvaluator)?
     private var analysisCache: (revision: Int, issues: [DrillIssue])?
@@ -135,6 +139,11 @@ final class EditorModel: ObservableObject {
         tour = TourStore.load()
         revision = session.revision
         loadAudioForCurrentMovement()
+    }
+
+    deinit {
+        displayTimer?.invalidate()
+        displayLink?.invalidate()
     }
 
     // MARK: Model access
@@ -649,21 +658,47 @@ final class EditorModel: ObservableObject {
         transport.play(from: playheadSeconds)
         isPlaying = true
         lastPlaybackSetIndex = evaluator?.setIndex(atPulse: currentPulse)
-        displayTimer?.invalidate()
-        // Display-only refresh: it asks the audio clock what time it is and never advances time itself.
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+        startDisplayRefresh()
+    }
+
+    /// The view's display link follows its screen and stops requesting frames while hidden.
+    func attachPlaybackView(_ view: NSView) {
+        playbackView = view
+        if isPlaying { startDisplayRefresh() }
+    }
+
+    private func startDisplayRefresh() {
+        stopDisplayRefresh()
+        if let playbackView {
+            let target = PlaybackDisplayTarget { [weak self] in self?.tick() }
+            displayTarget = target
+            let link = playbackView.displayLink(target: target, selector: #selector(PlaybackDisplayTarget.refresh))
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        } else {
+            // Headless clients have no display. This refresh still only samples the media clock.
+            let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.tick() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            displayTimer = timer
         }
-        RunLoop.main.add(timer, forMode: .common)
-        displayTimer = timer
+    }
+
+    private func stopDisplayRefresh() {
+        displayLink?.invalidate()
+        displayLink = nil
+        displayTarget = nil
+        displayTimer?.invalidate()
+        displayTimer = nil
     }
 
     func pause() {
         transport.pause()
         playheadSeconds = transport.currentTime
         isPlaying = false
-        displayTimer?.invalidate()
-        displayTimer = nil
+        stopDisplayRefresh()
         if wholeCountsOnly, let map {
             let location = map.locate(audioTime: playheadSeconds)
             // Keep pre-roll and elapsed holds intact when already on a whole count.
@@ -756,4 +791,12 @@ enum TourStore {
 @MainActor
 final class PlaybackPosition: ObservableObject {
     @Published var seconds: Double = 0
+}
+
+/// The display link retains its target; the callback captures the editor weakly.
+@MainActor
+private final class PlaybackDisplayTarget: NSObject {
+    let callback: () -> Void
+    init(_ callback: @escaping () -> Void) { self.callback = callback }
+    @objc func refresh() { callback() }
 }

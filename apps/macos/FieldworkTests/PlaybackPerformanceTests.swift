@@ -6,6 +6,72 @@ import DrillDocument
 @testable import Fieldwork
 
 final class PlaybackPerformanceTests: XCTestCase {
+    @MainActor
+    func testFrameUpdatesReachNativeSurfacesWithoutInvalidatingDocumentUI() throws {
+        let show = try SampleShow.makeLarge(performers: 350, sets: 150)
+        let model = EditorModel(session: try DocumentSession(show: show), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        let timeline = TimelineCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 180))
+        let fieldCoordinator = FieldCanvas.Coordinator(model: model)
+        let timelineCoordinator = TimelineLanes.Coordinator(model: model)
+        fieldCoordinator.connect(canvas)
+        timelineCoordinator.connect(timeline)
+        timeline.state = model.timelineState()
+        model.play()
+        defer { model.pause() }
+        var invalidations = 0
+        let observer = model.objectWillChange.sink { invalidations += 1 }
+        defer { observer.cancel() }
+        for time in [0.0, 1.25, 4.0, 100.5, model.timelineDuration] {
+            model.playheadSeconds = time
+            let expected = try XCTUnwrap(model.evaluator).evaluate(audioTime: time)
+            let state = try XCTUnwrap(canvas.state)
+            XCTAssertEqual(state.dots.count, 350)
+            XCTAssertTrue(state.paths.isEmpty)
+            XCTAssertTrue(state.warningPaths.isEmpty)
+            XCTAssertEqual(state.dots.first?.id, expected.performers.first?.id)
+            XCTAssertEqual(try XCTUnwrap(state.dots.first?.point.x), expected.performers[0].x, accuracy: 1e-9)
+            XCTAssertEqual(try XCTUnwrap(state.dots.first?.point.y), expected.performers[0].y, accuracy: 1e-9)
+            XCTAssertEqual(timeline.state?.playhead, time)
+        }
+        XCTAssertEqual(invalidations, 0, "Playback must not invalidate the set list, inspector or toolbar")
+        model.pause()
+        XCTAssertGreaterThan(invalidations, 0, "Pausing must restore the editing UI")
+    }
+
+    @MainActor
+    func testCachedFieldUpdatesForStyleZoomResizeAndFieldEdits() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        canvas.state = model.canvasState()
+        func render() throws -> Data {
+            let bitmap = try XCTUnwrap(canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds))
+            canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
+            return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        }
+        let original = try render()
+        XCTAssertEqual(try render(), original)
+        for style in FieldStyle.allCases where style != model.fieldStyle {
+            var state = try XCTUnwrap(canvas.state)
+            state.fieldStyle = style
+            canvas.state = state
+            XCTAssertNotEqual(try render(), original)
+        }
+        canvas.state = model.canvasState()
+        canvas.fit(.zoomIn)
+        XCTAssertNotEqual(try render(), original)
+        canvas.fit(.fitField)
+        XCTAssertEqual(try render(), original)
+        canvas.setFrameSize(NSSize(width: 900, height: 650))
+        XCTAssertNotEqual(try render(), original)
+        canvas.setFrameSize(NSSize(width: 800, height: 600))
+        XCTAssertEqual(try render(), original)
+        var state = try XCTUnwrap(canvas.state)
+        state.field = Field.make(.indoorFloor)
+        canvas.state = state
+        XCTAssertNotEqual(try render(), original)
+    }
+
     /// Opt in with FIELDWORK_PROFILE_DOCUMENT=/path/to/show.fieldwork. Never writes the input.
     @MainActor
     func testDocumentPlaybackProfile() throws {

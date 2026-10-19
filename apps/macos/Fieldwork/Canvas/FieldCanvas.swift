@@ -31,6 +31,7 @@ struct FieldCanvas: NSViewRepresentable {
         private var frames: AnyCancellable?
 
         func connect(_ view: FieldCanvasView) {
+            model.attachPlaybackView(view)
             frames = model.playbackPosition.$seconds.dropFirst().sink { [weak self, weak view] seconds in
                 guard let self, self.model.isPlaying else { return }
                 view?.state = self.model.canvasState(at: seconds)

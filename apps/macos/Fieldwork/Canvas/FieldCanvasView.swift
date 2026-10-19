@@ -22,6 +22,16 @@ final class FieldCanvasView: NSView {
 
     private(set) var transform = CanvasTransform()
     private var didFit = false
+
+    private struct BackgroundKey: Equatable {
+        var field: Field
+        var style: FieldStyle
+        var bounds: CGRect
+        var transform: CanvasTransform
+        var backingScale: CGFloat
+    }
+    /// One viewport-sized image. Panning, zooming, resizing or changing the field replaces it.
+    private var backgroundCache: (key: BackgroundKey, image: CGImage)?
     private var spaceDown = false
     /// Space toggles playback when tapped; Space-drag pans.
     private var spaceUsedForPan = false
@@ -396,17 +406,9 @@ final class FieldCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        (state?.fieldStyle == .paper ? Tokens.Paper.paper : NSColor(hex: 0x111C24)).setFill()
-        bounds.fill()
         guard let state else { return }
         let field = state.field
-        let fieldRect = CGRect(origin: view(Point2(field.bounds.minX, field.bounds.minY)),
-                               size: CGSize(width: CGFloat(field.length) * transform.scale, height: CGFloat(field.width) * transform.scale))
-        switch state.fieldStyle {
-        case .dark: drawSchematic(field, in: fieldRect, ctx: ctx)
-        case .grass: drawGrass(field, in: fieldRect, ctx: ctx)
-        case .paper: drawPaper(field, in: fieldRect, ctx: ctx)
-        }
+        drawBackground(state, in: ctx)
         // Labels, selection rings and paths: white on dark fields, dark ink on paper.
         let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : NSColor.white
 
@@ -529,6 +531,44 @@ final class FieldCanvasView: NSView {
             break
         }
         drawCaption(state.caption, at: CGPoint(x: 12, y: bounds.maxY - 24))
+    }
+
+    /// Grid lines, hash marks and yard labels do not change when performers move.
+    private func drawBackground(_ state: CanvasState, in ctx: CGContext) {
+        let scale = window?.backingScaleFactor ?? 2
+        let key = BackgroundKey(field: state.field, style: state.fieldStyle, bounds: bounds,
+                                transform: transform, backingScale: scale)
+        if backgroundCache?.key != key {
+            let width = Int(ceil(bounds.width * scale)), height = Int(ceil(bounds.height * scale))
+            guard width > 0, height > 0,
+                  let bitmap = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                         bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+                paintBackground(state, in: ctx)
+                return
+            }
+            bitmap.scaleBy(x: scale, y: scale)
+            bitmap.translateBy(x: -bounds.minX, y: -bounds.minY)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: bitmap, flipped: false)
+            paintBackground(state, in: bitmap)
+            NSGraphicsContext.restoreGraphicsState()
+            if let image = bitmap.makeImage() { backgroundCache = (key, image) }
+        }
+        if let image = backgroundCache?.image { ctx.draw(image, in: bounds) }
+    }
+
+    private func paintBackground(_ state: CanvasState, in ctx: CGContext) {
+        (state.fieldStyle == .paper ? Tokens.Paper.paper : NSColor(hex: 0x111C24)).setFill()
+        bounds.fill()
+        let field = state.field
+        let fieldRect = CGRect(origin: view(Point2(field.bounds.minX, field.bounds.minY)),
+                               size: CGSize(width: CGFloat(field.length) * transform.scale, height: CGFloat(field.width) * transform.scale))
+        switch state.fieldStyle {
+        case .dark: drawSchematic(field, in: fieldRect, ctx: ctx)
+        case .grass: drawGrass(field, in: fieldRect, ctx: ctx)
+        case .paper: drawPaper(field, in: fieldRect, ctx: ctx)
+        }
     }
 
     /// The dark editing surface with checkpoint lines whose strength varies by hierarchy.
