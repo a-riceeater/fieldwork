@@ -45,9 +45,9 @@ Reader behavior:
 - An unknown required capability, or an extension marked `required`, opens the show read-only.
 - Unknown optional extensions are kept and written back unchanged.
 
-## Show database (`show.sqlite`, schema 3)
+## Show database (`show.sqlite`, schema 4)
 
-The database is SQLite 3 with foreign keys enabled. `PRAGMA user_version` holds the schema version. Older schemas are migrated on an in-memory copy (schema 1 → 2 adds `show.counting_mode` defaulting to `measures` and empty `arrival_set.rehearsal_mark` and `measure_marker`; schema 2 → 3 adds a NULL `performer.symbol`). A newer schema is refused without changing bytes. Readers use prepared queries only and never execute SQL stored in a document.
+The database is SQLite 3 with foreign keys enabled. `PRAGMA user_version` holds the schema version. Older schemas are migrated on an in-memory copy (schema 1 → 2 adds `show.counting_mode` defaulting to `measures` and empty `arrival_set.rehearsal_mark` and `measure_marker`; schema 2 → 3 adds a NULL `performer.symbol`; schema 3 → 4 adds an empty `field_note` table). A newer schema is refused without changing bytes. Readers use prepared queries only and never execute SQL stored in a document.
 
 Canonical units: positions in **meters** from field center (+x toward the audience's right, +y toward the back sideline, +z up). Facing is in **degrees**: 0 faces the front sideline and values increase clockwise when seen from above. Durations are in **seconds**. Audio positions are **sample frames** of the referenced asset. Note values and cursor fractions are exact rationals, stored as `*_num`/`*_den` integer pairs with a positive denominator. IDs are uppercase UUID strings and stay stable across edits.
 
@@ -69,6 +69,7 @@ Canonical units: positions in **meters** from field center (+x toward the audien
 | `placement(set_id, performer_id, state, x, y, z, facing)` | `state` is `placed`, `unresolved` or `inactive`. Coordinates are NULL unless the state is `placed`. |
 | `form(id, set_id, ordinal, kind 'line'\|'arc', x0, y0, x1, y1, bulge)` | Retained form geometry. `bulge` is the signed sagitta in meters. |
 | `form_member(form_id, ordinal, performer_id)` | Assignment order along the form |
+| `field_note(id, set_id, ordinal, x, y, text)` | A text box shown on the field at one set. `x`, `y` is the box's top-left corner in meters. Notes are reminders for the author and never affect drill. |
 
 ### Timeline semantics
 

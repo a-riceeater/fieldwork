@@ -62,6 +62,13 @@ extension Show {
                 throw DrillError("A form has invalid membership.")
             }
         }
+        let noteIDs = Set(fieldNotes.map(\.id))
+        guard noteIDs.count == fieldNotes.count else { throw DrillError("Duplicate note IDs.") }
+        for note in fieldNotes {
+            guard setIDs.contains(note.setID) else { throw DrillError("A note references a missing set.") }
+            guard note.position.x.isFinite, note.position.y.isFinite else { throw DrillError("Note positions must be finite numbers.") }
+            guard note.text.count <= FieldNote.maxLength else { throw DrillError("Notes are limited to \(FieldNote.maxLength) characters.") }
+        }
         // A performer belongs to at most one form per set.
         var membership = Set<String>()
         for form in forms {

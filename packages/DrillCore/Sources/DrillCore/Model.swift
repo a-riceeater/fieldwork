@@ -8,6 +8,7 @@ public enum PerformerTag {}
 public enum SetTag {}
 public enum TransitionTag {}
 public enum FormTag {}
+public enum NoteTag {}
 
 public typealias ShowID = TypedID<ShowTag>
 public typealias MovementID = TypedID<MovementTag>
@@ -16,6 +17,7 @@ public typealias PerformerID = TypedID<PerformerTag>
 public typealias SetID = TypedID<SetTag>
 public typealias TransitionID = TypedID<TransitionTag>
 public typealias FormID = TypedID<FormTag>
+public typealias NoteID = TypedID<NoteTag>
 
 public struct DrillError: Error, Equatable, CustomStringConvertible, Sendable {
     public var message: String
@@ -210,6 +212,24 @@ public struct Form: Hashable, Codable, Sendable, Identifiable {
     }
 }
 
+/// A text box on the field at one set, for the author's own reminders. It
+/// never affects drill. `position` is the box's top-left corner in meters.
+public struct FieldNote: Hashable, Codable, Sendable, Identifiable {
+    public static let maxLength = 2000
+
+    public var id: NoteID
+    public var setID: SetID
+    public var position: Point2
+    public var text: String
+
+    public init(id: NoteID = NoteID(), setID: SetID, position: Point2, text: String = "") {
+        self.id = id
+        self.setID = setID
+        self.position = position
+        self.text = text
+    }
+}
+
 public struct Movement: Hashable, Codable, Sendable, Identifiable {
     public var id: MovementID
     public var name: String
@@ -283,11 +303,12 @@ public struct Show: Hashable, Codable, Sendable {
     public var mediaAssets: [MediaAssetInfo]
     public var analysis: AnalysisSettings
     public var countingMode: CountingMode
+    public var fieldNotes: [FieldNote]
 
     public init(id: ShowID = ShowID(), title: String, field: Field, sections: [Section] = [], performers: [Performer] = [],
                 movements: [Movement], sets: [ArrivalSet], formations: [SetID: Formation] = [:], transitions: [Transition] = [],
                 forms: [Form] = [], mediaAssets: [MediaAssetInfo] = [], analysis: AnalysisSettings = AnalysisSettings(),
-                countingMode: CountingMode = .measures) {
+                countingMode: CountingMode = .measures, fieldNotes: [FieldNote] = []) {
         self.id = id
         self.title = title
         self.field = field
@@ -301,9 +322,10 @@ public struct Show: Hashable, Codable, Sendable {
         self.mediaAssets = mediaAssets
         self.analysis = analysis
         self.countingMode = countingMode
+        self.fieldNotes = fieldNotes
     }
 
-    /// Accepts shows written before the counting mode existed (they follow measures).
+    /// Accepts shows written before the counting mode (they follow measures) or field notes existed.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(ShowID.self, forKey: .id)
@@ -319,6 +341,7 @@ public struct Show: Hashable, Codable, Sendable {
         mediaAssets = try c.decode([MediaAssetInfo].self, forKey: .mediaAssets)
         analysis = try c.decode(AnalysisSettings.self, forKey: .analysis)
         countingMode = try c.decodeIfPresent(CountingMode.self, forKey: .countingMode) ?? .measures
+        fieldNotes = try c.decodeIfPresent([FieldNote].self, forKey: .fieldNotes) ?? []
     }
 
     /// The set's place in the music as shown in lists and printouts: the
@@ -357,6 +380,8 @@ public struct Show: Hashable, Codable, Sendable {
     public func transition(into set: SetID) -> Transition? { transitions.first { $0.toSetID == set } }
     public func form(_ id: FormID) -> Form? { forms.first { $0.id == id } }
     public func forms(on set: SetID) -> [Form] { forms.filter { $0.setID == set } }
+    public func fieldNote(_ id: NoteID) -> FieldNote? { fieldNotes.first { $0.id == id } }
+    public func fieldNotes(on set: SetID) -> [FieldNote] { fieldNotes.filter { $0.setID == set } }
     public func performers(in section: SectionID) -> [Performer] { performers.filter { $0.sectionID == section } }
 
     /// The symbol a performer is drawn with: their own override, else their section's.

@@ -144,10 +144,10 @@ final class ContainerTests: XCTestCase {
         ALTER TABLE arrival_set DROP COLUMN rehearsal_mark;
         ALTER TABLE arrival_set DROP COLUMN measure_marker;
         """)
-        try db.execute("ALTER TABLE performer DROP COLUMN symbol")
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note;")
         try db.setUserVersion(1)
         try ShowDatabase.migrate(db)
-        XCTAssertEqual(db.userVersion, 3)
+        XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
         let migrated = try ShowDatabase.read(db)
         XCTAssertEqual(migrated.countingMode, .measures)
         XCTAssertTrue(migrated.sets.allSatisfy { $0.rehearsalMark.isEmpty && $0.measureMarker.isEmpty })
@@ -166,13 +166,29 @@ final class ContainerTests: XCTestCase {
         // A schema 2 database has no performer symbols; everyone follows their section.
         let base = try SampleShow.make()
         let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
-        try db.execute("ALTER TABLE performer DROP COLUMN symbol")
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note;")
         try db.setUserVersion(2)
         try ShowDatabase.migrate(db)
-        XCTAssertEqual(db.userVersion, 3)
+        XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
         let migrated = try ShowDatabase.read(db)
         XCTAssertTrue(migrated.performers.allSatisfy { $0.symbol == nil })
         XCTAssertEqual(migrated, base)
+    }
+
+    func testFieldNotesRoundTripAndMigrateFromSchema3() throws {
+        var show = try SampleShow.make()
+        show.fieldNotes = [FieldNote(setID: show.sets[1].id, position: Point2(-20.5, 8.25), text: "Flags arrive to pick up new\nflags behind backdrop."),
+                           FieldNote(setID: show.sets[0].id, position: Point2(3, -4))]
+        let reopened = try ShowDatabase.decode(try ShowDatabase.encode(show, writer: "test"))
+        XCTAssertEqual(reopened, show)
+
+        let base = try SampleShow.make()
+        let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
+        try db.execute("DROP TABLE field_note")
+        try db.setUserVersion(3)
+        try ShowDatabase.migrate(db)
+        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(try ShowDatabase.read(db), base)
     }
 
     func testFileSaveKeepsPreviousVersionAndFailedSaveChangesNothing() throws {

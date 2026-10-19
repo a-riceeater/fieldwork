@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -59,10 +59,17 @@ enum ShowDatabase {
     ALTER TABLE performer ADD COLUMN symbol TEXT;
     """
 
+    /// Schema 4: text boxes on the field at one set.
+    static let schemaV4Changes = """
+    CREATE TABLE field_note (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
+        x REAL NOT NULL, y REAL NOT NULL, text TEXT NOT NULL);
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
     static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) },
-                                               2: { db in try db.execute(schemaV3Changes) }]
+                                               2: { db in try db.execute(schemaV3Changes) },
+                                               3: { db in try db.execute(schemaV4Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -86,6 +93,7 @@ enum ShowDatabase {
             try db.execute(schemaV1)
             try db.execute(schemaV2Changes)
             try db.execute(schemaV3Changes)
+            try db.execute(schemaV4Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])
@@ -169,6 +177,10 @@ enum ShowDatabase {
                 try form.run([.text(fm.id.description), .text(fm.setID.description), .int(i), .text(kind), .double(start.x), .double(start.y),
                               .double(end.x), .double(end.y), .double(bulge)])
                 for (j, m) in fm.members.enumerated() { try member.run([.text(fm.id.description), .int(j), .text(m.description)]) }
+            }
+            let note = try db.prepare("INSERT INTO field_note VALUES (?, ?, ?, ?, ?, ?)")
+            for (i, n) in show.fieldNotes.enumerated() {
+                try note.run([.text(n.id.description), .text(n.setID.description), .int(i), .double(n.position.x), .double(n.position.y), .text(n.text)])
             }
             let violations = try db.prepare("PRAGMA foreign_key_check")
             if try violations.step() { throw DocumentError.corrupt("The show has broken references (\(violations.text(0))).") }
@@ -318,8 +330,16 @@ enum ShowDatabase {
             forms.append(Form(id: formID, setID: try id(form.text(1), SetID.self), geometry: geometry, members: members))
         }
 
+        var notes: [FieldNote] = []
+        let note = try db.prepare("SELECT id, set_id, x, y, text FROM field_note ORDER BY ordinal")
+        while try note.step() {
+            notes.append(FieldNote(id: try id(note.text(0), NoteID.self), setID: try id(note.text(1), SetID.self),
+                                   position: Point2(note.double(2), note.double(3)), text: note.text(4)))
+        }
+
         let show = Show(id: showID, title: title, field: field, sections: sections, performers: performers, movements: movements, sets: sets,
-                        formations: formations, transitions: transitions, forms: forms, mediaAssets: assets, analysis: analysis, countingMode: countingMode)
+                        formations: formations, transitions: transitions, forms: forms, mediaAssets: assets, analysis: analysis, countingMode: countingMode,
+                        fieldNotes: notes)
         do { try show.validate() } catch { throw DocumentError.corrupt("The show data is inconsistent: \(error)") }
         return show
     }

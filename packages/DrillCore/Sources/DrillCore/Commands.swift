@@ -27,6 +27,10 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
     case addMediaAsset(MediaAssetInfo)
     case setAnalysisSettings(AnalysisSettings)
     case setCountingMode(CountingMode)
+    case addFieldNote(FieldNote)
+    case moveFieldNote(NoteID, Point2)
+    case editFieldNote(NoteID, String)
+    case deleteFieldNote(NoteID)
     case batch(String, [DrillCommand])
 
     /// Undo/redo menu description.
@@ -55,6 +59,10 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .addMediaAsset: return "Import Audio"
         case .setAnalysisSettings: return "Change Warning Thresholds"
         case .setCountingMode: return "Change Counting"
+        case .addFieldNote: return "Add Note"
+        case .moveFieldNote: return "Move Note"
+        case .editFieldNote: return "Edit Note"
+        case .deleteFieldNote: return "Delete Note"
         case .batch(let name, _): return name
         }
     }
@@ -85,6 +93,10 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .addMediaAsset: return "addMediaAsset"
         case .setAnalysisSettings: return "setAnalysisSettings"
         case .setCountingMode: return "setCountingMode"
+        case .addFieldNote: return "addFieldNote"
+        case .moveFieldNote: return "moveFieldNote"
+        case .editFieldNote: return "editFieldNote"
+        case .deleteFieldNote: return "deleteFieldNote"
         case .batch: return "batch"
         }
     }
@@ -165,6 +177,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
             show.transitions.removeAll { $0.toSetID == id }
             show.formations[id] = nil
             show.forms.removeAll { $0.setID == id }
+            show.fieldNotes.removeAll { $0.setID == id }
             _ = set
 
         case .updateSet(let id, let label, let notes):
@@ -251,6 +264,23 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
 
         case .setCountingMode(let mode):
             show.countingMode = mode
+
+        case .addFieldNote(let note):
+            guard show.fieldNote(note.id) == nil else { throw DrillError("Note already exists.") }
+            guard show.set(note.setID) != nil else { throw DrillError("Unknown set.") }
+            show.fieldNotes.append(note)
+
+        case .moveFieldNote(let id, let position):
+            guard let i = show.fieldNotes.firstIndex(where: { $0.id == id }) else { throw DrillError("That note no longer exists.") }
+            show.fieldNotes[i].position = position
+
+        case .editFieldNote(let id, let text):
+            guard let i = show.fieldNotes.firstIndex(where: { $0.id == id }) else { throw DrillError("That note no longer exists.") }
+            show.fieldNotes[i].text = text
+
+        case .deleteFieldNote(let id):
+            guard show.fieldNote(id) != nil else { throw DrillError("That note no longer exists.") }
+            show.fieldNotes.removeAll { $0.id == id }
 
         case .batch(_, let commands):
             guard !commands.isEmpty else { throw DrillError("Nothing to change.") }

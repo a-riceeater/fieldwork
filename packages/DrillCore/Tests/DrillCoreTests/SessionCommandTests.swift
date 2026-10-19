@@ -77,6 +77,38 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertThrowsError(try session.show.makePerformerSymbol([ids[1]], symbol: nil))
     }
 
+    func testFieldNotesBelongToOneSetAndUndo() throws {
+        let session = try makeSession(performers: 2)
+        let preset = session.show.sets[0].id
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 8))
+        let second = try XCTUnwrap(session.show.nextSet(after: preset)).id
+
+        let note = FieldNote(setID: second, position: Point2(-10, 5))
+        try session.perform(.addFieldNote(note))
+        try session.perform(.editFieldNote(note.id, "Sabres add in 1-8, hold 9-16."))
+        try session.perform(.moveFieldNote(note.id, Point2(4, -2)))
+        XCTAssertEqual(session.show.fieldNotes(on: second), [FieldNote(id: note.id, setID: second, position: Point2(4, -2), text: "Sabres add in 1-8, hold 9-16.")])
+        XCTAssertTrue(session.show.fieldNotes(on: preset).isEmpty)
+        XCTAssertEqual(session.undoName, "Move Note")
+
+        session.undo()
+        XCTAssertEqual(session.show.fieldNote(note.id)?.position, Point2(-10, 5))
+        session.redo()
+
+        // Deleting the set takes its notes with it, and undo brings both back.
+        try session.perform(.deleteSet(second))
+        XCTAssertTrue(session.show.fieldNotes.isEmpty)
+        session.undo()
+        XCTAssertEqual(session.show.fieldNote(note.id)?.text, "Sabres add in 1-8, hold 9-16.")
+
+        try session.perform(.deleteFieldNote(note.id))
+        XCTAssertNil(session.show.fieldNote(note.id))
+        XCTAssertThrowsError(try session.perform(.editFieldNote(note.id, "gone")))
+        XCTAssertThrowsError(try session.perform(.addFieldNote(FieldNote(setID: SetID(), position: .zero))))
+        XCTAssertThrowsError(try session.perform(.addFieldNote(FieldNote(setID: preset, position: .zero,
+                                                                         text: String(repeating: "x", count: FieldNote.maxLength + 1)))))
+    }
+
     func testRehearsalMarksMeasureMarkersAndCountingMode() throws {
         let session = try makeSession()
         let second = SetID()
