@@ -402,30 +402,11 @@ final class FieldCanvasView: NSView {
         let field = state.field
         let fieldRect = CGRect(origin: view(Point2(field.bounds.minX, field.bounds.minY)),
                                size: CGSize(width: CGFloat(field.length) * transform.scale, height: CGFloat(field.width) * transform.scale))
-        Tokens.field.setFill()
-        fieldRect.fill()
-
-        // Checkpoints: strength varies by hierarchy.
-        let labelAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium),
-                                                               .foregroundColor: Tokens.grid.withAlphaComponent(0.95)]
-        for cp in field.checkpoints {
-            let alpha: CGFloat = cp.prominence == .major ? 0.9 : (cp.prominence == .hash ? 0.75 : 0.4)
-            ctx.setStrokeColor(Tokens.grid.withAlphaComponent(alpha).cgColor)
-            ctx.setLineWidth(cp.prominence == .major ? 1.2 : 0.8)
-            ctx.setLineDash(phase: 0, lengths: cp.prominence == .hash ? [4, 4] : [])
-            if cp.axis == .x {
-                let x = view(Point2(cp.position, 0)).x
-                ctx.strokeLineSegments(between: [CGPoint(x: x, y: fieldRect.minY), CGPoint(x: x, y: fieldRect.maxY)])
-                if !cp.label.hasSuffix("end line"), transform.scale > 3 {
-                    let text = NSAttributedString(string: cp.label, attributes: labelAttributes)
-                    text.draw(at: CGPoint(x: x - text.size().width / 2, y: fieldRect.minY + 4))
-                }
-            } else {
-                let y = view(Point2(0, cp.position)).y
-                ctx.strokeLineSegments(between: [CGPoint(x: fieldRect.minX, y: y), CGPoint(x: fieldRect.maxX, y: y)])
-            }
+        if state.grass {
+            drawGrass(field, in: fieldRect, ctx: ctx)
+        } else {
+            drawSchematic(field, in: fieldRect, ctx: ctx)
         }
-        ctx.setLineDash(phase: 0, lengths: [])
 
         // Incoming paths for the selection; flagged paths are dashed with the warning color.
         for (id, a, b) in state.paths {
@@ -477,14 +458,21 @@ final class FieldCanvasView: NSView {
             }
         }
 
-        // Dots.
+        // Dots. On grass a soft dark halo keeps light section colors readable.
         let r = dotRadius
         let showLabels = transform.scale >= 10
         let labelFont = NSFont.systemFont(ofSize: max(8, min(11, transform.scale * 0.6)), weight: .medium)
         for dot in state.dots {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
-            drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
+            if state.grass {
+                ctx.saveGState()
+                ctx.setShadow(offset: .zero, blur: 3, color: NSColor.black.withAlphaComponent(0.7).cgColor)
+                drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
+                ctx.restoreGState()
+            } else {
+                drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
+            }
             if dot.selected {
                 ctx.setStrokeColor(NSColor.white.cgColor)
                 ctx.setLineWidth(2)
@@ -539,6 +527,109 @@ final class FieldCanvasView: NSView {
             break
         }
         drawCaption(state.caption, at: CGPoint(x: 12, y: bounds.maxY - 24))
+    }
+
+    /// The dark editing surface with checkpoint lines whose strength varies by hierarchy.
+    private func drawSchematic(_ field: Field, in fieldRect: CGRect, ctx: CGContext) {
+        Tokens.field.setFill()
+        fieldRect.fill()
+        for cp in field.checkpoints {
+            let alpha: CGFloat = cp.prominence == .major ? 0.9 : (cp.prominence == .hash ? 0.75 : 0.4)
+            ctx.setStrokeColor(Tokens.grid.withAlphaComponent(alpha).cgColor)
+            ctx.setLineWidth(cp.prominence == .major ? 1.2 : 0.8)
+            ctx.setLineDash(phase: 0, lengths: cp.prominence == .hash ? [4, 4] : [])
+            if cp.axis == .x {
+                let x = view(Point2(cp.position, 0)).x
+                ctx.strokeLineSegments(between: [CGPoint(x: x, y: fieldRect.minY), CGPoint(x: x, y: fieldRect.maxY)])
+            } else {
+                let y = view(Point2(0, cp.position)).y
+                ctx.strokeLineSegments(between: [CGPoint(x: fieldRect.minX, y: y), CGPoint(x: fieldRect.maxX, y: y)])
+            }
+        }
+        ctx.setLineDash(phase: 0, lengths: [])
+        drawCheckpointLabels(field, in: fieldRect, color: Tokens.grid.withAlphaComponent(0.95))
+    }
+
+    /// Mowed grass like the field picker's pictures: 5-yard stripes, darker end zones,
+    /// white lines at their real 4-inch width, hash ticks every yard and yard numbers.
+    private func drawGrass(_ field: Field, in fieldRect: CGRect, ctx: CGContext) {
+        let s = transform.scale
+        let yard = Field.yard, goal = 50 * yard
+        (field.preset == .indoorFloor ? Tokens.Turf.tarp : Tokens.Turf.grass).setFill()
+        fieldRect.fill()
+        if field.isFootball {
+            Tokens.Turf.stripe.setFill()
+            for i in stride(from: 0, to: 20, by: 2) {
+                let x0 = view(Point2(-goal + Double(i) * 5 * yard, 0)).x
+                CGRect(x: x0, y: fieldRect.minY, width: CGFloat(5 * yard) * s, height: fieldRect.height).fill()
+            }
+            Tokens.Turf.endZone.setFill()
+            let left = view(Point2(-goal, 0)).x, right = view(Point2(goal, 0)).x
+            CGRect(x: fieldRect.minX, y: fieldRect.minY, width: left - fieldRect.minX, height: fieldRect.height).fill()
+            CGRect(x: right, y: fieldRect.minY, width: fieldRect.maxX - right, height: fieldRect.height).fill()
+        }
+
+        let line = max(1, CGFloat(0.1016) * s)
+        let white = NSColor.white
+        for cp in field.checkpoints where cp.prominence != .hash {
+            ctx.setStrokeColor(white.withAlphaComponent(cp.prominence == .major ? 0.95 : 0.8).cgColor)
+            ctx.setLineWidth(line)
+            if cp.axis == .x {
+                let x = view(Point2(cp.position, 0)).x
+                ctx.strokeLineSegments(between: [CGPoint(x: x, y: fieldRect.minY), CGPoint(x: x, y: fieldRect.maxY)])
+            } else {
+                let y = view(Point2(0, cp.position)).y
+                ctx.strokeLineSegments(between: [CGPoint(x: fieldRect.minX, y: y), CGPoint(x: fieldRect.maxX, y: y)])
+            }
+        }
+        // Hashes: a 2-foot tick every yard between the goal lines, or a dashed line off football fields.
+        ctx.setStrokeColor(white.withAlphaComponent(0.9).cgColor)
+        ctx.setLineWidth(line)
+        for cp in field.checkpoints where cp.prominence == .hash {
+            let y = view(Point2(0, cp.position)).y
+            if field.isFootball {
+                let tick = max(3, CGFloat(2 * Field.foot) * s) / 2
+                var segments: [CGPoint] = []
+                for yardLine in -49...49 where yardLine % 5 != 0 {
+                    let x = view(Point2(Double(yardLine) * yard, 0)).x
+                    segments += [CGPoint(x: x, y: y - tick), CGPoint(x: x, y: y + tick)]
+                }
+                ctx.strokeLineSegments(between: segments)
+            } else {
+                ctx.setLineDash(phase: 0, lengths: [6, 6])
+                ctx.strokeLineSegments(between: [CGPoint(x: fieldRect.minX, y: y), CGPoint(x: fieldRect.maxX, y: y)])
+                ctx.setLineDash(phase: 0, lengths: [])
+            }
+        }
+
+        // Yard numbers, 2 yards tall and 10 yards in from each sideline like the picker, once readable.
+        let numberSize = CGFloat(2 * yard) * s
+        if field.isFootball, numberSize >= 9 {
+            let font = NSFont.systemFont(ofSize: numberSize, weight: .bold)
+            let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: white.withAlphaComponent(0.85)]
+            for cp in field.checkpoints where cp.axis == .x {
+                guard let n = Int(cp.label), n % 10 == 0, n > 0 else { continue }
+                let text = NSAttributedString(string: cp.label, attributes: attributes)
+                let size = text.size()
+                for y in [-field.width / 2 + 10 * yard, field.width / 2 - 10 * yard] {
+                    let center = view(Point2(cp.position, y))
+                    text.draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
+                }
+            }
+        } else {
+            drawCheckpointLabels(field, in: fieldRect, color: white.withAlphaComponent(0.85))
+        }
+    }
+
+    /// Small checkpoint names along the front edge, when zoomed in enough to fit.
+    private func drawCheckpointLabels(_ field: Field, in fieldRect: CGRect, color: NSColor) {
+        guard transform.scale > 3 else { return }
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium), .foregroundColor: color]
+        for cp in field.checkpoints where cp.axis == .x && !cp.label.hasSuffix("end line") {
+            let x = view(Point2(cp.position, 0)).x
+            let text = NSAttributedString(string: cp.label, attributes: attributes)
+            text.draw(at: CGPoint(x: x - text.size().width / 2, y: fieldRect.minY + 4))
+        }
     }
 
     private func drawCaption(_ text: String, at point: CGPoint) {
