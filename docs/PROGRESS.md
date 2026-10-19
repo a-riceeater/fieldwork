@@ -1,5 +1,30 @@
 # Progress log
 
+## 2026-10-19: Native playback performance
+
+Read all project design, architecture, research and format documents. Profiled the
+running Mac editor and the supplied `drill1.fieldwork` (261 performers, 215 sets).
+The main costs were editor-wide SwiftUI invalidation, timing-map recompilation
+inside set rows, per-frame warning scans and timeline lane redraws.
+
+- Isolated display updates from document state, retained native audio as the clock,
+  and switched visible playback to a view-associated display link.
+- Reused compiled timing maps, removed redundant frame lookups and warning scans,
+  cached field backgrounds, and composited the timeline playhead separately.
+- Reduced numeric readout layout to 10 Hz; pause refreshes immediately. Waveform
+  peak construction now runs off the main actor with obsolete-load protection.
+- The controlled no-audio Debug UI refresh benchmark improved from 70.10 ms median
+  to 18.62 ms, including its deliberate 16.7 ms run-loop wait. The 350 × 150 fixture
+  reached 180 display updates in three seconds; the real document with audio and
+  Paper reached 178, with 16.72 ms median / 18.36 ms p95 update intervals.
+- All portable suites pass: DrillTiming 20, DrillCore 28, DrillDocument 22,
+  DrillBridge 2. The Mac suite passes 12 tests with the opt-in real-document profile.
+- Verified an unsigned Release build and manually opened/played the supplied file
+  with embedded audio. The source document was not edited or saved.
+
+See [PERFORMANCE.md](PERFORMANCE.md) for methodology, reproduction commands,
+measurement limits and remaining platform/long-duration verification.
+
 ## 2026-10-17: First verified macOS build
 
 Environment: macOS 26.6.1 (25G76), arm64, Xcode 26.6 (17F113), Apple Swift 6.3.3. This is the verified Mac build baseline; older deployment targets and Intel remain unverified.

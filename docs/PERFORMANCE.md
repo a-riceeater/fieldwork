@@ -44,11 +44,18 @@ sets a playhead value, services the main run loop for at least 1/60 second, and
 forces pending window drawing. These figures include the deliberate wait and are
 not standalone rendering costs or GPU-presented FPS.
 
-The audio-inclusive Debug run with the Paper background reached **178 display
-updates in 3 seconds**, with **16.72 ms median / 18.36 ms p95** update intervals.
-The synthetic refresh loop in that run measured 18.51 ms median / 24.67 ms p95,
-including its deliberate wait. The baseline disabled audio; use the same no-audio
-mode for a direct before/after synthetic comparison.
+Final Debug measurements:
+
+| Workload | Synthetic refresh median / p95 | Live updates in 3 s | Live interval median / p95 |
+|---|---|---|---|
+| `drill1`, audio disabled, Dark | 18.62 / 25.58 ms | 178 | 16.79 / 21.42 ms |
+| `drill1`, embedded audio, Grass | 18.42 / 27.30 ms | 180 | 16.69 / 17.69 ms |
+| `drill1`, embedded audio, Paper | 18.51 / 24.67 ms | 178 | 16.72 / 18.36 ms |
+| Generated 350 performers × 150 sets, Grass | 18.36 / 24.11 ms | 180 | 16.67 / 16.72 ms |
+
+The comparable no-audio synthetic refresh median fell from 70.10 to 18.62 ms
+(73% lower). The refresh figures include the deliberate wait; live intervals
+measure the separate normal-playback phase.
 
 ## Reproducing measurements
 
