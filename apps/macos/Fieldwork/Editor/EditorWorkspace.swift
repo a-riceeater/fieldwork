@@ -33,7 +33,9 @@ struct EditorWorkspace: View {
                                 value: Binding(get: { fitted.navigator }, set: { sizes.navigator = $0 }),
                                 limits: 160...min(320, max(160, geometry.size.width - fitted.inspector - 428)))
                     ZStack(alignment: .bottomLeading) {
-                        FieldCanvas(model: model).tourAnchor("canvas.field")
+                        FieldCanvas(model: model)
+                            .clipped()
+                            .tourAnchor("canvas.field")
                         CanvasToolCluster(model: model).padding(Tokens.Space.m)
                     }
                     .overlay(alignment: .top) { UnplacedBanner(model: model) }

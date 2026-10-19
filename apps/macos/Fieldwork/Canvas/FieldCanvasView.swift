@@ -60,6 +60,7 @@ final class FieldCanvasView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        clipsToBounds = true
         setAccessibilityElement(true)
         setAccessibilityRole(.layoutArea)
         setAccessibilityIdentifier("canvas.field")
@@ -421,6 +422,10 @@ final class FieldCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
+        // Zoomed field content must never paint into adjacent panes or the toolbar.
+        ctx.clip(to: bounds)
         guard let state else { return }
         let field = state.field
         drawBackground(state, in: ctx)

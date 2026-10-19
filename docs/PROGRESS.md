@@ -1,5 +1,14 @@
 # Progress log
 
+## 2026-10-19: Keep zoomed field content inside the canvas
+
+Enabled native view clipping, saved and clipped the Core Graphics drawing context
+at the canvas bounds, and clipped the SwiftUI canvas host. Zoomed dots, labels,
+notes and gesture previews can no longer draw over neighboring UI. A bitmap
+regression renders an edge-crossing performer into a larger surface and verifies
+that outside pixels stay untouched and the caller's clip is restored. The Mac
+suite passes: 17 tests, one opt-in benchmark skipped, zero failures.
+
 ## 2026-10-19: Field-focused workspace and performer labels
 
 - New windows start with a 190 pt sets panel, 260 pt inspector and 180 pt timeline;

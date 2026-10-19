@@ -50,6 +50,43 @@ final class EditorLayoutTests: XCTestCase {
     }
 
     @MainActor
+    func testZoomedCanvasCannotPaintOutsideItsViewport() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 200, height: 160))
+        canvas.state = model.canvasState()
+        canvas.fit(.zoomIn)
+        var state = try XCTUnwrap(canvas.state)
+        var dot = try XCTUnwrap(state.dots.first)
+        dot.point = canvas.transform.toWorld(CGPoint(x: -3, y: 80), in: canvas.bounds)
+        dot.selected = true
+        state.dots = [dot]
+        state.alwaysShowLabels = true
+        canvas.state = state
+        XCTAssertTrue(canvas.clipsToBounds)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 280, pixelsHigh: 240,
+                                                  bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                                  isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let graphics = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = graphics
+        let ctx = graphics.cgContext
+        ctx.setFillColor(NSColor.magenta.cgColor)
+        ctx.fill(CGRect(x: 0, y: 0, width: 280, height: 240))
+        ctx.translateBy(x: 40, y: 40)
+        let originalClip = ctx.boundingBoxOfClipPath
+        // Draw directly into a larger surface to catch pixels that would spill onto nearby UI.
+        canvas.draw(canvas.bounds)
+        XCTAssertEqual(ctx.boundingBoxOfClipPath, originalClip)
+        let outside = try XCTUnwrap(bitmap.colorAt(x: 36, y: 120)?.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(outside.redComponent, 1, accuracy: 0.01)
+        XCTAssertEqual(outside.greenComponent, 0, accuracy: 0.01)
+        XCTAssertEqual(outside.blueComponent, 1, accuracy: 0.01)
+        let inside = try XCTUnwrap(bitmap.colorAt(x: 140, y: 120)?.usingColorSpace(.deviceRGB))
+        XCTAssertLessThan(inside.redComponent + inside.blueComponent, 1.9)
+    }
+
+    @MainActor
     func testAlwaysVisibleLabelsPersistAndRenderWhenZoomedOut() throws {
         let suite = "FieldworkLabelTests.\(UUID().uuidString)"
         let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
