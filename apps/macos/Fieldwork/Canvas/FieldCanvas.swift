@@ -115,6 +115,6 @@ extension EditorModel {
         }
         let flagged = Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
         return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
-                           snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption)
+                           snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption, grass: grassField)
     }
 }

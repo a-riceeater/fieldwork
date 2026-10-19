@@ -22,6 +22,15 @@ enum Tokens {
     static let grid = NSColor(hex: 0x5E727C)
     static let fieldAccent = NSColor(hex: 0x82A7FF)
 
+    /// The realistic field: mowed grass, or a tarp for indoor floors. Shared by
+    /// the field picker's thumbnails and the editor's grass view.
+    enum Turf {
+        static let grass = NSColor(hex: 0x338545)
+        static let stripe = NSColor(hex: 0x3D944F)
+        static let endZone = NSColor(hex: 0x266B3B)
+        static let tarp = NSColor(hex: 0x525969)
+    }
+
     static let sectionPalette: [NSColor] = [0x82A7FF, 0xFFC46A, 0x7FD6B4, 0xF29CC6, 0xB8A6FF, 0xFF9F7A, 0x9FD4FF, 0xE4E07C, 0xC3C8D4, 0x8EE08E].map { NSColor(hex: $0) }
 
     static func sectionColor(_ index: Int) -> NSColor { sectionPalette[((index % sectionPalette.count) + sectionPalette.count) % sectionPalette.count] }

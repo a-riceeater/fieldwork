@@ -87,6 +87,11 @@ final class EditorModel: ObservableObject {
     @Published var circlesOnly: Bool {
         didSet { preferences.set(circlesOnly, forKey: "FieldworkCirclesOnly") }
     }
+    /// Draws the field as mowed grass with white lines and yard numbers instead of
+    /// the dark schematic surface. A per-user view preference, not show data.
+    @Published var grassField: Bool {
+        didSet { preferences.set(grassField, forKey: "FieldworkGrassField") }
+    }
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
     @Published var conflict: PendingConflict?
@@ -114,6 +119,7 @@ final class EditorModel: ObservableObject {
         self.preferences = preferences
         wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
+        grassField = preferences.bool(forKey: "FieldworkGrassField")
         self.session = session
         self.assets = assets
         self.readOnlyReason = readOnlyReason

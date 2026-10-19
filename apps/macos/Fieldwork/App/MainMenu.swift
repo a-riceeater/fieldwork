@@ -82,6 +82,7 @@ enum MainMenu {
             item("Zoom Out", #selector(EditorWindowController.zoomOutField(_:)), "-"),
             .separator(),
             item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
+            item("Grass Field", #selector(EditorWindowController.toggleGrassField(_:)), "g", [.command, .option]),
             .separator(),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ]))

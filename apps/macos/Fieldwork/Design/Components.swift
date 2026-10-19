@@ -239,10 +239,10 @@ extension Field {
 struct FieldThumbnail: View {
     var field: Field
 
-    private static let grass = Color(red: 0.20, green: 0.52, blue: 0.27)
-    private static let stripe = Color(red: 0.24, green: 0.58, blue: 0.31)
-    private static let endZone = Color(red: 0.15, green: 0.42, blue: 0.23)
-    private static let tarp = Color(red: 0.32, green: 0.35, blue: 0.41)
+    private static let grass = Color(nsColor: Tokens.Turf.grass)
+    private static let stripe = Color(nsColor: Tokens.Turf.stripe)
+    private static let endZone = Color(nsColor: Tokens.Turf.endZone)
+    private static let tarp = Color(nsColor: Tokens.Turf.tarp)
 
     var body: some View {
         Canvas { context, size in

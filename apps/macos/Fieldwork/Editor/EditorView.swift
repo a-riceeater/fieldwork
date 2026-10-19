@@ -203,6 +203,8 @@ extension EditorView {
                 .help("Snap to \(TimeFormat.decimal(model.snapSteps, places: 2))-step grid. Hold Option while dragging to bypass.")
             Toggle(isOn: $model.circlesOnly) { Label("Circles", systemImage: "circle.grid.3x3.fill") }
                 .help("Draw everyone as a circle in their section color (View › Draw Everyone as Circles)")
+            Toggle(isOn: $model.grassField) { Label("Grass", systemImage: "leaf") }
+                .help("Draw the field as mowed grass with yard numbers (View › Grass Field)")
             Picker("Axis", selection: $model.axisLock) {
                 Text("Free").tag(AxisLock.none)
                 Text("Side-to-side").tag(AxisLock.horizontal)
