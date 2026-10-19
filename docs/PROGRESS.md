@@ -1,5 +1,13 @@
 # Progress log
 
+## 2026-10-19: Start move readouts at count one
+
+Move readouts now use one-based marching counts rather than elapsed counts from
+zero. The displayed count is capped at the move duration, so a one-count move
+shows “1 count” throughout, including with Whole Counts Only enabled. Timing and
+performer interpolation are unchanged. Verified with `git diff --check`; no builds
+or computer control run.
+
 ## 2026-10-19: Show counts within the current move
 
 Canvas, transport and status readouts now show elapsed counts from the previous

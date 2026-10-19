@@ -833,7 +833,7 @@ private final class PlaybackDisplayTarget: NSObject {
 }
 
 extension EditorModel {
-    /// Describes the playhead within its current move, using cached set pulses.
+    /// Shows one-based marching counts within the move, using cached set pulses.
     func moveCountLabel(atPulse pulse: Double, places: Int) -> String {
         guard let evaluator, !evaluator.sets.isEmpty else { return "" }
         let index = evaluator.setIndex(atPulse: pulse)
@@ -843,9 +843,12 @@ extension EditorModel {
             return "Set \(from)"
         }
         let elapsed = max(0, pulse - evaluator.pulses[index])
+        let duration = evaluator.pulses[index + 1] - evaluator.pulses[index]
+        let marchingCount = min(elapsed + 1, duration)
         let count = wholeCountsOnly
-            ? TimeFormat.decimal(floor(elapsed + 1e-6), places: 0)
-            : TimeFormat.decimal(elapsed, places: places)
-        return "\(count) counts · Set \(from) → \(evaluator.sets[index + 1].label)"
+            ? TimeFormat.decimal(max(1, floor(marchingCount + 1e-6)), places: 0)
+            : TimeFormat.decimal(marchingCount, places: places)
+        let unit = count == "1" || Double(count) == 1 ? "count" : "counts"
+        return "\(count) \(unit) · Set \(from) → \(evaluator.sets[index + 1].label)"
     }
 }
