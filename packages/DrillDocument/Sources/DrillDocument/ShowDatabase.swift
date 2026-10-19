@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 4
+    static let currentSchemaVersion = 5
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -65,11 +65,20 @@ enum ShowDatabase {
         x REAL NOT NULL, y REAL NOT NULL, text TEXT NOT NULL);
     """
 
+    /// Schema 5: per-performer paths. A performer without rows in a move travels straight.
+    static let schemaV5Changes = """
+    CREATE TABLE path_segment (transition_id TEXT NOT NULL REFERENCES transition(id), performer_id TEXT NOT NULL REFERENCES performer(id),
+        ordinal INTEGER NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('hold','line','arc')),
+        counts_num INTEGER NOT NULL, counts_den INTEGER NOT NULL, x1 REAL, y1 REAL, sweep REAL,
+        PRIMARY KEY (transition_id, performer_id, ordinal));
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
     static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) },
                                                2: { db in try db.execute(schemaV3Changes) },
-                                               3: { db in try db.execute(schemaV4Changes) }]
+                                               3: { db in try db.execute(schemaV4Changes) },
+                                               4: { db in try db.execute(schemaV5Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -94,6 +103,7 @@ enum ShowDatabase {
             try db.execute(schemaV2Changes)
             try db.execute(schemaV3Changes)
             try db.execute(schemaV4Changes)
+            try db.execute(schemaV5Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])
@@ -181,6 +191,26 @@ enum ShowDatabase {
             let note = try db.prepare("INSERT INTO field_note VALUES (?, ?, ?, ?, ?, ?)")
             for (i, n) in show.fieldNotes.enumerated() {
                 try note.run([.text(n.id.description), .text(n.setID.description), .int(i), .double(n.position.x), .double(n.position.y), .text(n.text)])
+            }
+            // Paths in arrival order, then roster order, then segment order, so a show always encodes to the same bytes.
+            let segment = try db.prepare("INSERT INTO path_segment VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            for s in show.sets {
+                guard let t = show.transition(into: s.id), !t.paths.isEmpty, let from = show.previousSet(before: s.id) else { continue }
+                for p in show.performers {
+                    guard let path = t.paths[p.id], let a = show.formation(from.id)[p.id].position, let b = show.formation(s.id)[p.id].position,
+                          let canonical = PerformerPath.canonical(path.segments, from: a.point, to: b.point) else { continue }
+                    for (j, seg) in canonical.segments.enumerated() {
+                        let counts = seg.counts
+                        var row: [SQLValue] = [.text(t.id.description), .text(p.id.description), .int(j), .text(seg.kindName),
+                                               .int(counts.numerator), .int(counts.denominator)]
+                        switch seg {
+                        case .hold: row += [.null, .null, .null]
+                        case .line(_, let to): row += [.double(to.x), .double(to.y), .null]
+                        case .arc(_, let to, let sweep): row += [.double(to.x), .double(to.y), .double(sweep)]
+                        }
+                        try segment.run(row)
+                    }
+                }
             }
             let violations = try db.prepare("PRAGMA foreign_key_check")
             if try violations.step() { throw DocumentError.corrupt("The show has broken references (\(violations.text(0))).") }
@@ -303,6 +333,7 @@ enum ShowDatabase {
             transitions.append(Transition(id: try id(transition.text(0), TransitionID.self), toSetID: try id(transition.text(1), SetID.self),
                                           model: TransitionModel(rawValue: transition.text(2)) ?? .straight))
         }
+        try readPaths(db, into: &transitions)
         progress(0.1)
         // Placements (one per performer per set) are most of a large show, so progress follows them.
         let count = try db.prepare("SELECT COUNT(*) FROM placement")
@@ -351,5 +382,49 @@ enum ShowDatabase {
                         fieldNotes: notes)
         do { try show.validate() } catch { throw DocumentError.corrupt("The show data is inconsistent: \(error)") }
         return show
+    }
+
+    /// Rebuilds each performer's path from its segment rows. Unknown kinds are
+    /// refused rather than flattened to straight travel: they are drill data.
+    static func readPaths(_ db: SQLiteDatabase, into transitions: inout [Transition]) throws {
+        let index = Dictionary(uniqueKeysWithValues: transitions.enumerated().map { ($1.id, $0) })
+        let row = try db.prepare("""
+            SELECT transition_id, performer_id, ordinal, kind, counts_num, counts_den, x1, y1, sweep FROM path_segment
+            ORDER BY transition_id, performer_id, ordinal
+            """)
+        var key: (TransitionID, PerformerID)?
+        var segments: [PathSegment] = []
+        func flush() throws {
+            guard let (t, p) = key else { return }
+            guard let i = index[t] else { throw DocumentError.corrupt("A path references a missing move.") }
+            transitions[i].paths[p] = PerformerPath(segments)
+        }
+        while try row.step() {
+            let t = try id(row.text(0), TransitionID.self), p = try id(row.text(1), PerformerID.self)
+            if key == nil || key! != (t, p) {
+                try flush()
+                key = (t, p)
+                segments = []
+            }
+            guard row.int64(2) == Int64(segments.count) else { throw DocumentError.corrupt("A path's segments are not numbered 0, 1, 2, ….") }
+            let n = row.int64(4), d = row.int64(5)
+            guard row.isInteger(4), row.isInteger(5), n > 0, d > 0 else { throw DocumentError.corrupt("A path segment has no duration.") }
+            let counts = Rational(n, d)
+            let hasPoint = !row.isNull(6) && !row.isNull(7), hasSweep = !row.isNull(8)
+            switch row.text(3) {
+            case "hold":
+                guard row.isNull(6), row.isNull(7), !hasSweep else { throw DocumentError.corrupt("A hold segment has a point or sweep.") }
+                segments.append(.hold(counts: counts))
+            case "line":
+                guard hasPoint, !hasSweep else { throw DocumentError.corrupt("A line segment needs an end point and no sweep.") }
+                segments.append(.line(counts: counts, to: Point2(row.double(6), row.double(7))))
+            case "arc":
+                guard hasPoint, hasSweep else { throw DocumentError.corrupt("An arc segment needs an end point and a sweep.") }
+                segments.append(.arc(counts: counts, to: Point2(row.double(6), row.double(7)), sweep: row.double(8)))
+            default:
+                throw DocumentError.corrupt("Unknown path segment kind \(row.text(3)).")
+            }
+        }
+        try flush()
     }
 }

@@ -150,6 +150,7 @@ final class SQLiteStatement {
     }
 
     func isNull(_ i: Int32) -> Bool { sqlite3_column_type(statement, i) == SQLITE_NULL }
+    func isInteger(_ i: Int32) -> Bool { sqlite3_column_type(statement, i) == SQLITE_INTEGER }
     func int64(_ i: Int32) -> Int64 { sqlite3_column_int64(statement, i) }
     func int(_ i: Int32) -> Int { Int(sqlite3_column_int64(statement, i)) }
     func double(_ i: Int32) -> Double { sqlite3_column_double(statement, i) }

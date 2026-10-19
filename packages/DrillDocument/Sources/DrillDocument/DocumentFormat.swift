@@ -34,7 +34,9 @@ public enum FormatIdentity {
     public static let minor = 0
     public static let writer = "Fieldwork 0.1.0"
     /// Capabilities this reader understands.
-    public static let knownCapabilities: Set<String> = ["drill.core.v1", "timing.anchors.v1", "media.audio.v1"]
+    public static let knownCapabilities: Set<String> = ["drill.core.v1", "timing.anchors.v1", "media.audio.v1", "drill.paths.v1"]
+    /// Shows with any per-performer path require this: a reader without it would flatten the routes.
+    public static let pathsCapability = "drill.paths.v1"
 }
 
 public struct FormatVersion: Hashable, Codable, Sendable {
@@ -123,14 +125,15 @@ public enum DocumentCodec {
             members.append((asset.archivePath, data))
         }
         for (path, data) in document.extensionMembers.sorted(by: { $0.key < $1.key }) { members.append((path, data)) }
+        let paths = document.show.pathCount > 0 ? [FormatIdentity.pathsCapability] : []
         let manifest = Manifest(
             format: FormatIdentity.formatIdentifier,
             formatVersion: FormatVersion(major: FormatIdentity.major, minor: FormatIdentity.minor),
             minReaderVersion: FormatVersion(major: 1, minor: 0),
             writer: FormatIdentity.writer,
             showID: document.show.id.description,
-            capabilities: ["drill.core.v1", "timing.anchors.v1"] + (document.show.mediaAssets.isEmpty ? [] : ["media.audio.v1"]),
-            requiredCapabilities: ["drill.core.v1"],
+            capabilities: ["drill.core.v1", "timing.anchors.v1"] + (document.show.mediaAssets.isEmpty ? [] : ["media.audio.v1"]) + paths,
+            requiredCapabilities: ["drill.core.v1"] + paths,
             members: members.map { ManifestMember(path: $0.path, sha256: hashes[$0.path] ?? SHA256.hex($0.data), bytes: Int64($0.data.count)) },
             extensions: document.extensions)
         let encoder = JSONEncoder()
@@ -146,6 +149,11 @@ public enum DocumentCodec {
     /// Decodes, reporting each stage with how much of it is done (0...1).
     /// Stages arrive in order and each finishes at 1.
     public static func decode(_ data: Data, progress: (DecodeStage, Double) -> Void) throws -> ShowDocument {
+        try decode(data, knownCapabilities: FormatIdentity.knownCapabilities, progress: progress)
+    }
+
+    /// `knownCapabilities` stands in for an older reader in tests.
+    static func decode(_ data: Data, knownCapabilities: Set<String>, progress: (DecodeStage, Double) -> Void = { _, _ in }) throws -> ShowDocument {
         progress(.unpacking, 0)
         let members: [(path: String, data: Data)]
         do { members = try ZipArchive.read(data) } catch let error as ZipError {
@@ -199,7 +207,7 @@ public enum DocumentCodec {
         }
         let extensionMembers = byPath.filter { $0.key.hasPrefix("extensions/") }
         var readOnly: String?
-        let unknownRequired = manifest.requiredCapabilities.filter { !FormatIdentity.knownCapabilities.contains($0) }
+        let unknownRequired = manifest.requiredCapabilities.filter { !knownCapabilities.contains($0) }
             + manifest.extensions.filter { $0.required }.map(\.namespace)
         if !unknownRequired.isEmpty {
             readOnly = "This show requires features this version does not support (\(unknownRequired.joined(separator: ", "))). It is open read-only."
