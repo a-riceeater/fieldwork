@@ -113,6 +113,7 @@ final class PlaybackPerformanceTests: XCTestCase {
         preferences.set(ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_STYLE"] ?? "dark", forKey: "FieldworkFieldStyle")
         let includeAudio = ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_AUDIO"] == "1"
         let model = EditorModel(session: try DocumentSession(show: document.show), assets: includeAudio ? document.assets : [:], preferences: preferences)
+        model.alwaysShowLabels = ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_LABELS"] == "1"
         if includeAudio {
             let deadline = Date(timeIntervalSinceNow: 30)
             while model.peaks == nil && Date() < deadline {

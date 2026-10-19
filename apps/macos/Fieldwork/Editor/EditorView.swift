@@ -14,29 +14,7 @@ struct EditorView: View {
             if let banner = model.recoveredBanner ?? model.readOnlyReason {
                 BannerView(text: banner, isWarning: model.readOnlyReason != nil) { model.recoveredBanner = nil }
             }
-            VSplitView {
-                HSplitView {
-                    NavigatorView(model: model)
-                        .frame(minWidth: 160, idealWidth: Tokens.Layout.navigator, maxWidth: 320)
-                    ZStack(alignment: .bottomLeading) {
-                        FieldCanvas(model: model)
-                            .tourAnchor("canvas.field")
-                        // The canvas draws its set/count caption at the top left.
-                        CanvasToolCluster(model: model)
-                            .padding(Tokens.Space.m)
-                    }
-                    .overlay(alignment: .top) { UnplacedBanner(model: model) }
-                    .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
-                    .frame(minWidth: 420, maxWidth: .infinity)
-                    .layoutPriority(1)
-                    .background(EditorSplitDefaults())
-                    InspectorView(model: model)
-                        .frame(minWidth: 240, idealWidth: Tokens.Layout.inspector, maxWidth: 360)
-                }
-                .frame(minHeight: 360)
-                TimelinePanel(model: model)
-                    .frame(minHeight: 140, idealHeight: Tokens.Layout.timeline, maxHeight: 420)
-            }
+            EditorWorkspace(model: model)
             StatusBar(model: model)
         }
         .background(Color.fwWindow)
