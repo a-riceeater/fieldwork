@@ -61,6 +61,8 @@ public enum Placement: Hashable, Codable, Sendable {
 
 public enum PerformerSymbol: String, Codable, Sendable, CaseIterable {
     case circle, cross, square, triangle, diamond, slash
+
+    public var displayName: String { rawValue.capitalized }
 }
 
 public struct Section: Hashable, Codable, Sendable, Identifiable {
@@ -89,13 +91,17 @@ public struct Performer: Hashable, Codable, Sendable, Identifiable {
     /// Optional private roster name; stripped from public exports unless requested.
     public var name: String?
     public var notes: String
+    /// Drawing symbol for this performer only; nil uses the section's symbol.
+    public var symbol: PerformerSymbol?
 
-    public init(id: PerformerID = PerformerID(), label: String, sectionID: SectionID, name: String? = nil, notes: String = "") {
+    public init(id: PerformerID = PerformerID(), label: String, sectionID: SectionID, name: String? = nil, notes: String = "",
+                symbol: PerformerSymbol? = nil) {
         self.id = id
         self.label = label
         self.sectionID = sectionID
         self.name = name
         self.notes = notes
+        self.symbol = symbol
     }
 }
 
@@ -352,6 +358,11 @@ public struct Show: Hashable, Codable, Sendable {
     public func form(_ id: FormID) -> Form? { forms.first { $0.id == id } }
     public func forms(on set: SetID) -> [Form] { forms.filter { $0.setID == set } }
     public func performers(in section: SectionID) -> [Performer] { performers.filter { $0.sectionID == section } }
+
+    /// The symbol a performer is drawn with: their own override, else their section's.
+    public func symbol(for performer: Performer) -> PerformerSymbol {
+        performer.symbol ?? section(performer.sectionID)?.symbol ?? .circle
+    }
 
     public func timingMap(for movementID: MovementID) throws -> TimingMap {
         guard let movement = movement(movementID) else { throw DrillError("Unknown movement.") }

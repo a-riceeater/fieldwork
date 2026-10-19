@@ -144,12 +144,34 @@ final class ContainerTests: XCTestCase {
         ALTER TABLE arrival_set DROP COLUMN rehearsal_mark;
         ALTER TABLE arrival_set DROP COLUMN measure_marker;
         """)
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol")
         try db.setUserVersion(1)
         try ShowDatabase.migrate(db)
-        XCTAssertEqual(db.userVersion, 2)
+        XCTAssertEqual(db.userVersion, 3)
         let migrated = try ShowDatabase.read(db)
         XCTAssertEqual(migrated.countingMode, .measures)
         XCTAssertTrue(migrated.sets.allSatisfy { $0.rehearsalMark.isEmpty && $0.measureMarker.isEmpty })
+        XCTAssertEqual(migrated, base)
+    }
+
+    func testPerformerSymbolsRoundTripAndMigrateFromSchema2() throws {
+        var show = try SampleShow.make()
+        show.sections[0].symbol = .diamond
+        show.performers[0].symbol = .slash
+        let reopened = try ShowDatabase.decode(try ShowDatabase.encode(show, writer: "test"))
+        XCTAssertEqual(reopened, show)
+        XCTAssertEqual(reopened.symbol(for: reopened.performers[0]), .slash)
+        XCTAssertEqual(reopened.symbol(for: reopened.performers[1]), .diamond)
+
+        // A schema 2 database has no performer symbols; everyone follows their section.
+        let base = try SampleShow.make()
+        let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol")
+        try db.setUserVersion(2)
+        try ShowDatabase.migrate(db)
+        XCTAssertEqual(db.userVersion, 3)
+        let migrated = try ShowDatabase.read(db)
+        XCTAssertTrue(migrated.performers.allSatisfy { $0.symbol == nil })
         XCTAssertEqual(migrated, base)
     }
 

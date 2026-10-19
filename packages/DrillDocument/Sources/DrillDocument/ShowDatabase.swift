@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -54,9 +54,15 @@ enum ShowDatabase {
     ALTER TABLE arrival_set ADD COLUMN measure_marker TEXT NOT NULL DEFAULT '';
     """
 
+    /// Schema 3: an optional symbol on a performer that overrides the section's.
+    static let schemaV3Changes = """
+    ALTER TABLE performer ADD COLUMN symbol TEXT;
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
-    static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) }]
+    static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) },
+                                               2: { db in try db.execute(schemaV3Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -79,6 +85,7 @@ enum ShowDatabase {
         try db.transaction {
             try db.execute(schemaV1)
             try db.execute(schemaV2Changes)
+            try db.execute(schemaV3Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])
@@ -103,9 +110,10 @@ enum ShowDatabase {
             for (i, s) in show.sections.enumerated() {
                 try section.run([.text(s.id.description), .int(i), .text(s.name), .text(s.prefix), .text(s.symbol.rawValue), .int(s.colorIndex)])
             }
-            let performer = try db.prepare("INSERT INTO performer VALUES (?, ?, ?, ?, ?, ?)")
+            let performer = try db.prepare("INSERT INTO performer VALUES (?, ?, ?, ?, ?, ?, ?)")
             for (i, p) in show.performers.enumerated() {
-                try performer.run([.text(p.id.description), .int(i), .text(p.label), .text(p.sectionID.description), .optional(p.name), .text(p.notes)])
+                try performer.run([.text(p.id.description), .int(i), .text(p.label), .text(p.sectionID.description), .optional(p.name), .text(p.notes),
+                                   .optional(p.symbol?.rawValue)])
             }
             let movement = try db.prepare("INSERT INTO movement VALUES (?, ?, ?, ?, ?)")
             let measure = try db.prepare("INSERT INTO measure VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -224,10 +232,11 @@ enum ShowDatabase {
                                     symbol: PerformerSymbol(rawValue: section.text(3)) ?? .circle, colorIndex: section.int(4)))
         }
         var performers: [Performer] = []
-        let performer = try db.prepare("SELECT id, label, section_id, name, notes FROM performer ORDER BY ordinal")
+        let performer = try db.prepare("SELECT id, label, section_id, name, notes, symbol FROM performer ORDER BY ordinal")
         while try performer.step() {
             performers.append(Performer(id: try id(performer.text(0), PerformerID.self), label: performer.text(1),
-                                        sectionID: try id(performer.text(2), SectionID.self), name: performer.optionalText(3), notes: performer.text(4)))
+                                        sectionID: try id(performer.text(2), SectionID.self), name: performer.optionalText(3), notes: performer.text(4),
+                                        symbol: performer.optionalText(5).flatMap(PerformerSymbol.init(rawValue:))))
         }
 
         var movements: [Movement] = []

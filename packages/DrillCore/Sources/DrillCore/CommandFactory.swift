@@ -73,6 +73,27 @@ extension Show {
         return .batch("Change Section Letter", [.updateSection(section)] + relabeled.map { .updatePerformer($0) })
     }
 
+    /// Changes the symbol every member of a section is drawn with. Members
+    /// with their own symbol keep it.
+    public func makeSectionSymbol(_ id: SectionID, symbol: PerformerSymbol) throws -> DrillCommand {
+        guard var section = section(id) else { throw DrillError("That section no longer exists.") }
+        guard section.symbol != symbol else { throw DrillError("Nothing to change.") }
+        section.symbol = symbol
+        return .batch("Change Section Symbol", [.updateSection(section)])
+    }
+
+    /// Gives performers their own symbol, or with nil returns them to their section's symbol.
+    public func makePerformerSymbol(_ ids: [PerformerID], symbol: PerformerSymbol?) throws -> DrillCommand {
+        let changed = try ids.compactMap { id -> Performer? in
+            guard var performer = performer(id) else { throw DrillError("Unknown performer.") }
+            guard performer.symbol != symbol else { return nil }
+            performer.symbol = symbol
+            return performer
+        }
+        guard !changed.isEmpty else { throw DrillError("Nothing to change.") }
+        return .batch(symbol == nil ? "Use Section Symbol" : "Change Symbol", changed.map { .updatePerformer($0) })
+    }
+
     /// Timeline extension (as a replaced track) so that `pulse` exists, or nil if it already does.
     func extendedTiming(_ movement: Movement, toInclude pulse: Rational) throws -> TimingTrack? {
         var track = movement.timing

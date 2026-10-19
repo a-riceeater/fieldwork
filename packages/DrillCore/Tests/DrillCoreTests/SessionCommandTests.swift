@@ -55,6 +55,28 @@ final class SessionCommandTests: XCTestCase {
         XCTAssertNoThrow(try session.show.makeSectionPrefix(saxes.id, prefix: "TS"))
     }
 
+    func testSectionAndPerformerSymbolsAndUndo() throws {
+        let session = try makeSession(performers: 3)
+        let section = try XCTUnwrap(session.show.sections.first)
+        let ids = session.show.performers.map(\.id)
+        XCTAssertTrue(session.show.performers.allSatisfy { session.show.symbol(for: $0) == section.symbol })
+
+        try session.perform(try session.show.makePerformerSymbol([ids[0]], symbol: .diamond))
+        try session.perform(try session.show.makeSectionSymbol(section.id, symbol: .square))
+        XCTAssertEqual(session.show.performers.map { session.show.symbol(for: $0) }, [.diamond, .square, .square],
+                       "an individual symbol outlasts a section change")
+        XCTAssertEqual(session.undoName, "Change Section Symbol")
+
+        try session.perform(try session.show.makePerformerSymbol(ids, symbol: nil))
+        XCTAssertEqual(session.show.performers.map { session.show.symbol(for: $0) }, [.square, .square, .square])
+        session.undo()
+        session.undo()
+        XCTAssertEqual(session.show.performers.map { session.show.symbol(for: $0) }, [.diamond, section.symbol, section.symbol])
+
+        XCTAssertThrowsError(try session.show.makeSectionSymbol(section.id, symbol: section.symbol))
+        XCTAssertThrowsError(try session.show.makePerformerSymbol([ids[1]], symbol: nil))
+    }
+
     func testRehearsalMarksMeasureMarkersAndCountingMode() throws {
         let session = try makeSession()
         let second = SetID()

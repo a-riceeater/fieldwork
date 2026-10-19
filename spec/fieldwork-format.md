@@ -45,9 +45,9 @@ Reader behavior:
 - An unknown required capability, or an extension marked `required`, opens the show read-only.
 - Unknown optional extensions are kept and written back unchanged.
 
-## Show database (`show.sqlite`, schema 2)
+## Show database (`show.sqlite`, schema 3)
 
-The database is SQLite 3 with foreign keys enabled. `PRAGMA user_version` holds the schema version. Older schemas are migrated on an in-memory copy (schema 1 → 2 adds `show.counting_mode` defaulting to `measures` and empty `arrival_set.rehearsal_mark` and `measure_marker`). A newer schema is refused without changing bytes. Readers use prepared queries only and never execute SQL stored in a document.
+The database is SQLite 3 with foreign keys enabled. `PRAGMA user_version` holds the schema version. Older schemas are migrated on an in-memory copy (schema 1 → 2 adds `show.counting_mode` defaulting to `measures` and empty `arrival_set.rehearsal_mark` and `measure_marker`; schema 2 → 3 adds a NULL `performer.symbol`). A newer schema is refused without changing bytes. Readers use prepared queries only and never execute SQL stored in a document.
 
 Canonical units: positions in **meters** from field center (+x toward the audience's right, +y toward the back sideline, +z up). Facing is in **degrees**: 0 faces the front sideline and values increase clockwise when seen from above. Durations are in **seconds**. Audio positions are **sample frames** of the referenced asset. Note values and cursor fractions are exact rationals, stored as `*_num`/`*_den` integer pairs with a positive denominator. IDs are uppercase UUID strings and stay stable across edits.
 
@@ -58,8 +58,8 @@ Canonical units: positions in **meters** from field center (+x toward the audien
 | `field(singleton=1, name, preset, length, width, step_size, side_labels JSON, front_label, back_label)` | Field size in meters |
 | `field_checkpoint(ordinal, axis 'x'\|'y', position, label, prominence)` | Yard lines, sidelines, hashes and custom lines |
 | `media_asset(id, sha256, extension, original_filename, byte_count, sample_rate, frame_count, channel_count)` | Archive path is `assets/<sha256>.<extension>` |
-| `section(id, ordinal, name, prefix, symbol, color_index)` | `color_index` points into the shared palette in `design/tokens.json` |
-| `performer(id, ordinal, label UNIQUE, section_id, name NULL, notes)` | `name` is private roster data |
+| `section(id, ordinal, name, prefix, symbol, color_index)` | `symbol` is `circle`, `cross`, `square`, `triangle`, `diamond` or `slash`. `color_index` points into the shared palette in `design/tokens.json` |
+| `performer(id, ordinal, label UNIQUE, section_id, name NULL, notes, symbol NULL)` | `name` is private roster data. `symbol` overrides the section's symbol for this performer; NULL follows the section. |
 | `movement(id, ordinal, name, audio_asset_id NULL, fit_mode)` | `fit_mode` is `preserveAudioPins` or `preserveNotatedTempo` |
 | `measure(id, movement_id, ordinal, number, meter_numerator, meter_denominator, grouping NULL, tempo_unit_*, pulse_unit_*, pickup_* NULL)` | `number` is a display label (a pickup is 0). `grouping` looks like `3+2`. |
 | `timing_event(id, movement_id, ordinal, kind 'beat'\|'hold', measure_id, beat_index, notated_*, baseline_seconds > 0)` | The ordered performance events. Tempo is compiled into `baseline_seconds` and is not stored separately. |
