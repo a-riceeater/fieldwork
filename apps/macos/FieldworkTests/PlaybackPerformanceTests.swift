@@ -94,7 +94,7 @@ final class PlaybackPerformanceTests: XCTestCase {
         XCTAssertEqual(playhead.frame.height, 220)
         timeline.needsDisplay = false
         timeline.state?.playhead = 1000
-        XCTAssertEqual(timeline.x(1000), timeline.bounds.width * 0.1, accuracy: 1e-6)
+        XCTAssertEqual(timeline.time(timeline.bounds.width), model.timelineDuration + 1, accuracy: 1e-6)
         XCTAssertEqual(playhead.frame.midX, timeline.x(1000), accuracy: 1e-6)
     }
 

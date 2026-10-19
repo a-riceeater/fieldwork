@@ -102,27 +102,51 @@ final class TimelineCanvasView: NSView {
 
     func fitAll() {
         guard let state, bounds.width > 10 else { return }
-        visibleStart = -1
-        secondsPerPoint = (state.duration + 2) / Double(bounds.width)
+        let range = navigationRange(for: state)
+        visibleStart = range.lowerBound
+        secondsPerPoint = (range.upperBound - range.lowerBound) / Double(bounds.width)
     }
 
     func zoom(by factor: Double, at px: CGFloat) {
+        guard factor.isFinite, factor > 0 else { return }
         let anchor = time(px)
-        secondsPerPoint = min(max(secondsPerPoint / factor, 0.0005), 2)
+        secondsPerPoint = max(secondsPerPoint / factor, 0.0005)
         visibleStart = anchor - Double(px) * secondsPerPoint
+        constrainViewport()
         needsDisplay = true
+    }
+
+    /// Include authored pre-roll and leave one second of breathing room at each end.
+    private func navigationRange(for state: TimelineState) -> ClosedRange<Double> {
+        let markers = state.beats + state.sets.map(\.time) + state.anchors.map(\.time)
+        return (min(0, markers.min() ?? 0) - 1)...(max(state.duration, markers.max() ?? 0) + 1)
+    }
+
+    private func constrainViewport() {
+        guard let state, bounds.width > 10 else { return }
+        let range = navigationRange(for: state)
+        let maximumScale = (range.upperBound - range.lowerBound) / Double(bounds.width)
+        secondsPerPoint = min(secondsPerPoint, maximumScale)
+        let latestStart = max(range.lowerBound, range.upperBound - Double(bounds.width) * secondsPerPoint)
+        visibleStart = min(max(visibleStart, range.lowerBound), latestStart)
     }
 
     private func keepPlayheadVisible() {
         guard let state, bounds.width > 0 else { return }
         let px = x(state.playhead)
-        if px > bounds.width * 0.9 || px < 0 { visibleStart = state.playhead - Double(bounds.width) * 0.1 * secondsPerPoint }
+        if px > bounds.width * 0.9 || px < 0 {
+            visibleStart = state.playhead - Double(bounds.width) * 0.1 * secondsPerPoint
+            constrainViewport()
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
-        let first = bounds.width < 10
+        let wasFitted = bounds.width < 10 || state.map {
+            let range = navigationRange(for: $0)
+            return Double(bounds.width) * secondsPerPoint >= range.upperBound - range.lowerBound - 1e-6
+        } == true
         super.setFrameSize(newSize)
-        if first { fitAll() }
+        if wasFitted { fitAll() } else { constrainViewport() }
         updatePlayheadLayer()
     }
 
@@ -222,6 +246,7 @@ final class TimelineCanvasView: NSView {
         } else {
             let delta = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) ? event.scrollingDeltaX : event.scrollingDeltaY
             visibleStart -= Double(delta) * secondsPerPoint * (event.hasPreciseScrollingDeltas ? 1 : 10)
+            constrainViewport()
             needsDisplay = true
         }
     }
