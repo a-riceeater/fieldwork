@@ -53,6 +53,37 @@ func demo(_ path: String) throws {
     log("Wrote \(path): \(session.show.performers.count) performers, \(session.show.sets.count) sets, audio \(info.originalFilename) aligned at m1 b1 = 00:01.500")
 }
 
+/// Original synthetic show for the paths fixture: every segment kind, a mid-count
+/// corner, holds at both ends and an arc of more than 180 degrees.
+func pathsFixture(_ path: String) throws {
+    let session = try DocumentSession(show: try Show.makeNew(title: "Fixture: Paths", measures: 4))
+    try session.perform(try session.show.makeRoster([RosterSectionRequest(name: "Trumpet", prefix: "T", count: 4)]))
+    let ids = session.show.performers.map(\.id)
+    let preset = session.show.sets[0].id
+    func place(_ set: SetID, _ points: [Point2]) throws {
+        try session.perform(.setPlacements(set, Dictionary(uniqueKeysWithValues: zip(ids, points.map { Placement.placed(Position($0)) }))))
+    }
+    try place(preset, [Point2(-8, -4), Point2(0, 10), Point2(0, 0), Point2(10, 0)])
+    try session.perform(try session.show.makeCreateSet(after: preset, counts: 8))
+    let set2 = session.show.sets[1].id
+    try place(set2, [Point2(-2, -4), Point2(10, 0), Point2(4.5, 3.5), Point2(0, 10)])
+    try session.perform(try session.show.makeSetPaths(into: set2, [
+        ids[0]: [.hold(counts: Rational(2)), .line(counts: Rational(6), to: Point2(-2, -4))],
+        ids[1]: [.arc(counts: Rational(8), to: Point2(10, 0), sweep: 90)],
+        ids[2]: [.line(counts: Rational(9, 2), to: Point2(4.5, 0)), .line(counts: Rational(7, 2), to: Point2(4.5, 3.5))],
+        ids[3]: [.arc(counts: Rational(6), to: Point2(0, 10), sweep: 270), .hold(counts: Rational(2))],
+    ]))
+    try session.perform(try session.show.makeCreateSet(after: set2, counts: 6))
+    let set3 = session.show.sets[2].id
+    try place(set3, [Point2(-2, 2), Point2(10, 0), Point2(8, 3.5), Point2(0, 4)])
+    try session.perform(try session.show.makeSetPaths(into: set3, [
+        ids[0]: [.arc(counts: Rational(6), to: Point2(-2, 2), sweep: -180)],
+        ids[2]: [.hold(counts: Rational(1, 2)), .line(counts: Rational(11, 2), to: Point2(8, 3.5))],
+    ]))
+    try DocumentFile.save(ShowDocument(show: session.show), to: URL(fileURLWithPath: path))
+    log("Wrote \(path): \(session.show.pathCount) paths with \(session.show.pathSegmentCount) segments over \(session.show.sets.count) sets")
+}
+
 func acceptance(_ directory: String) throws {
     let dir = URL(fileURLWithPath: directory, isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -179,6 +210,8 @@ func info(_ path: String) throws {
             log("    Set \(set.label): count \(TimeFormat.decimal(try map.pulse(at: set.cursor).doubleValue, places: 2)) \(try map.musicalPosition(at: set.cursor).label)\(time)")
         }
     }
+    let curvedMoves = show.transitions.filter { !$0.paths.isEmpty }.count
+    log("  paths: \(show.pathCount) performer paths with \(show.pathSegmentCount) segments in \(curvedMoves) of \(show.transitions.count) moves; everyone else moves straight")
     if let reason = document.readOnlyReason { log("  read-only: \(reason)") }
 }
 
@@ -203,11 +236,14 @@ do {
     case "evaluate":
         guard args.count >= 3 else { fail("usage: fwtool evaluate <in.fieldwork> <count> [count...]") }
         try evaluate(args[1], pulses: args.dropFirst(2).compactMap(Double.init))
+    case "paths-fixture":
+        guard args.count == 2 else { fail("usage: fwtool paths-fixture <out.fieldwork>") }
+        try pathsFixture(args[1])
     case "info":
         guard args.count == 2 else { fail("usage: fwtool info <in.fieldwork>") }
         try info(args[1])
     default:
-        fail("usage: fwtool demo|acceptance|profile|pdf|info|evaluate ...")
+        fail("usage: fwtool demo|acceptance|profile|pdf|info|evaluate|paths-fixture ...")
     }
 } catch {
     fail("\(error)")
