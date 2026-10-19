@@ -73,6 +73,27 @@ final class PlaybackPerformanceTests: XCTestCase {
         XCTAssertNotEqual(try render(), original)
     }
 
+    @MainActor
+    func testTimelinePlayheadCompositesWithoutRedrawingWaveform() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let timeline = TimelineCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 180))
+        timeline.state = model.timelineState()
+        timeline.needsDisplay = false
+        timeline.state?.playhead = 0.5
+        XCTAssertFalse(timeline.needsDisplay, "A clock tick must not redraw the waveform and marker labels")
+        let playhead = try XCTUnwrap(timeline.layer?.sublayers?.first)
+        XCTAssertEqual(playhead.frame.midX, timeline.x(0.5), accuracy: 1e-6)
+        timeline.zoom(by: 2, at: 100)
+        XCTAssertTrue(timeline.needsDisplay)
+        XCTAssertEqual(playhead.frame.midX, timeline.x(0.5), accuracy: 1e-6)
+        timeline.setFrameSize(NSSize(width: 900, height: 220))
+        XCTAssertEqual(playhead.frame.height, 220)
+        timeline.needsDisplay = false
+        timeline.state?.playhead = 1000
+        XCTAssertTrue(timeline.needsDisplay, "Following a playhead outside the viewport must redraw the lanes")
+        XCTAssertEqual(playhead.frame.midX, timeline.x(1000), accuracy: 1e-6)
+    }
+
     /// Opt in with FIELDWORK_PROFILE_DOCUMENT=/path/to/show.fieldwork. Never writes the input.
     @MainActor
     func testDocumentPlaybackProfile() throws {
@@ -80,7 +101,15 @@ final class PlaybackPerformanceTests: XCTestCase {
             throw XCTSkip("Set FIELDWORK_PROFILE_DOCUMENT to profile a real show")
         }
         let document = try DocumentCodec.decode(Data(contentsOf: URL(fileURLWithPath: path)))
-        let model = EditorModel(session: try DocumentSession(show: document.show), assets: [:])
+        let includeAudio = ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_AUDIO"] == "1"
+        let model = EditorModel(session: try DocumentSession(show: document.show), assets: includeAudio ? document.assets : [:])
+        if includeAudio {
+            let deadline = Date(timeIntervalSinceNow: 30)
+            while model.peaks == nil && Date() < deadline {
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+            }
+            XCTAssertNotNil(model.peaks, model.audioStatus)
+        }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 960),
                               styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = NSHostingView(rootView: EditorView(model: model))
@@ -96,6 +125,8 @@ final class PlaybackPerformanceTests: XCTestCase {
             window.displayIfNeeded()
             frames.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
         }
+        // Check a later move as well as the beginning; audio and no-audio use the same clock path.
+        model.seek(to: 45)
         var liveIntervals: [Double] = []
         var previous = CFAbsoluteTimeGetCurrent()
         let clock = model.playbackPosition.frames.sink { _ in
@@ -108,7 +139,7 @@ final class PlaybackPerformanceTests: XCTestCase {
         liveIntervals.sort()
         XCTAssertGreaterThan(liveIntervals.count, 0, "The visible canvas must receive display-link callbacks")
         if !liveIntervals.isEmpty {
-            print("LIVE CLOCK: \(liveIntervals.count) frames / 3 s; p50=\(liveIntervals[liveIntervals.count / 2]) ms p95=\(liveIntervals[Int(Double(liveIntervals.count - 1) * 0.95)]) ms")
+            print("LIVE CLOCK: \(liveIntervals.count) frames / 3 s (audio=\(includeAudio)); p50=\(liveIntervals[liveIntervals.count / 2]) ms p95=\(liveIntervals[Int(Double(liveIntervals.count - 1) * 0.95)]) ms")
         }
         frames.sort()
         print("PLAYBACK PROFILE: \(document.show.performers.count) performers, \(document.show.sets.count) sets; frame interval p50=\(frames[60]) ms p95=\(frames[114]) ms max=\(frames.last!) ms")

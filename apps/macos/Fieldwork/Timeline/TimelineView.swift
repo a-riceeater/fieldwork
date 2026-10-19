@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import QuartzCore
 import DrillTiming
 import DrillCore
 import DrillMedia
@@ -52,15 +53,23 @@ final class TimelineCanvasView: NSView {
     var state: TimelineState? {
         didSet {
             guard state != oldValue else { return }
+            var previousContent = oldValue
+            previousContent?.playhead = state?.playhead ?? 0
+            if previousContent != state { needsDisplay = true }
             if let state, oldValue == nil || oldValue?.duration != state.duration { fitAll() }
             keepPlayheadVisible()
-            needsDisplay = true
+            updatePlayheadLayer()
             setAccessibilityValue(state.map { "Playhead \(TimeFormat.clock($0.playhead))" } ?? "")
         }
     }
 
-    private var visibleStart: Double = -1
-    private var secondsPerPoint: Double = 0.05
+    private let playheadLayer = CALayer()
+    private var visibleStart: Double = -1 {
+        didSet { needsDisplay = true; updatePlayheadLayer() }
+    }
+    private var secondsPerPoint: Double = 0.05 {
+        didSet { needsDisplay = true; updatePlayheadLayer() }
+    }
     private var draggingAnchor: (id: AnchorID, time: Double)?
     private var scrubbing = false
 
@@ -72,6 +81,8 @@ final class TimelineCanvasView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityLabel("Timeline")
         setAccessibilityIdentifier("timeline.lanes")
+        wantsLayer = true
+        layer?.addSublayer(playheadLayer)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -111,6 +122,17 @@ final class TimelineCanvasView: NSView {
         let first = bounds.width < 10
         super.setFrameSize(newSize)
         if first { fitAll() }
+        updatePlayheadLayer()
+    }
+
+    /// Composite one thin layer while the waveform, rulers and markers stay unchanged.
+    private func updatePlayheadLayer() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        playheadLayer.isHidden = state == nil
+        playheadLayer.backgroundColor = Tokens.error.cgColor
+        playheadLayer.frame = CGRect(x: x(state?.playhead ?? 0) - 0.75, y: 0, width: 1.5, height: bounds.height)
+        CATransaction.commit()
     }
 
     // MARK: Interaction
@@ -318,11 +340,7 @@ final class TimelineCanvasView: NSView {
             previousX = px
         }
 
-        // Playhead across every lane.
-        let ph = x(state.playhead)
-        ctx.setStrokeColor(Tokens.error.cgColor)
-        ctx.setLineWidth(1.5)
-        ctx.strokeLineSegments(between: [CGPoint(x: ph, y: 0), CGPoint(x: ph, y: bounds.height)])
+        // The playhead is composited separately, without rerasterizing these lanes.
     }
 }
 
