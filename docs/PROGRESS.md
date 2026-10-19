@@ -1,5 +1,23 @@
 # Progress log
 
+## 2026-10-19: Field-focused workspace and performer labels
+
+- New windows start with a 190 pt sets panel, 260 pt inspector and 180 pt timeline;
+  the field receives the remaining space. Dividers remain draggable and expose
+  accessibility adjustment actions. Narrow windows retain at least 420 pt for the
+  field and 360 pt of field-row height.
+- Warnings use a disclosure control, start collapsed, and remember their expanded
+  state per user. The status bar keeps the warning count visible.
+- The tempo-fit choices use the full width below their own heading, rather than
+  squeezing the heading and radio choices into adjacent columns.
+- Toolbar Labels and View → Always Show Performer Labels toggle a saved per-user
+  preference. Labels remain 8 pt at every zoom with a subtle contrast outline.
+  Their rendered bitmaps are cached so playback avoids repeated text shaping.
+- All 15 Mac tests pass, including initial pane allocation, narrow-window limits,
+  label persistence/rendering and the playback regressions. The 350 × 150 Paper
+  benchmark with labels on reached 179 updates in three seconds (16.68 ms median,
+  17.64 ms p95 live intervals).
+
 ## 2026-10-19: Native playback performance
 
 Read all project design, architecture, research and format documents. Profiled the
