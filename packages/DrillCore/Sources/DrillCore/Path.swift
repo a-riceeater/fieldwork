@@ -48,7 +48,8 @@ public enum PathSegment: Hashable, Codable, Sendable {
         }
     }
 
-    func withEnd(_ end: Point2) -> PathSegment {
+    /// The same segment ending at `end`; a hold is unchanged.
+    public func withEnd(_ end: Point2) -> PathSegment {
         switch self {
         case .hold: return self
         case .line(let c, _): return .line(counts: c, to: end)
