@@ -86,6 +86,18 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertLessThan(inside.redComponent + inside.blueComponent, 1.9)
     }
 
+    func testFrontLabelsCenterDifferentWidthsTowardAudience() {
+        let point = CGPoint(x: 100, y: 200)
+        for width: CGFloat in [10, 25] {
+            let size = CGSize(width: width, height: 12)
+            let origin = PerformerLabelPlacement.front.origin(at: point, radius: 5, size: size)
+            XCTAssertEqual(origin.x + width / 2, point.x)
+            XCTAssertEqual(origin.y + size.height, point.y - 6)
+            XCTAssertEqual(PerformerLabelPlacement.offset.origin(at: point, radius: 5, size: size),
+                           CGPoint(x: 106, y: 200))
+        }
+    }
+
     @MainActor
     func testAlwaysVisibleLabelsPersistAndRenderWhenZoomedOut() throws {
         let suite = "FieldworkLabelTests.\(UUID().uuidString)"
@@ -94,6 +106,7 @@ final class EditorLayoutTests: XCTestCase {
         let session = try DocumentSession(show: SampleShow.make())
         let model = EditorModel(session: session, assets: [:], preferences: preferences)
         XCTAssertFalse(model.alwaysShowLabels)
+        XCTAssertEqual(model.labelPlacement, .front)
         let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         canvas.state = model.canvasState()
         canvas.fit(.zoomOut)
@@ -107,8 +120,17 @@ final class EditorLayoutTests: XCTestCase {
         canvas.state = model.canvasState()
         XCTAssertTrue(try XCTUnwrap(canvas.state).alwaysShowLabels)
         XCTAssertNotEqual(try render(), hidden)
+        let front = try render()
+        model.labelPlacement = .offset
+        canvas.state = model.canvasState()
+        XCTAssertNotEqual(try render(), front)
+        model.labelPlacement = .front
+        canvas.state = model.canvasState()
+        XCTAssertEqual(try render(), front)
+        model.labelPlacement = .offset
         let reopened = EditorModel(session: session, assets: [:], preferences: preferences)
         XCTAssertTrue(reopened.alwaysShowLabels)
+        XCTAssertEqual(reopened.labelPlacement, .offset)
         XCTAssertFalse(session.isDirty)
     }
 }

@@ -518,15 +518,19 @@ final class FieldCanvasView: NSView {
                 ctx.strokeEllipse(in: CGRect(x: p.x - r - 3, y: p.y - r - 3, width: 2 * r + 6, height: 2 * r + 6))
             }
             if showLabels || dot.selected {
-                let origin = CGPoint(x: p.x + r + 1, y: p.y)
                 if let cached = labelCache[dot.label] {
+                    let origin = state.labelPlacement.origin(at: p, radius: r, size: cached.size)
                     ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
                 } else {
                     let text = NSAttributedString(string: dot.label, attributes: labelAttributes)
                     if let cached = rasterizeLabel(text, scale: backingScale) {
                         labelCache[dot.label] = cached
+                        let origin = state.labelPlacement.origin(at: p, radius: r, size: cached.size)
                         ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
                     } else {
+                        let measured = text.size()
+                        let size = CGSize(width: ceil(measured.width) + 2, height: ceil(measured.height) + 2)
+                        let origin = state.labelPlacement.origin(at: p, radius: r, size: size)
                         text.draw(at: CGPoint(x: origin.x + 1, y: origin.y + 1))
                     }
                 }

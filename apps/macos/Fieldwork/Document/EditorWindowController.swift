@@ -60,6 +60,10 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func setFieldStyle(_ sender: Any?) {
         if let raw = (sender as? NSMenuItem)?.representedObject as? String, let style = FieldStyle(rawValue: raw) { model.fieldStyle = style }
     }
+    @MainActor @objc func setLabelPlacement(_ sender: Any?) {
+        if let raw = (sender as? NSMenuItem)?.representedObject as? String,
+           let placement = PerformerLabelPlacement(rawValue: raw) { model.labelPlacement = placement }
+    }
     @MainActor @objc func togglePerformerLabels(_ sender: Any?) { model.alwaysShowLabels.toggle() }
     @MainActor @objc func addNote(_ sender: Any?) { model.addNote() }
 
@@ -93,6 +97,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
             return true
         case #selector(togglePerformerLabels(_:)):
             menuItem.state = model.alwaysShowLabels ? .on : .off
+            return true
+        case #selector(setLabelPlacement(_:)):
+            menuItem.state = menuItem.representedObject as? String == model.labelPlacement.rawValue ? .on : .off
             return true
         case #selector(setFieldStyle(_:)):
             menuItem.state = menuItem.representedObject as? String == model.fieldStyle.rawValue ? .on : .off

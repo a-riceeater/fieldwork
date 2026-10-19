@@ -1,5 +1,15 @@
 # Progress log
 
+## 2026-10-19: Center performer labels toward the front sideline
+
+Labels now default to horizontal centering in front of each dot (toward the
+audience, below the dot in Fieldwork). View → Performer Label Position → Offset
+(Original) restores the previous diagonal placement. This per-user choice persists
+without modifying the show; fixed label sizing and bitmap caching are unchanged.
+Regression checks cover front-side centering, rendering after switching both ways,
+and persistence of the original placement. The Mac suite passes: 18 tests, one
+opt-in benchmark skipped, zero failures.
+
 ## 2026-10-19: Keep zoomed field content inside the canvas
 
 Enabled native view clipping, saved and clipped the Core Graphics drawing context

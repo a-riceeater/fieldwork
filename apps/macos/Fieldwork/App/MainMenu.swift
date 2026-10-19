@@ -83,6 +83,11 @@ enum MainMenu {
             .separator(),
             item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
             item("Always Show Performer Labels", #selector(EditorWindowController.togglePerformerLabels(_:))),
+            submenu("Performer Label Position", PerformerLabelPlacement.allCases.map { placement in
+                let menuItem = item(placement.title, #selector(EditorWindowController.setLabelPlacement(_:)))
+                menuItem.representedObject = placement.rawValue
+                return menuItem
+            }),
             submenu("Field Style", FieldStyle.allCases.map { style in
                 let menuItem = item(style.title, #selector(EditorWindowController.setFieldStyle(_:)))
                 menuItem.representedObject = style.rawValue

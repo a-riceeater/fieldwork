@@ -100,6 +100,9 @@ final class EditorModel: ObservableObject {
     @Published var alwaysShowLabels: Bool {
         didSet { preferences.set(alwaysShowLabels, forKey: "FieldworkAlwaysShowLabels") }
     }
+    @Published var labelPlacement: PerformerLabelPlacement {
+        didSet { preferences.set(labelPlacement.rawValue, forKey: "FieldworkLabelPlacement") }
+    }
     /// Draws the field dark, as mowed grass or as graph paper. A per-user view preference, not show data.
     @Published var fieldStyle: FieldStyle {
         didSet { preferences.set(fieldStyle.rawValue, forKey: "FieldworkFieldStyle") }
@@ -135,6 +138,7 @@ final class EditorModel: ObservableObject {
         self.preferences = preferences
         wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
         alwaysShowLabels = preferences.bool(forKey: "FieldworkAlwaysShowLabels")
+        labelPlacement = PerformerLabelPlacement(rawValue: preferences.string(forKey: "FieldworkLabelPlacement") ?? "") ?? .front
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
         fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .dark
         self.session = session

@@ -89,6 +89,29 @@ enum FieldStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Screen-space label placement; the audience/front is below the field in this canvas.
+enum PerformerLabelPlacement: String, CaseIterable, Identifiable {
+    case front
+    case offset
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .front: "In Front"
+        case .offset: "Offset (Original)"
+        }
+    }
+
+    func origin(at point: CGPoint, radius: CGFloat, size: CGSize) -> CGPoint {
+        switch self {
+        case .front:
+            CGPoint(x: point.x - size.width / 2, y: point.y - radius - 1 - size.height)
+        case .offset:
+            CGPoint(x: point.x + radius + 1, y: point.y)
+        }
+    }
+}
+
 /// Immutable snapshot the canvas draws. Built by the representable from the editor model.
 struct CanvasState: Equatable {
     var field: Field
@@ -112,9 +135,10 @@ struct CanvasState: Equatable {
     var caption: String
     var fieldStyle: FieldStyle
     var alwaysShowLabels: Bool
+    var labelPlacement: PerformerLabelPlacement
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
-        a.field == b.field && a.fieldStyle == b.fieldStyle && a.alwaysShowLabels == b.alwaysShowLabels && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
+        a.field == b.field && a.fieldStyle == b.fieldStyle && a.alwaysShowLabels == b.alwaysShowLabels && a.labelPlacement == b.labelPlacement && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
             && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
             && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }
