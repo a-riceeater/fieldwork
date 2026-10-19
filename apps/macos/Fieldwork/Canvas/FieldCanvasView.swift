@@ -396,22 +396,24 @@ final class FieldCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        NSColor(hex: 0x111C24).setFill()
+        (state?.fieldStyle == .paper ? Tokens.Paper.paper : NSColor(hex: 0x111C24)).setFill()
         bounds.fill()
         guard let state else { return }
         let field = state.field
         let fieldRect = CGRect(origin: view(Point2(field.bounds.minX, field.bounds.minY)),
                                size: CGSize(width: CGFloat(field.length) * transform.scale, height: CGFloat(field.width) * transform.scale))
-        if state.grass {
-            drawGrass(field, in: fieldRect, ctx: ctx)
-        } else {
-            drawSchematic(field, in: fieldRect, ctx: ctx)
+        switch state.fieldStyle {
+        case .dark: drawSchematic(field, in: fieldRect, ctx: ctx)
+        case .grass: drawGrass(field, in: fieldRect, ctx: ctx)
+        case .paper: drawPaper(field, in: fieldRect, ctx: ctx)
         }
+        // Labels, selection rings and paths: white on dark fields, dark ink on paper.
+        let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : NSColor.white
 
         // Incoming paths for the selection; flagged paths are dashed with the warning color.
         for (id, a, b) in state.paths {
             let flagged = state.warningPaths.contains(id)
-            ctx.setStrokeColor(flagged ? Tokens.warning.cgColor : NSColor.white.withAlphaComponent(0.35).cgColor)
+            ctx.setStrokeColor(flagged ? Tokens.warning.cgColor : ink.withAlphaComponent(0.35).cgColor)
             ctx.setLineWidth(flagged ? 1.5 : 1)
             ctx.setLineDash(phase: 0, lengths: flagged ? [5, 3] : [])
             ctx.strokeLineSegments(between: [view(a), view(b)])
@@ -458,28 +460,28 @@ final class FieldCanvasView: NSView {
             }
         }
 
-        // Dots. On grass a soft dark halo keeps light section colors readable.
+        // Dots. On grass and paper a soft dark halo keeps light section colors readable.
         let r = dotRadius
         let showLabels = transform.scale >= 10
         let labelFont = NSFont.systemFont(ofSize: max(8, min(11, transform.scale * 0.6)), weight: .medium)
         for dot in state.dots {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
-            if state.grass {
+            if state.fieldStyle != .dark {
                 ctx.saveGState()
-                ctx.setShadow(offset: .zero, blur: 3, color: NSColor.black.withAlphaComponent(0.7).cgColor)
+                ctx.setShadow(offset: .zero, blur: state.fieldStyle == .paper ? 1.5 : 3, color: NSColor.black.withAlphaComponent(0.7).cgColor)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
                 ctx.restoreGState()
             } else {
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
             }
             if dot.selected {
-                ctx.setStrokeColor(NSColor.white.cgColor)
+                ctx.setStrokeColor(ink.cgColor)
                 ctx.setLineWidth(2)
                 ctx.strokeEllipse(in: CGRect(x: p.x - r - 3, y: p.y - r - 3, width: 2 * r + 6, height: 2 * r + 6))
             }
             if showLabels || dot.selected {
-                NSAttributedString(string: dot.label, attributes: [.font: labelFont, .foregroundColor: NSColor.white.withAlphaComponent(0.85)])
+                NSAttributedString(string: dot.label, attributes: [.font: labelFont, .foregroundColor: ink.withAlphaComponent(0.85)])
                     .draw(at: CGPoint(x: p.x + r + 2, y: p.y + 1))
             }
         }
@@ -621,6 +623,62 @@ final class FieldCanvasView: NSView {
         }
     }
 
+    /// Graph paper like a printed drill chart: a light grid every step and a stronger one
+    /// every 4 steps across the whole view, gray yard lines and hashes, a black border, and
+    /// line numbers outside both sidelines, upside down along the back as read from there.
+    private func drawPaper(_ field: Field, in fieldRect: CGRect, ctx: CGContext) {
+        let step = field.stepSize
+        if CGFloat(step) * transform.scale >= 4 { strokeGrid(spacing: step, color: Tokens.Paper.gridMinor, width: 0.5, ctx: ctx) }
+        if CGFloat(4 * step) * transform.scale >= 4 { strokeGrid(spacing: 4 * step, color: Tokens.Paper.gridMajor, width: 1, ctx: ctx) }
+
+        ctx.setLineWidth(1)
+        for cp in field.checkpoints {
+            ctx.setStrokeColor(Tokens.Paper.line.withAlphaComponent(cp.prominence == .hash ? 0.7 : 1).cgColor)
+            if cp.axis == .x {
+                let x = view(Point2(cp.position, 0)).x
+                ctx.strokeLineSegments(between: [CGPoint(x: x, y: fieldRect.minY), CGPoint(x: x, y: fieldRect.maxY)])
+            } else {
+                let y = view(Point2(0, cp.position)).y
+                ctx.strokeLineSegments(between: [CGPoint(x: fieldRect.minX, y: y), CGPoint(x: fieldRect.maxX, y: y)])
+            }
+        }
+        ctx.setStrokeColor(Tokens.Paper.border.cgColor)
+        ctx.setLineWidth(1.2)
+        ctx.stroke(fieldRect)
+
+        let font = NSFont.monospacedDigitSystemFont(ofSize: max(9, min(20, transform.scale * 2)), weight: .regular)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Tokens.Paper.ink.withAlphaComponent(0.8)]
+        for cp in field.checkpoints where cp.axis == .x && !cp.label.hasSuffix("end line") {
+            let x = view(Point2(cp.position, 0)).x
+            let text = NSAttributedString(string: cp.label, attributes: attributes)
+            let size = text.size()
+            text.draw(at: CGPoint(x: x - size.width / 2, y: fieldRect.minY - 4 - size.height))
+            ctx.saveGState()
+            ctx.translateBy(x: x, y: fieldRect.maxY + 4 + size.height / 2)
+            ctx.rotate(by: .pi)
+            text.draw(at: CGPoint(x: -size.width / 2, y: -size.height / 2))
+            ctx.restoreGState()
+        }
+    }
+
+    /// Grid lines across the whole view on multiples of `spacing` from field center,
+    /// the same positions dots snap to.
+    private func strokeGrid(spacing: Double, color: NSColor, width: CGFloat, ctx: CGContext) {
+        let low = world(CGPoint(x: bounds.minX, y: bounds.minY)), high = world(CGPoint(x: bounds.maxX, y: bounds.maxY))
+        var segments: [CGPoint] = []
+        for i in Int((low.x / spacing).rounded(.down))...Int((high.x / spacing).rounded(.up)) {
+            let x = view(Point2(Double(i) * spacing, 0)).x
+            segments += [CGPoint(x: x, y: bounds.minY), CGPoint(x: x, y: bounds.maxY)]
+        }
+        for i in Int((low.y / spacing).rounded(.down))...Int((high.y / spacing).rounded(.up)) {
+            let y = view(Point2(0, Double(i) * spacing)).y
+            segments += [CGPoint(x: bounds.minX, y: y), CGPoint(x: bounds.maxX, y: y)]
+        }
+        ctx.setStrokeColor(color.cgColor)
+        ctx.setLineWidth(width)
+        ctx.strokeLineSegments(between: segments)
+    }
+
     /// Small checkpoint names along the front edge, when zoomed in enough to fit.
     private func drawCheckpointLabels(_ field: Field, in fieldRect: CGRect, color: NSColor) {
         guard transform.scale > 3 else { return }
@@ -637,7 +695,7 @@ final class FieldCanvasView: NSView {
                                                                        .foregroundColor: NSColor.white.withAlphaComponent(0.85)])
         let size = attributed.size()
         let rect = CGRect(x: point.x - 6, y: point.y - 3, width: size.width + 12, height: size.height + 6)
-        NSColor.black.withAlphaComponent(0.35).setFill()
+        NSColor.black.withAlphaComponent(state?.fieldStyle == .paper ? 0.7 : 0.35).setFill()
         NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
         attributed.draw(at: point)
     }

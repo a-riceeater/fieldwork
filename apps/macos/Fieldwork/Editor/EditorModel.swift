@@ -87,10 +87,9 @@ final class EditorModel: ObservableObject {
     @Published var circlesOnly: Bool {
         didSet { preferences.set(circlesOnly, forKey: "FieldworkCirclesOnly") }
     }
-    /// Draws the field as mowed grass with white lines and yard numbers instead of
-    /// the dark schematic surface. A per-user view preference, not show data.
-    @Published var grassField: Bool {
-        didSet { preferences.set(grassField, forKey: "FieldworkGrassField") }
+    /// Draws the field dark, as mowed grass or as graph paper. A per-user view preference, not show data.
+    @Published var fieldStyle: FieldStyle {
+        didSet { preferences.set(fieldStyle.rawValue, forKey: "FieldworkFieldStyle") }
     }
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
@@ -119,7 +118,7 @@ final class EditorModel: ObservableObject {
         self.preferences = preferences
         wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
-        grassField = preferences.bool(forKey: "FieldworkGrassField")
+        fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .dark
         self.session = session
         self.assets = assets
         self.readOnlyReason = readOnlyReason

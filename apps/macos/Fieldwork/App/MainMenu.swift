@@ -82,7 +82,11 @@ enum MainMenu {
             item("Zoom Out", #selector(EditorWindowController.zoomOutField(_:)), "-"),
             .separator(),
             item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
-            item("Grass Field", #selector(EditorWindowController.toggleGrassField(_:)), "g", [.command, .option]),
+            submenu("Field Style", FieldStyle.allCases.map { style in
+                let menuItem = item(style.title, #selector(EditorWindowController.setFieldStyle(_:)))
+                menuItem.representedObject = style.rawValue
+                return menuItem
+            }),
             .separator(),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ]))

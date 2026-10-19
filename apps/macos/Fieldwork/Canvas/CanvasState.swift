@@ -69,6 +69,26 @@ struct CanvasForm: Equatable {
     var memberCount: Int { members.count }
 }
 
+/// How the canvas draws the field. A per-user view preference, not show data.
+enum FieldStyle: String, CaseIterable, Identifiable {
+    /// The dark editing surface with gray checkpoint lines.
+    case dark
+    /// Mowed grass with white lines and yard numbers, like the field picker.
+    case grass
+    /// Cream graph paper with a step grid, like a printed drill chart.
+    case paper
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .dark: "Dark"
+        case .grass: "Grass"
+        case .paper: "Paper"
+        }
+    }
+}
+
 /// Immutable snapshot the canvas draws. Built by the representable from the editor model.
 struct CanvasState: Equatable {
     var field: Field
@@ -90,11 +110,10 @@ struct CanvasState: Equatable {
     var snapSteps: Double
     var axisLock: AxisLock
     var caption: String
-    /// Draw mowed grass and white lines instead of the dark schematic field.
-    var grass: Bool
+    var fieldStyle: FieldStyle
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
-        a.field == b.field && a.grass == b.grass && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
+        a.field == b.field && a.fieldStyle == b.fieldStyle && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
             && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
             && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }

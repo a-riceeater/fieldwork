@@ -31,6 +31,17 @@ enum Tokens {
         static let tarp = NSColor(hex: 0x525969)
     }
 
+    /// The paper field: cream graph paper with an orange step grid, like a printed drill chart.
+    enum Paper {
+        static let paper = NSColor(hex: 0xFBF4E4)
+        static let gridMinor = NSColor(hex: 0xF3D9B5)
+        static let gridMajor = NSColor(hex: 0xE8B27A)
+        static let line = NSColor(hex: 0x8E8E8E)
+        static let border = NSColor(hex: 0x1E1E1E)
+        /// Labels, selection rings and paths drawn on paper.
+        static let ink = NSColor(hex: 0x2A2A2A)
+    }
+
     static let sectionPalette: [NSColor] = [0x82A7FF, 0xFFC46A, 0x7FD6B4, 0xF29CC6, 0xB8A6FF, 0xFF9F7A, 0x9FD4FF, 0xE4E07C, 0xC3C8D4, 0x8EE08E].map { NSColor(hex: $0) }
 
     static func sectionColor(_ index: Int) -> NSColor { sectionPalette[((index % sectionPalette.count) + sectionPalette.count) % sectionPalette.count] }

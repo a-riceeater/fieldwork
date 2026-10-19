@@ -57,7 +57,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func zoomInField(_ sender: Any?) { model.requestCanvas(.zoomIn) }
     @MainActor @objc func zoomOutField(_ sender: Any?) { model.requestCanvas(.zoomOut) }
     @MainActor @objc func toggleCirclesOnly(_ sender: Any?) { model.circlesOnly.toggle() }
-    @MainActor @objc func toggleGrassField(_ sender: Any?) { model.grassField.toggle() }
+    @MainActor @objc func setFieldStyle(_ sender: Any?) {
+        if let raw = (sender as? NSMenuItem)?.representedObject as? String, let style = FieldStyle(rawValue: raw) { model.fieldStyle = style }
+    }
     @MainActor @objc func addNote(_ sender: Any?) { model.addNote() }
 
     // MARK: Playback, audio, export, help
@@ -88,8 +90,8 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(toggleCirclesOnly(_:)):
             menuItem.state = model.circlesOnly ? .on : .off
             return true
-        case #selector(toggleGrassField(_:)):
-            menuItem.state = model.grassField ? .on : .off
+        case #selector(setFieldStyle(_:)):
+            menuItem.state = menuItem.representedObject as? String == model.fieldStyle.rawValue ? .on : .off
             return true
         case #selector(toggleWholeCounts(_:)):
             menuItem.state = model.wholeCountsOnly ? .on : .off
