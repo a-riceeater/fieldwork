@@ -90,10 +90,14 @@ extension EditorModel {
         }
 
         var forms: [CanvasForm] = []
+        var groups: [PerformerID: Set<PerformerID>] = [:]
         var paths: [(PerformerID, Point2, Point2)] = []
         if isEditable {
-            forms = show.forms(on: currentSetID).filter { !selection.isDisjoint(with: $0.members) }
-                .map { CanvasForm(id: $0.id, geometry: $0.geometry, memberCount: $0.members.count) }
+            for form in show.forms(on: currentSetID) {
+                let members = Set(form.members)
+                for id in members { groups[id] = members }
+                if !selection.isDisjoint(with: members) { forms.append(CanvasForm(id: form.id, geometry: form.geometry, members: members)) }
+            }
             if let previous = show.previousSet(before: currentSetID) {
                 let before = show.formation(previous.id), now = show.formation(currentSetID)
                 for id in selection {
@@ -110,7 +114,7 @@ extension EditorModel {
             }
         }
         let flagged = Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
-        return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
+        return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
                            snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption)
     }
 }

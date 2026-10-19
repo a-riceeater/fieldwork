@@ -101,12 +101,15 @@ final class FieldCanvasView: NSView {
         return best?.0
     }
 
+    /// Handles are rings drawn around the dots they sit on.
+    private var handleRadius: CGFloat { max(8, dotRadius + 6) }
+
     private func hitHandle(at v: CGPoint) -> (CanvasForm, Int)? {
         guard let state, state.editable else { return nil }
         for form in state.forms {
             for (i, handle) in form.geometry.handles.enumerated() {
                 let p = view(handle)
-                if hypot(p.x - v.x, p.y - v.y) <= 7 { return (form, i) }
+                if hypot(p.x - v.x, p.y - v.y) <= handleRadius { return (form, i) }
             }
         }
         return nil
@@ -187,11 +190,20 @@ final class FieldCanvasView: NSView {
                     return
                 }
                 var ids = state.dots.filter(\.selected).map(\.id)
+                let selected = Set(ids)
+                let group = state.groups[dot.id]
                 if !dot.selected {
-                    delegate?.canvasSelect([dot.id], additive: false)
-                    ids = [dot.id]
+                    // A form acts like a group: the first click selects all of it. Once you
+                    // are working inside a form, clicks pick its members one at a time.
+                    let inside = group.map { !selected.isEmpty && selected.isSubset(of: $0) } ?? false
+                    let target: Set<PerformerID> = inside || event.clickCount > 1 ? [dot.id] : (group ?? [dot.id])
+                    delegate?.canvasSelect(target, additive: false)
+                    ids = Array(target)
                 }
-                let narrowTo = dot.selected && ids.count > 1 ? dot.id : nil
+                // Clicking inside a larger selection narrows to that dot on release, except
+                // in a selected form, where a double-click is needed so the form stays selected.
+                let wholeForm = group != nil && group == selected
+                let narrowTo = dot.selected && ids.count > 1 && (!wholeForm || event.clickCount > 1) ? dot.id : nil
                 if state.editable {
                     drag = .moveDots(ids: ids, anchor: dot.point, start: world(v), delta: .zero, narrowTo: narrowTo)
                 } else {
@@ -265,7 +277,12 @@ final class FieldCanvasView: NSView {
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
             delegate?.canvasCommitForm(geometry)
         case .handle(let form, _, let geometry):
-            if geometry != form.geometry { delegate?.canvasCommitHandle(form.id, geometry: geometry) }
+            if geometry != form.geometry {
+                delegate?.canvasCommitHandle(form.id, geometry: geometry)
+            } else if event.clickCount > 1, let dot = hitDot(at: convert(event.locationInWindow, from: nil)) {
+                // Double-clicking the performer under a handle selects just that performer.
+                delegate?.canvasSelect([dot.id], additive: false)
+            }
         case .moveNote(let id, _, let delta):
             if delta.length > 1e-9, let note = state.notes.first(where: { $0.id == id }) {
                 delegate?.canvasCommitNoteMove(id, to: note.position + delta)
@@ -382,37 +399,32 @@ final class FieldCanvasView: NSView {
         }
 
         // Forms and their handles.
+        // Dot drag preview offset. Dragging every member of a form carries the form along.
+        var previewDelta = Point2.zero
+        var movingIDs = Set<PerformerID>()
+        if case .moveDots(let ids, _, _, let delta, _) = drag { previewDelta = delta; movingIDs = Set(ids) }
+        func shownGeometry(_ form: CanvasForm) -> FormGeometry {
+            if case .handle(let dragged, _, let preview) = drag, dragged.id == form.id { return preview }
+            if previewDelta.length > 0, form.members.isSubset(of: movingIDs) { return form.geometry.translated(by: previewDelta) }
+            return form.geometry
+        }
+
+        // Form outlines.
         for form in state.forms {
-            var geometry = form.geometry
-            if case .handle(let dragged, _, let preview) = drag, dragged.id == form.id { geometry = preview }
             ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.55).cgColor)
             ctx.setLineWidth(1.5)
-            let points = geometry.polyline().map(view)
-            ctx.addLines(between: points)
+            ctx.addLines(between: shownGeometry(form).polyline().map(view))
             ctx.strokePath()
-            if state.editable {
-                for handle in geometry.handles {
-                    let p = view(handle)
-                    let r = CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)
-                    NSColor.white.setFill()
-                    ctx.fillEllipse(in: r)
-                    ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
-                    ctx.strokeEllipse(in: r)
-                }
-                if case .handle(let dragged, _, let preview) = drag, dragged.id == form.id {
-                    ctx.setFillColor(Tokens.fieldAccent.withAlphaComponent(0.5).cgColor)
-                    for p in preview.distribute(form.memberCount) {
-                        let v = view(p)
-                        ctx.fillEllipse(in: CGRect(x: v.x - dotRadius, y: v.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2))
-                    }
+            if state.editable, case .handle(let dragged, _, let preview) = drag, dragged.id == form.id {
+                ctx.setFillColor(Tokens.fieldAccent.withAlphaComponent(0.5).cgColor)
+                for p in preview.distribute(form.memberCount) {
+                    let v = view(p)
+                    ctx.fillEllipse(in: CGRect(x: v.x - dotRadius, y: v.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2))
                 }
             }
         }
 
-        // Dots (with drag preview offset).
-        var previewDelta = Point2.zero
-        var movingIDs = Set<PerformerID>()
-        if case .moveDots(let ids, _, _, let delta, _) = drag { previewDelta = delta; movingIDs = Set(ids) }
+        // Dots.
         let r = dotRadius
         let showLabels = transform.scale >= 10
         let labelFont = NSFont.systemFont(ofSize: max(8, min(11, transform.scale * 0.6)), weight: .medium)
@@ -428,6 +440,22 @@ final class FieldCanvasView: NSView {
             if showLabels || dot.selected {
                 NSAttributedString(string: dot.label, attributes: [.font: labelFont, .foregroundColor: NSColor.white.withAlphaComponent(0.85)])
                     .draw(at: CGPoint(x: p.x + r + 2, y: p.y + 1))
+            }
+        }
+
+        // Form handles: rings drawn above the dots so the performers under them stay visible.
+        if state.editable {
+            let hr = handleRadius
+            for form in state.forms {
+                for handle in shownGeometry(form).handles {
+                    let rect = CGRect(x: view(handle).x - hr, y: view(handle).y - hr, width: 2 * hr, height: 2 * hr)
+                    ctx.setStrokeColor(NSColor.white.cgColor)
+                    ctx.setLineWidth(3)
+                    ctx.strokeEllipse(in: rect)
+                    ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+                    ctx.setLineWidth(1.5)
+                    ctx.strokeEllipse(in: rect)
+                }
             }
         }
 

@@ -23,8 +23,14 @@ struct InspectorView: View {
                     PerformerInspector(model: model, id: model.selection.first!)
                     FormInspector(model: model)
                 default:
-                    GroupInspector(model: model)
-                    FormInspector(model: model)
+                    // A whole form selected is shape editing, so the form comes first.
+                    if model.show.forms(on: model.currentSetID).contains(where: { Set($0.members) == model.selection }) {
+                        FormInspector(model: model)
+                        GroupInspector(model: model)
+                    } else {
+                        GroupInspector(model: model)
+                        FormInspector(model: model)
+                    }
                 }
             }
             .padding(Tokens.Space.m)
@@ -480,7 +486,7 @@ struct FormInspector: View {
                         }
                     }
                 }
-                Text("Drag the white handles to reshape; spacing stays equal along the form.").font(.caption).foregroundStyle(Color.fwSecondary)
+                Text("Drag the rings to reshape; spacing stays equal along the form. Drag any member to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
         }
     }

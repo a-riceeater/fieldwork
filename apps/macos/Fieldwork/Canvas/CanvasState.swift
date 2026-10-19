@@ -52,7 +52,8 @@ struct CanvasNote: Equatable {
 struct CanvasForm: Equatable {
     var id: FormID
     var geometry: FormGeometry
-    var memberCount: Int
+    var members: Set<PerformerID>
+    var memberCount: Int { members.count }
 }
 
 /// Immutable snapshot the canvas draws. Built by the representable from the editor model.
@@ -63,6 +64,9 @@ struct CanvasState: Equatable {
     var notes: [CanvasNote]
     /// Forms on the current set whose members are selected (handles shown when editable).
     var forms: [CanvasForm]
+    /// Every member of a form on the current set, mapped to all of that form's
+    /// members. A click on a member selects the whole form, like a group.
+    var groups: [PerformerID: Set<PerformerID>]
     /// Straight incoming paths (previous arrival → this arrival) for selected performers.
     var paths: [(PerformerID, Point2, Point2)]
     /// Paths flagged by analysis (drawn dashed, in the warning color).
@@ -75,7 +79,7 @@ struct CanvasState: Equatable {
     var caption: String
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
-        a.field == b.field && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.editable == b.editable && a.tool == b.tool
+        a.field == b.field && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
             && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
             && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }
