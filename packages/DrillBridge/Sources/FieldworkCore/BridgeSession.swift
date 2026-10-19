@@ -135,7 +135,7 @@ final class BridgeSession: @unchecked Sendable {
             "progress": scene.progress,
             "performers": scene.performers.map { p -> [String: Any] in
                 var row: [String: Any] = ["label": labels[p.id] ?? "", "state": "\(p.state)"]
-                if p.state == .placed { row["x"] = p.x; row["y"] = p.y; row["facing"] = p.facing }
+                if p.state == .placed { row["x"] = p.x; row["y"] = p.y; row["facing"] = p.facing; row["moving"] = p.isMoving }
                 return row
             },
         ]
