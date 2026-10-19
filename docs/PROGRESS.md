@@ -16,8 +16,10 @@
 - Toolbar Labels and View → Always Show Performer Labels toggle a saved per-user
   preference. Labels remain 8 pt at every zoom with a subtle contrast outline.
   Their rendered bitmaps are cached so playback avoids repeated text shaping.
-- Mac tests pass, including initial pane allocation, narrow-window limits,
-  label persistence/rendering and the playback regressions. The 350 × 150 Paper
+- All 16 Mac tests pass, including initial pane allocation, narrow-window limits,
+  initial field fit, manual zoom preservation, label persistence/rendering and the
+  playback regressions. The real file with audio and labels on reached 179 updates
+  in three seconds (16.67 ms median / 18.18 ms p95 intervals). The 350 × 150 Paper
   benchmark with labels on reached 179 updates in three seconds (16.68 ms median,
   17.64 ms p95 live intervals).
 

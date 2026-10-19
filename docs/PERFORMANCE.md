@@ -50,6 +50,7 @@ Final Debug measurements:
 |---|---|---|---|
 | `drill1`, audio disabled, Dark | 18.62 / 25.58 ms | 178 | 16.79 / 21.42 ms |
 | `drill1`, embedded audio, Grass | 18.42 / 27.30 ms | 180 | 16.69 / 17.69 ms |
+| `drill1`, embedded audio, Paper, labels on (new workspace) | 18.26 / 25.58 ms | 179 | 16.67 / 18.18 ms |
 | `drill1`, embedded audio, Paper | 18.51 / 24.67 ms | 178 | 16.72 / 18.36 ms |
 | Generated 350 performers × 150 sets, Grass | 18.36 / 24.11 ms | 180 | 16.67 / 16.72 ms |
 
