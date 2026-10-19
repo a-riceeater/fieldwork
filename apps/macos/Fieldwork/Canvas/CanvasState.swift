@@ -1,4 +1,5 @@
 import CoreGraphics
+import DrillTiming
 import DrillCore
 
 /// World (meters, +y toward the back sideline) ↔ view (points, non-flipped,
@@ -69,6 +70,21 @@ struct CanvasForm: Equatable {
     var memberCount: Int { members.count }
 }
 
+/// A performer's route through the move into the shown set: their stored path,
+/// or one straight line. The canvas resolves it for drawing and edit previews.
+struct CanvasPath: Equatable {
+    var id: PerformerID
+    var start: Point2
+    var segments: [PathSegment]
+    /// Shows waypoint and curve handles (one performer selected on an editable set).
+    var editable: Bool
+    /// Flagged by analysis: drawn dashed, in the warning color.
+    var flagged: Bool
+
+    var path: PerformerPath { PerformerPath(segments) }
+    var counts: Rational { path.totalCounts }
+}
+
 /// How the canvas draws the field. A per-user view preference, not show data.
 enum FieldStyle: String, CaseIterable, Identifiable {
     /// The dark editing surface with gray checkpoint lines.
@@ -123,10 +139,8 @@ struct CanvasState: Equatable {
     /// Every member of a form on the current set, mapped to all of that form's
     /// members. A click on a member selects the whole form, like a group.
     var groups: [PerformerID: Set<PerformerID>]
-    /// Straight incoming paths (previous arrival → this arrival) for selected performers.
-    var paths: [(PerformerID, Point2, Point2)]
-    /// Paths flagged by analysis (drawn dashed, in the warning color).
-    var warningPaths: Set<PerformerID>
+    /// Incoming routes (previous arrival → this arrival) for the selection, or everyone with Show All Paths.
+    var paths: [CanvasPath]
     var editable: Bool
     var tool: EditorTool
     var snapEnabled: Bool
@@ -140,8 +154,7 @@ struct CanvasState: Equatable {
     static func == (a: CanvasState, b: CanvasState) -> Bool {
         a.field == b.field && a.fieldStyle == b.fieldStyle && a.alwaysShowLabels == b.alwaysShowLabels && a.labelPlacement == b.labelPlacement && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
-            && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
-            && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }
+            && a.paths == b.paths
     }
 }
 
@@ -160,4 +173,8 @@ protocol FieldCanvasDelegate: AnyObject {
     func canvasFocusNote(_ id: NoteID)
     func canvasCommitNoteMove(_ id: NoteID, to position: Point2)
     func canvasDeleteNote(_ id: NoteID)
+    func canvasCommitWaypoint(_ id: PerformerID, segment: Int, to point: Point2)
+    func canvasInsertWaypoint(_ id: PerformerID, atCount count: Rational, at point: Point2)
+    func canvasDeleteWaypoint(_ id: PerformerID, segment: Int)
+    func canvasCommitCurve(_ id: PerformerID, segment: Int, sagitta: Double, snaps: Bool)
 }

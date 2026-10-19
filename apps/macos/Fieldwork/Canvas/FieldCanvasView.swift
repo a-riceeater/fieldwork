@@ -1,4 +1,5 @@
 import AppKit
+import DrillTiming
 import DrillCore
 
 enum CanvasViewCommand: Equatable {
@@ -63,6 +64,12 @@ final class FieldCanvasView: NSView {
         case form(start: Point2, end: Point2, startView: CGPoint)
         case handle(form: CanvasForm, index: Int, geometry: FormGeometry)
         case moveNote(id: NoteID, start: Point2, delta: Point2)
+        /// Dragging the waypoint at the end of segment `segment`.
+        case waypoint(path: CanvasPath, segment: Int, point: Point2)
+        /// Pulling a new waypoint out of a leg at a whole count; `moved` once the pointer leaves the press.
+        case insertWaypoint(path: CanvasPath, count: Rational, point: Point2, moved: Bool)
+        /// Bending leg `segment` by its midpoint handle; `sagitta` is the signed bulge in meters.
+        case curve(path: CanvasPath, segment: Int, sagitta: Double)
     }
 
     private var drag: Drag = .none
@@ -162,6 +169,103 @@ final class FieldCanvasView: NSView {
         }
     }
 
+    // MARK: Paths
+
+    private enum PathHandle {
+        case waypoint(Int)
+        case curve(Int)
+    }
+
+    /// The one path whose handles are shown: a single selected performer on an editable set.
+    private var editablePath: CanvasPath? {
+        guard let state, state.editable, state.tool == .select else { return nil }
+        return state.paths.first(where: \.editable)
+    }
+
+    private var pathHandleRadius: CGFloat { 6 }
+
+    private func waypointPoints(_ path: CanvasPath) -> [(Int, Point2)] {
+        let pieces = path.path.pieces(from: path.start)
+        return Show.waypointSegments(path.segments).map { ($0, pieces[$0].end) }
+    }
+
+    /// Midpoints of the moving legs, where dragging bends the leg into an arc.
+    private func curvePoints(_ path: CanvasPath) -> [(Int, Point2)] {
+        path.path.pieces(from: path.start).filter { !$0.segment.isHold && $0.start.distance(to: $0.end) > 1e-6 }.map { ($0.index, $0.point(0.5)) }
+    }
+
+    private func hitPathHandle(at v: CGPoint) -> (CanvasPath, PathHandle)? {
+        guard let path = editablePath else { return nil }
+        let limit = pathHandleRadius + 3
+        if let hit = waypointPoints(path).first(where: { view($0.1).distance(to: v) <= limit }) { return (path, .waypoint(hit.0)) }
+        if let hit = curvePoints(path).first(where: { view($0.1).distance(to: v) <= limit }) { return (path, .curve(hit.0)) }
+        return nil
+    }
+
+    /// A press on the editable path's line, with the nearest whole count inside the move.
+    private func hitPathLine(at v: CGPoint) -> (CanvasPath, Rational)? {
+        guard let path = editablePath, path.counts > Rational.one else { return nil }
+        let points = polyline(path.path.pieces(from: path.start)).map(view)
+        guard zip(points, points.dropFirst()).contains(where: { v.distance(toSegment: $0, $1) <= 5 }) else { return nil }
+        let resolved = ResolvedPath(path.path, from: path.start)
+        let last = Int(path.counts.doubleValue.rounded(.up)) - 1
+        guard last >= 1 else { return nil }
+        let nearest = (1...last).filter { Rational($0) < path.counts }.min { view(resolved.point(at: Double($0)).point).distance(to: v) < view(resolved.point(at: Double($1)).point).distance(to: v) }
+        return nearest.map { (path, Rational($0)) }
+    }
+
+    /// Points along resolved pieces: line ends, and arcs sampled every few degrees.
+    private func polyline(_ pieces: [PathPiece]) -> [Point2] {
+        var points: [Point2] = pieces.first.map { [$0.start] } ?? []
+        for piece in pieces {
+            switch piece.segment {
+            case .hold: continue
+            case .line: points.append(piece.end)
+            case .arc(_, _, let sweep):
+                let n = max(8, Int(abs(sweep) / 4))
+                for k in 1...n { points.append(piece.point(Double(k) / Double(n))) }
+            }
+        }
+        return points
+    }
+
+    /// Segments as they look during a path drag, before anything commits.
+    private func shownSegments(_ path: CanvasPath) -> [PathSegment] {
+        switch drag {
+        case .waypoint(let dragged, let i, let point) where dragged.id == path.id:
+            var segments = path.segments
+            segments[i] = segments[i].withEnd(point)
+            return segments
+        case .insertWaypoint(let dragged, let count, let point, true) where dragged.id == path.id:
+            var (left, right, _) = path.path.split(at: count, from: path.start)
+            guard let last = left.last, !last.isHold else { return path.segments }
+            left[left.count - 1] = last.withEnd(point)
+            return left + right
+        case .curve(let dragged, let i, let sagitta) where dragged.id == path.id:
+            let piece = path.path.pieces(from: path.start)[i]
+            let chord = piece.start.distance(to: piece.end)
+            var segments = path.segments
+            segments[i] = abs(sagitta) <= curveSnap || chord <= 1e-6
+                ? .line(counts: piece.counts, to: piece.end)
+                : .arc(counts: piece.counts, to: piece.end, sweep: PerformerPath.sweep(chord: chord, sagitta: sagitta))
+            return segments
+        default:
+            return path.segments
+        }
+    }
+
+    /// Within this bulge a curved leg snaps back to straight (a quarter step), unless Option is held.
+    private var curveSnap: Double { curveSnaps ? (state?.field.stepSize ?? 0.5715) / 4 : 0 }
+    private var curveSnaps = true
+
+    /// Signed bulge of `p` to the left of a leg's chord.
+    private func sagitta(of p: Point2, path: CanvasPath, segment: Int) -> Double {
+        let piece = path.path.pieces(from: path.start)[segment]
+        let chord = piece.end - piece.start
+        guard chord.length > 0 else { return 0 }
+        return (p - piece.start.lerp(to: piece.end, 0.5)).dot(chord.perpendicular.normalized)
+    }
+
     /// Starts dragging every member of a form, snapping on its first handle (a member position).
     private func beginFormMove(_ form: CanvasForm, at v: CGPoint) {
         delegate?.canvasSelect(form.members, additive: false)
@@ -181,8 +285,10 @@ final class FieldCanvasView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard case .none = drag, !spaceDown, let state, state.editable, state.tool == .select else { return }
         let v = convert(event.locationInWindow, from: nil)
-        if hitHandle(at: v) != nil {
+        if hitHandle(at: v) != nil || hitPathHandle(at: v) != nil {
             NSCursor.crosshair.set()
+        } else if hitDot(at: v) == nil, hitPathLine(at: v) != nil {
+            NSCursor.pointingHand.set()
         } else if let dot = hitDot(at: v) {
             let wholeForm = state.groups[dot.id].map { members in state.dots.filter(\.selected).count == members.count && dot.selected } ?? false
             (wholeForm ? NSCursor.openHand : NSCursor.arrow).set()
@@ -242,6 +348,28 @@ final class FieldCanvasView: NSView {
         }
         if let (form, index) = hitHandle(at: v) {
             drag = .handle(form: form, index: index, geometry: form.geometry)
+            return
+        }
+        // Path handles: drag a waypoint, double-click to delete it, or drag a leg's midpoint to curve it.
+        if let (path, handle) = hitPathHandle(at: v) {
+            switch handle {
+            case .waypoint(let i):
+                if event.clickCount > 1 {
+                    delegate?.canvasDeleteWaypoint(path.id, segment: i)
+                } else {
+                    drag = .waypoint(path: path, segment: i, point: path.path.pieces(from: path.start)[i].end)
+                }
+            case .curve(let i):
+                curveSnaps = !event.modifierFlags.contains(.option)
+                drag = .curve(path: path, segment: i, sagitta: path.path.pieces(from: path.start)[i].sagitta)
+            }
+            needsDisplay = true
+            return
+        }
+        // Dragging the selected performer's path line pulls a new waypoint out at the nearest count.
+        if state.tool == .select, hitDot(at: v) == nil, let (path, count) = hitPathLine(at: v) {
+            drag = .insertWaypoint(path: path, count: count, point: ResolvedPath(path.path, from: path.start).point(at: count.doubleValue).point, moved: false)
+            needsDisplay = true
             return
         }
         // Dragging a shown form's outline moves the whole form.
@@ -323,6 +451,13 @@ final class FieldCanvasView: NSView {
             drag = .handle(form: form, index: index, geometry: form.geometry.movingHandle(index, to: snapped(world(v), event: event)))
         case .moveNote(let id, let start, _):
             drag = .moveNote(id: id, start: start, delta: constrain(world(v) - start))
+        case .waypoint(let path, let i, _):
+            drag = .waypoint(path: path, segment: i, point: snapped(world(v), event: event))
+        case .insertWaypoint(let path, let count, _, _):
+            drag = .insertWaypoint(path: path, count: count, point: snapped(world(v), event: event), moved: true)
+        case .curve(let path, let i, _):
+            curveSnaps = !event.modifierFlags.contains(.option)
+            drag = .curve(path: path, segment: i, sagitta: sagitta(of: world(v), path: path, segment: i))
         }
         needsDisplay = true
     }
@@ -372,6 +507,18 @@ final class FieldCanvasView: NSView {
         case .moveNote(let id, _, let delta):
             if delta.length > 1e-9, let note = state.notes.first(where: { $0.id == id }) {
                 delegate?.canvasCommitNoteMove(id, to: note.position + delta)
+            }
+        case .waypoint(let path, let i, let point):
+            if point.distance(to: path.path.pieces(from: path.start)[i].end) > 1e-9 { delegate?.canvasCommitWaypoint(path.id, segment: i, to: point) }
+        case .insertWaypoint(let path, let count, let point, let moved):
+            if moved {
+                delegate?.canvasInsertWaypoint(path.id, atCount: count, at: point)
+            } else {
+                delegate?.canvasMessage("Drag the path to add a waypoint at count \(count). Double-click a waypoint to remove it.")
+            }
+        case .curve(let path, let i, let sagitta):
+            if abs(sagitta - path.path.pieces(from: path.start)[i].sagitta) > 1e-9 {
+                delegate?.canvasCommitCurve(path.id, segment: i, sagitta: sagitta, snaps: curveSnaps)
             }
         case .pan, .none:
             break
@@ -441,14 +588,8 @@ final class FieldCanvasView: NSView {
         // Labels, selection rings and paths: white on dark fields, dark ink on paper.
         let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : NSColor.white
 
-        // Incoming paths for the selection; flagged paths are dashed with the warning color.
-        for (id, a, b) in state.paths {
-            let flagged = state.warningPaths.contains(id)
-            ctx.setStrokeColor(flagged ? Tokens.warning.cgColor : ink.withAlphaComponent(0.35).cgColor)
-            ctx.setLineWidth(flagged ? 1.5 : 1)
-            ctx.setLineDash(phase: 0, lengths: flagged ? [5, 3] : [])
-            ctx.strokeLineSegments(between: [view(a), view(b)])
-        }
+        // Incoming paths with a tick at each count and hold markers; flagged paths are dashed with the warning color.
+        for path in state.paths { drawPath(path, ink: ink, ctx: ctx) }
         ctx.setLineDash(phase: 0, lengths: [])
 
         // Field notes sit under the forms and dots so performers stay clickable.
@@ -560,6 +701,9 @@ final class FieldCanvasView: NSView {
             }
         }
 
+        // Path handles above the dots: rings on waypoints, diamonds on leg midpoints.
+        if let path = editablePath { drawPathHandles(path, ctx: ctx) }
+
         // Gesture previews.
         switch drag {
         case .box(let start, let current, _):
@@ -655,6 +799,73 @@ final class FieldCanvasView: NSView {
         case .dark: drawSchematic(field, in: fieldRect, ctx: ctx)
         case .grass: drawGrass(field, in: fieldRect, ctx: ctx)
         case .paper: drawPaper(field, in: fieldRect, ctx: ctx)
+        }
+    }
+
+    private func drawPath(_ path: CanvasPath, ink: NSColor, ctx: CGContext) {
+        let segments = shownSegments(path)
+        let route = PerformerPath(segments)
+        let pieces = route.pieces(from: path.start)
+        let editing = segments != path.segments
+        let color = path.flagged ? Tokens.warning : (editing ? Tokens.fieldAccent : ink.withAlphaComponent(path.editable ? 0.6 : 0.35))
+        ctx.setStrokeColor(color.cgColor)
+        ctx.setLineWidth(path.flagged || path.editable ? 1.5 : 1)
+        ctx.setLineDash(phase: 0, lengths: path.flagged ? [5, 3] : [])
+        ctx.addLines(between: polyline(pieces).map(view))
+        ctx.strokePath()
+        ctx.setLineDash(phase: 0, lengths: [])
+
+        // A small tick at every whole count, once counts are far enough apart to read.
+        let resolved = ResolvedPath(route, from: path.start)
+        let total = route.totalCounts.doubleValue
+        if transform.scale >= 4, total >= 2 {
+            ctx.setFillColor(color.withAlphaComponent(0.9).cgColor)
+            for k in 1..<Int(total.rounded(.up)) where Double(k) < total {
+                let p = view(resolved.point(at: Double(k)).point)
+                ctx.fillEllipse(in: CGRect(x: p.x - 1.5, y: p.y - 1.5, width: 3, height: 3))
+            }
+        }
+        // Holds: a square where the performer marks time, with its length when zoomed in.
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        for piece in pieces where piece.segment.isHold {
+            let p = view(piece.start)
+            ctx.setStrokeColor(color.cgColor)
+            ctx.setLineWidth(1.2)
+            ctx.stroke(CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8))
+            if transform.scale >= 8 {
+                let counts = piece.counts
+                let label = "hold \(TimeFormat.decimal(counts.doubleValue, places: counts.isInteger ? 0 : 2))"
+                NSAttributedString(string: label, attributes: [.font: font, .foregroundColor: color]).draw(at: CGPoint(x: p.x + 6, y: p.y - 14))
+            }
+        }
+    }
+
+    private func drawPathHandles(_ path: CanvasPath, ctx: CGContext) {
+        let shown = CanvasPath(id: path.id, start: path.start, segments: shownSegments(path), editable: true, flagged: path.flagged)
+        let hr = pathHandleRadius
+        for (_, point) in waypointPoints(shown) {
+            let rect = CGRect(x: view(point).x - hr, y: view(point).y - hr, width: 2 * hr, height: 2 * hr)
+            ctx.setStrokeColor(NSColor.white.cgColor)
+            ctx.setLineWidth(3)
+            ctx.strokeEllipse(in: rect)
+            ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.strokeEllipse(in: rect)
+        }
+        for (_, point) in curvePoints(shown) {
+            let v = view(point), d = hr * 0.8
+            ctx.addLines(between: [CGPoint(x: v.x, y: v.y + d), CGPoint(x: v.x + d, y: v.y), CGPoint(x: v.x, y: v.y - d), CGPoint(x: v.x - d, y: v.y)])
+            ctx.closePath()
+            ctx.setFillColor(Tokens.fieldAccent.withAlphaComponent(0.85).cgColor)
+            ctx.setStrokeColor(NSColor.white.cgColor)
+            ctx.setLineWidth(1)
+            ctx.drawPath(using: .fillStroke)
+        }
+        if case .insertWaypoint(let dragged, _, let point, true) = drag, dragged.id == path.id {
+            let v = view(point)
+            ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.strokeEllipse(in: CGRect(x: v.x - hr, y: v.y - hr, width: 2 * hr, height: 2 * hr))
         }
     }
 
@@ -856,6 +1067,8 @@ final class FieldCanvasView: NSView {
         guard let state else { return }
         let selected = state.dots.filter(\.selected).count
         let notes = state.notes.isEmpty ? "" : " \(state.notes.count) note\(state.notes.count == 1 ? "" : "s")."
-        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected.\(notes) Arrow keys nudge the selection.")
+        let curved = state.paths.filter { path in path.segments.count > 1 || path.segments.contains { segment in if case .arc = segment { return true }; return false } }.count
+        let paths = curved == 0 ? "" : " \(curved) shown path\(curved == 1 ? "" : "s") curve, hold or turn."
+        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected.\(notes)\(paths) Arrow keys nudge the selection.")
     }
 }

@@ -28,7 +28,7 @@ final class PlaybackPerformanceTests: XCTestCase {
             let state = try XCTUnwrap(canvas.state)
             XCTAssertEqual(state.dots.count, 350)
             XCTAssertTrue(state.paths.isEmpty)
-            XCTAssertTrue(state.warningPaths.isEmpty)
+            XCTAssertFalse(state.paths.contains(where: .flagged))
             XCTAssertEqual(state.dots.first?.id, expected.performers.first?.id)
             XCTAssertEqual(try XCTUnwrap(state.dots.first?.point.x), expected.performers[0].x, accuracy: 1e-9)
             XCTAssertEqual(try XCTUnwrap(state.dots.first?.point.y), expected.performers[0].y, accuracy: 1e-9)

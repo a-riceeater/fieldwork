@@ -57,6 +57,12 @@ struct FieldCanvas: NSViewRepresentable {
         func canvasFocusNote(_ id: NoteID) { model.focusNote(id) }
         func canvasCommitNoteMove(_ id: NoteID, to position: Point2) { model.moveNote(id, to: position) }
         func canvasDeleteNote(_ id: NoteID) { model.deleteNote(id) }
+        func canvasCommitWaypoint(_ id: PerformerID, segment: Int, to point: Point2) { model.commitWaypointMove(id, segment: segment, to: point) }
+        func canvasInsertWaypoint(_ id: PerformerID, atCount count: Rational, at point: Point2) { model.commitWaypointInsert(id, atCount: count, at: point) }
+        func canvasDeleteWaypoint(_ id: PerformerID, segment: Int) { model.deleteWaypoint(id, segment: segment) }
+        func canvasCommitCurve(_ id: PerformerID, segment: Int, sagitta: Double, snaps: Bool) {
+            model.commitCurveLeg(id, segment: segment, sagitta: sagitta, snaps: snaps)
+        }
     }
 }
 
@@ -97,17 +103,24 @@ extension EditorModel {
 
         var forms: [CanvasForm] = []
         var groups: [PerformerID: Set<PerformerID>] = [:]
-        var paths: [(PerformerID, Point2, Point2)] = []
+        var paths: [CanvasPath] = []
         if isEditable {
             for form in show.forms(on: currentSetID) {
                 let members = Set(form.members)
                 for id in members { groups[id] = members }
                 if !selection.isDisjoint(with: members) { forms.append(CanvasForm(id: form.id, geometry: form.geometry, members: members)) }
             }
-            if let previous = show.previousSet(before: currentSetID) {
-                let before = show.formation(previous.id), now = show.formation(currentSetID)
-                for id in selection {
-                    if let a = before[id].position?.point, let b = now[id].position?.point, a.distance(to: b) > 1e-6 { paths.append((id, a, b)) }
+            if show.previousSet(before: currentSetID) != nil {
+                let shown = showsAllPaths ? show.performers.map(\.id) : show.performers.map(\.id).filter(selection.contains)
+                // Analysis runs only when there is a path to flag.
+                let flagged: Set<PerformerID> = shown.isEmpty ? [] : Set(analysisIssues.filter {
+                    $0.setID == currentSetID && ($0.kind == .largeStride || $0.kind == .closePass)
+                }.flatMap(\.performers))
+                for id in shown {
+                    guard let route = try? show.route(into: currentSetID, performer: id) else { continue }
+                    // Someone standing still all move has nothing to draw.
+                    guard route.segments.contains(where: { !$0.isHold }), route.start.distance(to: route.end) > 1e-6 || route.segments.count > 1 else { continue }
+                    paths.append(CanvasPath(id: id, start: route.start, segments: route.segments, editable: selection == [id], flagged: flagged.contains(id)))
                 }
             }
         }
@@ -119,8 +132,7 @@ extension EditorModel {
                 return CanvasNote(id: note.id, text: text, position: note.position, focused: note.id == focused)
             }
         }
-        let flagged: Set<PerformerID> = paths.isEmpty ? [] : Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
-        return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
+        return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, editable: isEditable, tool: tool,
                            snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption, fieldStyle: fieldStyle, alwaysShowLabels: alwaysShowLabels, labelPlacement: labelPlacement)
     }
 }
