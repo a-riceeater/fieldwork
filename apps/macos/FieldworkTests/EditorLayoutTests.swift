@@ -27,9 +27,26 @@ final class EditorLayoutTests: XCTestCase {
         let canvas = try XCTUnwrap(descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? FieldCanvasView }.first)
         XCTAssertEqual(canvas.bounds.width, 1440 - 190 - 260 - 8, accuracy: 2)
         XCTAssertGreaterThan(canvas.bounds.height, 650)
+        XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
         model.snapEnabled.toggle()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
         XCTAssertEqual(canvas.bounds.width, 1440 - 190 - 260 - 8, accuracy: 2)
+    }
+
+    @MainActor
+    func testFieldFitFollowsLayoutButPreservesManualZoom() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 96, height: 96))
+        canvas.state = model.canvasState()
+        canvas.setFrameSize(NSSize(width: 980, height: 680))
+        XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
+        canvas.fit(.zoomIn)
+        let zoomed = canvas.transform
+        canvas.setFrameSize(NSSize(width: 900, height: 640))
+        XCTAssertEqual(canvas.transform, zoomed)
+        canvas.fit(.fitField)
+        canvas.setFrameSize(NSSize(width: 1000, height: 700))
+        XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
     }
 
     @MainActor

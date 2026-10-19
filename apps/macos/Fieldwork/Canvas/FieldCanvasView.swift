@@ -14,14 +14,14 @@ final class FieldCanvasView: NSView {
     var state: CanvasState? {
         didSet {
             guard state != oldValue else { return }
-            if !didFit { fit(.fitField) }
+            if followsFieldFit, oldValue?.field != state?.field { fit(.fitField) }
             needsDisplay = true
             updateAccessibility()
         }
     }
 
     private(set) var transform = CanvasTransform()
-    private var didFit = false
+    private var followsFieldFit = true
 
     private struct BackgroundKey: Equatable {
         var field: Field
@@ -73,8 +73,9 @@ final class FieldCanvasView: NSView {
     override var isOpaque: Bool { true }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let resized = newSize != frame.size
         super.setFrameSize(newSize)
-        if !didFit { fit(.fitField) }
+        if resized, followsFieldFit { fit(.fitField) }
     }
 
     // MARK: View commands
@@ -84,17 +85,20 @@ final class FieldCanvasView: NSView {
         switch command {
         case .fitField:
             transform = CanvasTransform.fit(state.field.bounds, in: bounds)
-            didFit = true
+            followsFieldFit = true
         case .fitSelection:
             let points = state.dots.filter(\.selected).map(\.point)
             guard !points.isEmpty else { return fit(.fitField) }
             var rect = Rect2(points: points).insetBy(-4)
             if rect.width < 8 { rect = Rect2(minX: rect.center.x - 4, minY: rect.minY, maxX: rect.center.x + 4, maxY: rect.maxY) }
             if rect.height < 8 { rect = Rect2(minX: rect.minX, minY: rect.center.y - 4, maxX: rect.maxX, maxY: rect.center.y + 4) }
+            followsFieldFit = false
             transform = CanvasTransform.fit(rect, in: bounds)
         case .zoomIn:
+            followsFieldFit = false
             transform.zoom(by: 1.25, at: CGPoint(x: bounds.midX, y: bounds.midY), in: bounds)
         case .zoomOut:
+            followsFieldFit = false
             transform.zoom(by: 0.8, at: CGPoint(x: bounds.midX, y: bounds.midY), in: bounds)
         }
         needsDisplay = true
@@ -295,6 +299,7 @@ final class FieldCanvasView: NSView {
         case .none:
             return
         case .pan(let start, let center):
+            followsFieldFit = false
             transform.center = center - Point2(Double((v.x - start.x) / transform.scale), Double((v.y - start.y) / transform.scale))
         case .moveDots(let ids, let anchor, let start, _, let narrowTo):
             let raw = constrain(world(v) - start)
@@ -364,6 +369,7 @@ final class FieldCanvasView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        followsFieldFit = false
         let v = convert(event.locationInWindow, from: nil)
         if event.modifierFlags.contains(.command) || !event.hasPreciseScrollingDeltas {
             let factor = exp(event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 0.01 : 0.1))
@@ -375,6 +381,7 @@ final class FieldCanvasView: NSView {
     }
 
     override func magnify(with event: NSEvent) {
+        followsFieldFit = false
         transform.zoom(by: 1 + event.magnification, at: convert(event.locationInWindow, from: nil), in: bounds)
         needsDisplay = true
     }
