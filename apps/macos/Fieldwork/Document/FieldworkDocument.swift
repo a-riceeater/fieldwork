@@ -29,6 +29,10 @@ final class FieldworkDocument: NSDocument {
     var recoveredMessage: String?
     var audioToImport: URL?
 
+    /// A show read off the main thread, waiting for its editor window.
+    private var opened: (document: ShowDocument, journal: RecoveryJournal?, journalError: String?)?
+    private var openProgress: OpenProgress?
+
     override init() {
         super.init()
         hasUndoManager = false
@@ -40,13 +44,14 @@ final class FieldworkDocument: NSDocument {
 
     // MARK: Model setup
 
+    /// `journal` is a recovery journal already started off the main thread.
     @MainActor
-    private func configure(show: Show, assets: [String: Data], readOnlyReason: String?, encoded: Data? = nil) throws {
+    private func configure(show: Show, assets: [String: Data], readOnlyReason: String?, encoded: Data? = nil, journal prepared: RecoveryJournal? = nil) throws {
         let session = try DocumentSession(show: show)
         let model = EditorModel(session: session, assets: assets, readOnlyReason: readOnlyReason)
         model.document = self
         self.model = model
-        startJournal(encoded: encoded)
+        if let prepared { journal = prepared } else { startJournal(encoded: encoded) }
     }
 
     override func makeWindowControllers() {
@@ -55,6 +60,15 @@ final class FieldworkDocument: NSDocument {
 
     @MainActor
     private func makeEditorWindow() {
+        if model == nil, let opened {
+            self.opened = nil
+            openProgress?.report(.preparing, 0)
+            // Build the editor on a later turn so the progress window can draw this last step first.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [self] in
+                MainActor.assumeIsolated { finishOpening(opened) }
+            }
+            return
+        }
         if model == nil {
             do {
                 let show = try pendingShow ?? Show.makeNew(title: "Untitled Show")
@@ -79,7 +93,90 @@ final class FieldworkDocument: NSDocument {
         }
     }
 
+    @MainActor
+    private func finishOpening(_ opened: (document: ShowDocument, journal: RecoveryJournal?, journalError: String?)) {
+        defer {
+            openProgress?.finish()
+            openProgress = nil
+        }
+        do {
+            try configure(show: opened.document.show, assets: opened.document.assets, readOnlyReason: opened.document.readOnlyReason,
+                          journal: opened.journal)
+        } catch {
+            presentError(error)
+            close()
+            return
+        }
+        if let reason = opened.journalError { model?.statusMessage = "Crash recovery is unavailable: \(reason)" }
+        makeEditorWindow()
+        showWindows()
+    }
+
     // MARK: Reading and writing
+
+    /// Opening reads, verifies and loads the show on a background thread while a
+    /// progress window shows each step; only building the editor needs the main thread.
+    override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool { true }
+
+    override func read(from url: URL, ofType typeName: String) throws {
+        // Revert to Saved replaces the model of an open window on the main thread.
+        if model != nil { return try super.read(from: url, ofType: typeName) }
+        let progress = OpenProgress(name: url.deletingPathExtension().lastPathComponent)
+        do {
+            let data = try Self.readFile(url) { done, total in
+                progress.report(.reading, Double(done) / Double(max(total, 1)), detail: Self.byteProgress(done, of: total))
+            }
+            let decoded = try DocumentCodec.decode(data) { stage, fraction in
+                switch stage {
+                case .unpacking: progress.report(.verifying, 0)
+                case .verifying: progress.report(.verifying, fraction)
+                case .loadingShow: progress.report(.loadingDrill, fraction)
+                }
+            }
+            progress.report(.recovery, 0)
+            let directory = RecoveryStore.directory(for: recoveryID)
+            let journal = RecoveryJournal(directory: directory)
+            var journalError: String?
+            do {
+                try journal.begin(encodedBase: data)
+                RecoveryStore.writeOrigin(fileURL: url, title: decoded.show.title, in: directory)
+            } catch {
+                journalError = error.localizedDescription
+            }
+            progress.report(.recovery, 1)
+            container = decoded
+            opened = (decoded, journalError == nil ? journal : nil, journalError)
+            openProgress = progress
+        } catch {
+            progress.finish()
+            throw NSError(domain: "org.fieldwork", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "“\(url.lastPathComponent)” could not be opened.",
+                NSLocalizedRecoverySuggestionErrorKey: "\(error)",
+            ])
+        }
+    }
+
+    /// Reads the file in chunks, reporting bytes read so far and the total.
+    private static func readFile(_ url: URL, progress: (Int, Int) -> Void) throws -> Data {
+        let total = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var data = Data()
+        data.reserveCapacity(total)
+        progress(0, total)
+        while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty {
+            data.append(chunk)
+            progress(data.count, max(total, data.count))
+        }
+        return data
+    }
+
+    /// "12.4 MB of 85 MB".
+    private static func byteProgress(_ done: Int, of total: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return "\(formatter.string(fromByteCount: Int64(done))) of \(formatter.string(fromByteCount: Int64(total)))"
+    }
 
     override func read(from data: Data, ofType typeName: String) throws {
         do {
