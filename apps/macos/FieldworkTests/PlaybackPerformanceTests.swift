@@ -36,6 +36,7 @@ final class PlaybackPerformanceTests: XCTestCase {
         }
         XCTAssertEqual(invalidations, 0, "Playback must not invalidate the set list, inspector or toolbar")
         model.pause()
+        XCTAssertEqual(model.playbackPosition.readoutSeconds, model.playheadSeconds)
         XCTAssertGreaterThan(invalidations, 0, "Pausing must restore the editing UI")
     }
 
@@ -94,6 +95,20 @@ final class PlaybackPerformanceTests: XCTestCase {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 1.0 / 60))
             window.displayIfNeeded()
             frames.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        }
+        var liveIntervals: [Double] = []
+        var previous = CFAbsoluteTimeGetCurrent()
+        let clock = model.playbackPosition.frames.sink { _ in
+            let now = CFAbsoluteTimeGetCurrent()
+            liveIntervals.append((now - previous) * 1000)
+            previous = now
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 3))
+        clock.cancel()
+        liveIntervals.sort()
+        XCTAssertGreaterThan(liveIntervals.count, 0, "The visible canvas must receive display-link callbacks")
+        if !liveIntervals.isEmpty {
+            print("LIVE CLOCK: \(liveIntervals.count) frames / 3 s; p50=\(liveIntervals[liveIntervals.count / 2]) ms p95=\(liveIntervals[Int(Double(liveIntervals.count - 1) * 0.95)]) ms")
         }
         frames.sort()
         print("PLAYBACK PROFILE: \(document.show.performers.count) performers, \(document.show.sets.count) sets; frame interval p50=\(frames[60]) ms p95=\(frames[114]) ms max=\(frames.last!) ms")

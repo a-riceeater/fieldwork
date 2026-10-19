@@ -349,7 +349,7 @@ struct TimelineLanes: NSViewRepresentable {
         private var frames: AnyCancellable?
         init(model: EditorModel) { self.model = model }
         func connect(_ view: TimelineCanvasView) {
-            frames = model.playbackPosition.$seconds.dropFirst().sink { [weak self, weak view] seconds in
+            frames = model.playbackPosition.frames.sink { [weak self, weak view] seconds in
                 guard self?.model.isPlaying == true else { return }
                 view?.state?.playhead = seconds
             }

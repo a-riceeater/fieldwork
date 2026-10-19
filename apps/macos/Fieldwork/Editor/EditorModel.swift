@@ -81,7 +81,7 @@ final class EditorModel: ObservableObject {
         get { playbackPosition.seconds }
         set {
             if !isPlaying { objectWillChange.send() }
-            playbackPosition.seconds = newValue
+            playbackPosition.update(newValue, continuously: isPlaying)
         }
     }
     /// True while the canvas shows an interpolated frame between sets.
@@ -124,6 +124,7 @@ final class EditorModel: ObservableObject {
     private var displayTarget: PlaybackDisplayTarget?
     private var lastPlaybackSetIndex: Int?
     private var evaluatorCache: (revision: Int, evaluator: SceneEvaluator)?
+    private var audioLoadGeneration = UUID()
     private var analysisCache: (revision: Int, issues: [DrillIssue])?
 
     init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil, preferences: UserDefaults = .standard) {
@@ -620,6 +621,8 @@ final class EditorModel: ObservableObject {
     }
 
     func loadAudioForCurrentMovement() {
+        let generation = UUID()
+        audioLoadGeneration = generation
         transport.stop()
         peaks = nil
         guard let asset = audioAsset, let data = assets[asset.archivePath] else {
@@ -633,12 +636,16 @@ final class EditorModel: ObservableObject {
             try transport.load(url: url)
             let name = asset.originalFilename
             Task.detached(priority: .userInitiated) {
-                let result = Result { try AudioDecoder.decode(url: url) }
+                let result = Result {
+                    let pcm = try AudioDecoder.decode(url: url)
+                    return (peaks: WaveformPeaks(audio: pcm), duration: pcm.duration, sampleRate: pcm.sampleRate)
+                }
                 await MainActor.run {
+                    guard self.audioLoadGeneration == generation else { return }
                     switch result {
-                    case .success(let pcm):
-                        self.peaks = WaveformPeaks(audio: pcm)
-                        self.audioStatus = "\(name) · \(TimeFormat.clock(pcm.duration)) · \(Int(pcm.sampleRate)) Hz"
+                    case .success(let audio):
+                        self.peaks = audio.peaks
+                        self.audioStatus = "\(name) · \(TimeFormat.clock(audio.duration)) · \(Int(audio.sampleRate)) Hz"
                     case .failure(let error):
                         self.audioStatus = "Could not decode \(name): \(error.localizedDescription)"
                     }
@@ -698,6 +705,7 @@ final class EditorModel: ObservableObject {
         transport.pause()
         playheadSeconds = transport.currentTime
         isPlaying = false
+        playbackPosition.update(playheadSeconds, continuously: false)
         stopDisplayRefresh()
         if wholeCountsOnly, let map {
             let location = map.locate(audioTime: playheadSeconds)
@@ -790,7 +798,21 @@ enum TourStore {
 /// Only time readouts and native drawing surfaces subscribe to the display clock.
 @MainActor
 final class PlaybackPosition: ObservableObject {
-    @Published var seconds: Double = 0
+    private(set) var seconds: Double = 0
+    let frames = PassthroughSubject<Double, Never>()
+    @Published private(set) var readoutSeconds: Double = 0
+    private var lastReadoutTime: CFTimeInterval = 0
+
+    func update(_ seconds: Double, continuously: Bool) {
+        self.seconds = seconds
+        frames.send(seconds)
+        // Text entry and musical labels need fewer layout passes than moving dots.
+        let now = CACurrentMediaTime()
+        if !continuously || now - lastReadoutTime >= 0.1 {
+            lastReadoutTime = now
+            readoutSeconds = seconds
+        }
+    }
 }
 
 /// The display link retains its target; the callback captures the editor weakly.

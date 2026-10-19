@@ -127,7 +127,7 @@ private struct PlaybackReadout: View {
 
     var body: some View {
         let map = model.map
-        let location = map?.locate(audioTime: position.seconds)
+        let location = map?.locate(audioTime: position.readoutSeconds)
         let musicalPosition = location.flatMap { try? map?.musicalPosition(at: $0.cursor) }
         let music = musicalPosition.map {
             model.wholeCountsOnly ? "m\($0.measureNumber) b\($0.beat)" : $0.label
@@ -142,10 +142,10 @@ private struct PlaybackReadout: View {
                 .monospacedDigit()
                 .onSubmit {
                     if let t = TimeFormat.parseClock(timeText) { model.seek(to: t) }
-                    timeText = TimeFormat.clock(position.seconds)
+                    timeText = TimeFormat.clock(position.readoutSeconds)
                 }
-                .onAppear { timeText = TimeFormat.clock(position.seconds) }
-                .onChange(of: position.seconds) { _, t in timeText = TimeFormat.clock(t) }
+                .onAppear { timeText = TimeFormat.clock(position.readoutSeconds) }
+                .onChange(of: position.readoutSeconds) { _, t in timeText = TimeFormat.clock(t) }
                 .help("Type a time such as 0:12.400 and press Return")
                 .accessibilityLabel("Playhead time")
             Text(location?.isPreRoll == true ? "pre-roll" : music)

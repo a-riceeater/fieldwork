@@ -226,8 +226,8 @@ private struct StatusPlaybackReadout: View {
     @ObservedObject var position: PlaybackPosition
 
     var body: some View {
-        let pulse = model.map?.locate(audioTime: position.seconds).pulse ?? 0
+        let pulse = model.map?.locate(audioTime: position.readoutSeconds).pulse ?? 0
         Text("Count \(TimeFormat.decimal(pulse, places: 2))").monospacedDigit()
-        Text(TimeFormat.clock(position.seconds)).monospacedDigit()
+        Text(TimeFormat.clock(position.readoutSeconds)).monospacedDigit()
     }
 }
