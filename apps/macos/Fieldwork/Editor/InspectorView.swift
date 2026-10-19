@@ -486,7 +486,7 @@ struct FormInspector: View {
                         }
                     }
                 }
-                Text("Drag the rings to reshape; spacing stays equal along the form. Drag any member to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
+                Text("Drag a ring to reshape; spacing stays equal along the form. Drag the line or any performer to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
         }
     }

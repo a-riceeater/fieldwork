@@ -104,15 +104,61 @@ final class FieldCanvasView: NSView {
     /// Handles are rings drawn around the dots they sit on.
     private var handleRadius: CGFloat { max(8, dotRadius + 6) }
 
+    /// The ring reshapes; a press on the performer inside it is a press on that
+    /// performer, so a selected form can be dragged from any of its members.
     private func hitHandle(at v: CGPoint) -> (CanvasForm, Int)? {
         guard let state, state.editable else { return nil }
+        let dotUnder = hitDot(at: v)
         for form in state.forms {
             for (i, handle) in form.geometry.handles.enumerated() {
                 let p = view(handle)
-                if hypot(p.x - v.x, p.y - v.y) <= handleRadius { return (form, i) }
+                let d = hypot(p.x - v.x, p.y - v.y)
+                guard d <= handleRadius + 2 else { continue }
+                if let dot = dotUnder, d <= dotRadius + 1, view(dot.point).distance(to: p) < 1 { continue }
+                return (form, i)
             }
         }
         return nil
+    }
+
+    /// A shown form whose outline passes under the pointer. Dragging the outline moves the whole form.
+    private func hitFormOutline(at v: CGPoint) -> CanvasForm? {
+        guard let state, state.editable else { return nil }
+        return state.forms.first { form in
+            let points = form.geometry.polyline().map(view)
+            return zip(points, points.dropFirst()).contains { v.distance(toSegment: $0, $1) <= 5 }
+        }
+    }
+
+    /// Starts dragging every member of a form, snapping on its first handle (a member position).
+    private func beginFormMove(_ form: CanvasForm, at v: CGPoint) {
+        delegate?.canvasSelect(form.members, additive: false)
+        drag = .moveDots(ids: Array(form.members), anchor: form.geometry.handles[0], start: world(v), delta: .zero, narrowTo: nil)
+    }
+
+    // MARK: Cursor
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if trackingAreas.isEmpty {
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self))
+        }
+    }
+
+    /// Shows what a press will do: reshape on a handle ring, move on a selected form.
+    override func mouseMoved(with event: NSEvent) {
+        guard case .none = drag, !spaceDown, let state, state.editable, state.tool == .select else { return }
+        let v = convert(event.locationInWindow, from: nil)
+        if hitHandle(at: v) != nil {
+            NSCursor.crosshair.set()
+        } else if let dot = hitDot(at: v) {
+            let wholeForm = state.groups[dot.id].map { members in state.dots.filter(\.selected).count == members.count && dot.selected } ?? false
+            (wholeForm ? NSCursor.openHand : NSCursor.arrow).set()
+        } else if hitFormOutline(at: v) != nil {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
     }
 
     /// Note text scales with zoom like the field, within readable limits.
@@ -164,6 +210,13 @@ final class FieldCanvasView: NSView {
         }
         if let (form, index) = hitHandle(at: v) {
             drag = .handle(form: form, index: index, geometry: form.geometry)
+            return
+        }
+        // Dragging a shown form's outline moves the whole form.
+        if state.tool == .select, hitDot(at: v) == nil, let form = hitFormOutline(at: v) {
+            beginFormMove(form, at: v)
+            NSCursor.closedHand.set()
+            needsDisplay = true
             return
         }
         // Clicking a note focuses it for editing in the inspector; dragging moves it.

@@ -32,6 +32,19 @@ struct CanvasTransform: Equatable {
     }
 }
 
+extension CGPoint {
+    func distance(to p: CGPoint) -> CGFloat { hypot(x - p.x, y - p.y) }
+
+    /// Distance to the segment from `a` to `b`.
+    func distance(toSegment a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0 else { return distance(to: a) }
+        let t = max(0, min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared))
+        return distance(to: CGPoint(x: a.x + t * dx, y: a.y + t * dy))
+    }
+}
+
 struct CanvasDot: Equatable {
     var id: PerformerID
     var label: String
