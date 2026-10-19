@@ -17,7 +17,7 @@ struct EditorView: View {
             VSplitView {
                 HSplitView {
                     NavigatorView(model: model)
-                        .frame(minWidth: 180, idealWidth: Tokens.Layout.navigator, maxWidth: 320)
+                        .frame(minWidth: 160, idealWidth: Tokens.Layout.navigator, maxWidth: 320)
                     ZStack(alignment: .bottomLeading) {
                         FieldCanvas(model: model)
                             .tourAnchor("canvas.field")
@@ -28,12 +28,14 @@ struct EditorView: View {
                     .overlay(alignment: .top) { UnplacedBanner(model: model) }
                     .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
                     .frame(minWidth: 420, maxWidth: .infinity)
+                    .layoutPriority(1)
+                    .background(EditorSplitDefaults())
                     InspectorView(model: model)
                         .frame(minWidth: 240, idealWidth: Tokens.Layout.inspector, maxWidth: 360)
                 }
                 .frame(minHeight: 360)
                 TimelinePanel(model: model)
-                    .frame(minHeight: 150, idealHeight: Tokens.Layout.timeline, maxHeight: 420)
+                    .frame(minHeight: 140, idealHeight: Tokens.Layout.timeline, maxHeight: 420)
             }
             StatusBar(model: model)
         }
@@ -202,6 +204,9 @@ extension EditorView {
                 .help("Snap to \(TimeFormat.decimal(model.snapSteps, places: 2))-step grid. Hold Option while dragging to bypass.")
             Toggle(isOn: $model.circlesOnly) { Label("Circles", systemImage: "circle.grid.3x3.fill") }
                 .help("Draw everyone as a circle in their section color (View › Draw Everyone as Circles)")
+            Toggle(isOn: $model.alwaysShowLabels) { Label("Labels", systemImage: "tag") }
+                .help("Always show small performer labels, even when zoomed out")
+                .accessibilityLabel("Always show performer labels")
             Picker("Field", selection: $model.fieldStyle) {
                 ForEach(FieldStyle.allCases) { Text($0.title).tag($0) }
             }

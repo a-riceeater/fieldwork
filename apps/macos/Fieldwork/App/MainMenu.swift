@@ -82,6 +82,7 @@ enum MainMenu {
             item("Zoom Out", #selector(EditorWindowController.zoomOutField(_:)), "-"),
             .separator(),
             item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
+            item("Always Show Performer Labels", #selector(EditorWindowController.togglePerformerLabels(_:))),
             submenu("Field Style", FieldStyle.allCases.map { style in
                 let menuItem = item(style.title, #selector(EditorWindowController.setFieldStyle(_:)))
                 menuItem.representedObject = style.rawValue

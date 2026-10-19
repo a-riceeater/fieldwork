@@ -111,9 +111,10 @@ struct CanvasState: Equatable {
     var axisLock: AxisLock
     var caption: String
     var fieldStyle: FieldStyle
+    var alwaysShowLabels: Bool
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
-        a.field == b.field && a.fieldStyle == b.fieldStyle && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
+        a.field == b.field && a.fieldStyle == b.fieldStyle && a.alwaysShowLabels == b.alwaysShowLabels && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
             && a.warningPaths == b.warningPaths && a.paths.count == b.paths.count
             && zip(a.paths, b.paths).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }

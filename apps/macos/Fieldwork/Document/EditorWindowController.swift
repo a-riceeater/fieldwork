@@ -60,6 +60,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func setFieldStyle(_ sender: Any?) {
         if let raw = (sender as? NSMenuItem)?.representedObject as? String, let style = FieldStyle(rawValue: raw) { model.fieldStyle = style }
     }
+    @MainActor @objc func togglePerformerLabels(_ sender: Any?) { model.alwaysShowLabels.toggle() }
     @MainActor @objc func addNote(_ sender: Any?) { model.addNote() }
 
     // MARK: Playback, audio, export, help
@@ -89,6 +90,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
             return model.isEditable
         case #selector(toggleCirclesOnly(_:)):
             menuItem.state = model.circlesOnly ? .on : .off
+            return true
+        case #selector(togglePerformerLabels(_:)):
+            menuItem.state = model.alwaysShowLabels ? .on : .off
             return true
         case #selector(setFieldStyle(_:)):
             menuItem.state = menuItem.representedObject as? String == model.fieldStyle.rawValue ? .on : .off

@@ -32,6 +32,9 @@ final class FieldCanvasView: NSView {
     }
     /// One viewport-sized image. Panning, zooming, resizing or changing the field replaces it.
     private var backgroundCache: (key: BackgroundKey, image: CGImage)?
+    private var labelCache: [String: NSAttributedString] = [:]
+    private var labelFontSize: CGFloat = 0
+    private var labelPaperStyle = false
     private var spaceDown = false
     /// Space toggles playback when tapped; Space-drag pans.
     private var spaceUsedForPan = false
@@ -464,8 +467,21 @@ final class FieldCanvasView: NSView {
 
         // Dots. On grass and paper a soft dark halo keeps light section colors readable.
         let r = dotRadius
-        let showLabels = transform.scale >= 10
-        let labelFont = NSFont.systemFont(ofSize: max(8, min(11, transform.scale * 0.6)), weight: .medium)
+        let showLabels = state.alwaysShowLabels || transform.scale >= 10
+        // Labels stay in screen points, so zooming out never produces huge text over tiny dots.
+        let fontSize: CGFloat = state.alwaysShowLabels ? 8 : max(8, min(11, transform.scale * 0.6))
+        let paper = state.fieldStyle == .paper
+        if labelFontSize != fontSize || labelPaperStyle != paper || labelCache.count > max(512, state.dots.count * 2) {
+            labelCache.removeAll(keepingCapacity: true)
+            labelFontSize = fontSize
+            labelPaperStyle = paper
+        }
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
+            .foregroundColor: ink.withAlphaComponent(0.9),
+            .strokeColor: paper ? Tokens.Paper.paper : NSColor.black,
+            .strokeWidth: -3
+        ]
         for dot in state.dots {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
@@ -483,8 +499,14 @@ final class FieldCanvasView: NSView {
                 ctx.strokeEllipse(in: CGRect(x: p.x - r - 3, y: p.y - r - 3, width: 2 * r + 6, height: 2 * r + 6))
             }
             if showLabels || dot.selected {
-                NSAttributedString(string: dot.label, attributes: [.font: labelFont, .foregroundColor: ink.withAlphaComponent(0.85)])
-                    .draw(at: CGPoint(x: p.x + r + 2, y: p.y + 1))
+                let text: NSAttributedString
+                if let cached = labelCache[dot.label] {
+                    text = cached
+                } else {
+                    text = NSAttributedString(string: dot.label, attributes: labelAttributes)
+                    labelCache[dot.label] = text
+                }
+                text.draw(at: CGPoint(x: p.x + r + 2, y: p.y + 1))
             }
         }
 

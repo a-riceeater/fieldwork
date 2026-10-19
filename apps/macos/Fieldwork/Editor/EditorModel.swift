@@ -96,6 +96,10 @@ final class EditorModel: ObservableObject {
     @Published var circlesOnly: Bool {
         didSet { preferences.set(circlesOnly, forKey: "FieldworkCirclesOnly") }
     }
+    /// Fixed-size performer labels at every zoom level; a per-user view preference.
+    @Published var alwaysShowLabels: Bool {
+        didSet { preferences.set(alwaysShowLabels, forKey: "FieldworkAlwaysShowLabels") }
+    }
     /// Draws the field dark, as mowed grass or as graph paper. A per-user view preference, not show data.
     @Published var fieldStyle: FieldStyle {
         didSet { preferences.set(fieldStyle.rawValue, forKey: "FieldworkFieldStyle") }
@@ -130,6 +134,7 @@ final class EditorModel: ObservableObject {
     init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil, preferences: UserDefaults = .standard) {
         self.preferences = preferences
         wholeCountsOnly = preferences.bool(forKey: "FieldworkWholeCountsOnly")
+        alwaysShowLabels = preferences.bool(forKey: "FieldworkAlwaysShowLabels")
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
         fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .dark
         self.session = session

@@ -319,11 +319,17 @@ struct TimingInspector: View {
                 NumberField(label: "Tempo (BPM)", value: tempoBPM, places: 1) { tempoBPM = $0 }
                 Button("Change Tempo") { model.setTempo(firstMeasure: tempoFrom, lastMeasure: tempoTo, bpm: tempoBPM) }
             }
-            Picker("When tempo changes", selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) })) {
-                Text("Preserve audio pins").tag(FitMode.preserveAudioPins)
-                Text("Preserve notated tempo").tag(FitMode.preserveNotatedTempo)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("When tempo changes").font(.caption).foregroundStyle(Color.fwSecondary)
+                Picker("When tempo changes", selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) })) {
+                    Text("Preserve audio pins").tag(FitMode.preserveAudioPins)
+                    Text("Preserve notated tempo").tag(FitMode.preserveNotatedTempo)
+                }
+                .labelsHidden()
+                .pickerStyle(.radioGroup)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .pickerStyle(.radioGroup)
         }
         .onAppear {
             if let first = timing.measures.first {
@@ -341,10 +347,11 @@ struct TimingInspector: View {
 
 struct IssuesInspector: View {
     @ObservedObject var model: EditorModel
+    @AppStorage("FieldworkWarningsExpanded") private var expanded = false
 
     var body: some View {
         let issues = model.analysisIssues
-        InspectorSection(title: "Warnings (\(issues.count))") {
+        DisclosureGroup(isExpanded: $expanded) {
             if issues.isEmpty {
                 Text("No stride, bounds or missing-position warnings.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
@@ -363,7 +370,14 @@ struct IssuesInspector: View {
                 .help("Jump to this set and select the performers")
             }
             Text("Warnings are design aids, not safety guarantees.").font(.caption2).foregroundStyle(Color.fwSecondary)
+        } label: {
+            Label("Warnings (\(issues.count))", systemImage: "exclamationmark.triangle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.fwSecondary)
         }
+        .padding(Tokens.Space.m)
+        .fwCard()
+        .accessibilityIdentifier("inspector.warnings")
     }
 
     func icon(_ kind: DrillIssue.Kind) -> String {

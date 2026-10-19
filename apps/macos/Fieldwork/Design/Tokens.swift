@@ -55,7 +55,7 @@ enum Tokens {
     }
 
     enum Layout {
-        static let navigator: CGFloat = 208, inspector: CGFloat = 264, timeline: CGFloat = 224, status: CGFloat = 22
+        static let navigator: CGFloat = 190, inspector: CGFloat = 260, timeline: CGFloat = 170, status: CGFloat = 22
     }
 }
 
