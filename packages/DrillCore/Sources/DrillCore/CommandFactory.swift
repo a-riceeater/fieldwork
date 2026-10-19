@@ -141,6 +141,10 @@ extension Show {
             formation[performer.id] = copyPositions ? self.formation(previousID)[performer.id] : .unresolved
         }
         commands.append(.createSet(arrival, transition: Transition(toSetID: arrival.id), formation: formation))
+        // The new set copies the previous one, so the next move keeps its routes from there.
+        if copyPositions, let next = later.first, let outgoing = transition(into: next.id), !outgoing.paths.isEmpty {
+            commands.append(.setPaths(outgoing.id, outgoing.paths.mapValues { Optional($0) }))
+        }
         return commands.count == 1 ? commands[0] : .batch("Add Set", commands)
     }
 
@@ -178,8 +182,8 @@ extension Show {
 
     /// Splits the move into a set with a subset that arrives `count` counts into it
     /// (1 → 2 becomes 1 → 1A → 2). The subset's formation is where everyone is at
-    /// that count of the straight move, so playback is unchanged. Timing and
-    /// later sets stay where they are.
+    /// that count of the move, and each path is cut there, so playback is
+    /// unchanged. Timing and later sets stay where they are.
     public func makeSplitMove(into setID: SetID, atCount count: Rational, label: String? = nil,
                               newSetID: SetID = SetID()) throws -> DrillCommand {
         guard let set = set(setID), let previous = previousSet(before: setID) else {
@@ -193,17 +197,35 @@ extension Show {
         }
         let pulse = startPulse + count
         let evaluated = try SceneEvaluator(show: self, movementID: set.movementID, map: map).evaluate(pulse: pulse.doubleValue)
+        let paths = transition(into: setID)?.paths ?? [:]
+        let from = formation(previous.id)
         var formation = Formation()
+        var left: [PerformerID: PerformerPath?] = [:], right: [PerformerID: PerformerPath?] = [:]
         for performer in evaluated.performers {
             switch performer.state {
-            case .placed: formation[performer.id] = .placed(Position(x: performer.x, y: performer.y, z: performer.z, facing: performer.facing))
+            case .placed:
+                var position = Position(x: performer.x, y: performer.y, z: performer.z, facing: performer.facing)
+                if let path = paths[performer.id], let start = from[performer.id].position {
+                    // The cut point is exact, so both halves join where the subset stands.
+                    let cut = path.split(at: count, from: start.point)
+                    position.point = cut.point
+                    left[performer.id] = PerformerPath(cut.left)
+                    right[performer.id] = PerformerPath(cut.right)
+                }
+                formation[performer.id] = .placed(position)
             case .unresolved: formation[performer.id] = .unresolved
             case .inactive: formation[performer.id] = .inactive
             }
         }
         let subset = ArrivalSet(id: newSetID, movementID: set.movementID, label: label ?? subsetLabel(after: previous),
                                 cursor: try map.cursor(atPulse: pulse), isSubset: true)
-        return .batch("Split Move", [.createSet(subset, transition: Transition(toSetID: subset.id), formation: formation)])
+        let incoming = Transition(id: TransitionID(uuid: newSetID.uuid), toSetID: subset.id)
+        var commands: [DrillCommand] = [.createSet(subset, transition: incoming, formation: formation)]
+        if !left.isEmpty, let outgoing = transition(into: setID) {
+            commands.append(.setPaths(incoming.id, left))
+            commands.append(.setPaths(outgoing.id, right))
+        }
+        return .batch("Split Move", commands)
     }
 
     /// The first free lettered label after a set: "1" gives "1A", then "1B";

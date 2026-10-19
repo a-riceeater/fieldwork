@@ -31,6 +31,8 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
     case moveFieldNote(NoteID, Point2)
     case editFieldNote(NoteID, String)
     case deleteFieldNote(NoteID)
+    /// Sets or clears performers' paths in one move; nil clears (straight).
+    case setPaths(TransitionID, [PerformerID: PerformerPath?])
     case batch(String, [DrillCommand])
 
     /// Undo/redo menu description.
@@ -63,6 +65,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .moveFieldNote: return "Move Note"
         case .editFieldNote: return "Edit Note"
         case .deleteFieldNote: return "Delete Note"
+        case .setPaths(_, let p): return p.values.allSatisfy { $0 == nil } ? "Straighten Path" : "Edit Path"
         case .batch(let name, _): return name
         }
     }
@@ -97,6 +100,7 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .moveFieldNote: return "moveFieldNote"
         case .editFieldNote: return "editFieldNote"
         case .deleteFieldNote: return "deleteFieldNote"
+        case .setPaths: return "setPaths"
         case .batch: return "batch"
         }
     }
@@ -110,6 +114,21 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
     /// Applies the command to a copy of the show. Validation of the final
     /// result is performed by the session so a batch commits atomically.
     public func applied(to input: Show) throws -> Show {
+        var show = try appliedIgnoringPaths(to: input)
+        // Keep every path valid through edits that move its ends or change its counts.
+        switch self {
+        case .setPlacements(let setID, _): show.reconcilePaths(after: input, near: setID)
+        case .applyForm(let form): show.reconcilePaths(after: input, near: form.setID)
+        case .updateFormGeometry(let id, _), .updateFormMembers(let id, _):
+            if let setID = show.form(id)?.setID { show.reconcilePaths(after: input, near: setID) }
+        case .addPerformers, .removePerformers, .createSet, .moveSetCursors, .replaceTiming:
+            show.reconcilePaths(after: input)
+        default: break
+        }
+        return show
+    }
+
+    private func appliedIgnoringPaths(to input: Show) throws -> Show {
         var show = input
         switch self {
         case .renameShow(let title):
@@ -173,11 +192,16 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .deleteSet(let id):
             guard let set = show.set(id) else { throw DrillError("Unknown set.") }
             guard show.previousSet(before: id) != nil else { throw DrillError("The preset cannot be deleted. Clear its positions instead.") }
+            // The deleted set's positions become waypoints of the merged move, so playback is unchanged.
+            let merged = try show.mergedPaths(deleting: id)
             show.sets.removeAll { $0.id == id }
             show.transitions.removeAll { $0.toSetID == id }
             show.formations[id] = nil
             show.forms.removeAll { $0.setID == id }
             show.fieldNotes.removeAll { $0.setID == id }
+            if let next = merged.next, let i = show.transitions.firstIndex(where: { $0.toSetID == next }) {
+                show.transitions[i].paths = merged.paths
+            }
             _ = set
 
         case .updateSet(let id, let label, let notes):
@@ -281,6 +305,22 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
         case .deleteFieldNote(let id):
             guard show.fieldNote(id) != nil else { throw DrillError("That note no longer exists.") }
             show.fieldNotes.removeAll { $0.id == id }
+
+        case .setPaths(let transitionID, let paths):
+            guard let i = show.transitions.firstIndex(where: { $0.id == transitionID }) else { throw DrillError("That move no longer exists.") }
+            let target = show.transitions[i].toSetID
+            guard let from = show.previousSet(before: target) else { throw DrillError("The preset has no incoming move.") }
+            for (id, path) in paths {
+                guard let performer = show.performer(id) else { throw DrillError("Unknown performer.") }
+                guard let path else {
+                    show.transitions[i].paths[id] = nil
+                    continue
+                }
+                guard let a = show.formation(from.id)[id].position, let b = show.formation(target)[id].position else {
+                    throw DrillError("\(performer.label) needs a position at both ends of the move to follow a path.")
+                }
+                show.transitions[i].paths[id] = PerformerPath.canonical(path.segments, from: a.point, to: b.point)
+            }
 
         case .batch(_, let commands):
             guard !commands.isEmpty else { throw DrillError("Nothing to change.") }
