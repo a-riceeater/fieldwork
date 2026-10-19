@@ -76,6 +76,21 @@ final class ContainerTests: XCTestCase {
         XCTAssertTrue(members.contains(document.show.mediaAssets[0].archivePath))
     }
 
+    func testDecodeReportsEveryStageInOrderAndFinishesEach() throws {
+        let document = try makeDocument()
+        let data = try DocumentCodec.encode(document)
+        var reports: [(DocumentCodec.DecodeStage, Double)] = []
+        let reopened = try DocumentCodec.decode(data) { reports.append(($0, $1)) }
+        XCTAssertEqual(reopened.show, document.show)
+        XCTAssertEqual(reports.map(\.0.rawValue), reports.map(\.0.rawValue).sorted(), "stages arrive in order")
+        for stage in DocumentCodec.DecodeStage.allCases {
+            let values = reports.filter { $0.0 == stage }.map(\.1)
+            XCTAssertEqual(values.first, 0, "\(stage) starts at 0")
+            XCTAssertEqual(values.last, 1, "\(stage) finishes at 1")
+            XCTAssertEqual(values, values.sorted(), "\(stage) only moves forward")
+        }
+    }
+
     func testNewerMajorVersionIsRefusedWithoutChanges() throws {
         let data = try DocumentCodec.encode(try makeDocument())
         var members = try ZipArchive.read(data)

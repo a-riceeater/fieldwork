@@ -98,6 +98,16 @@ public struct ShowDocument: Sendable {
 
 /// Encodes and decodes the `.fieldwork` ZIP container.
 public enum DocumentCodec {
+    /// The steps of opening a document, in order, for progress reporting.
+    public enum DecodeStage: Int, CaseIterable, Sendable {
+        /// Splitting the archive into its members.
+        case unpacking
+        /// Checking every member against its manifest hash.
+        case verifying
+        /// Reading the show database into the model.
+        case loadingShow
+    }
+
     public static func encode(_ document: ShowDocument) throws -> Data {
         try document.show.validate()
         let database = try ShowDatabase.encode(document.show, writer: FormatIdentity.writer)
@@ -130,10 +140,18 @@ public enum DocumentCodec {
     }
 
     public static func decode(_ data: Data) throws -> ShowDocument {
+        try decode(data) { _, _ in }
+    }
+
+    /// Decodes, reporting each stage with how much of it is done (0...1).
+    /// Stages arrive in order and each finishes at 1.
+    public static func decode(_ data: Data, progress: (DecodeStage, Double) -> Void) throws -> ShowDocument {
+        progress(.unpacking, 0)
         let members: [(path: String, data: Data)]
         do { members = try ZipArchive.read(data) } catch let error as ZipError {
             throw DocumentError.notAFieldworkDocument(error.message)
         }
+        progress(.unpacking, 1)
         let byPath = Dictionary(uniqueKeysWithValues: members.map { ($0.path, $0.data) })
         guard let manifestData = byPath["manifest.json"] else { throw DocumentError.notAFieldworkDocument("manifest.json is missing.") }
         let manifest: Manifest
@@ -146,23 +164,37 @@ public enum DocumentCodec {
         if manifest.formatVersion.major > FormatIdentity.major || manifest.minReaderVersion.major > FormatIdentity.major {
             throw DocumentError.newerFormat(major: manifest.formatVersion.major, minor: manifest.formatVersion.minor)
         }
+        // Each member is hashed once; asset checks below reuse these hashes.
+        progress(.verifying, 0)
+        let totalBytes = max(1, manifest.members.reduce(Int64(0)) { $0 + $1.bytes })
+        var verifiedBytes: Int64 = 0
+        var hashes: [String: String] = [:]
         for member in manifest.members {
-            guard let content = byPath[member.path], Int64(content.count) == member.bytes, SHA256.hex(content) == member.sha256 else {
+            guard let content = byPath[member.path], Int64(content.count) == member.bytes else {
                 throw DocumentError.corrupt("\(member.path) does not match the manifest.")
             }
+            let hash = SHA256.hex(content)
+            guard hash == member.sha256 else { throw DocumentError.corrupt("\(member.path) does not match the manifest.") }
+            hashes[member.path] = hash
+            verifiedBytes += member.bytes
+            progress(.verifying, Double(verifiedBytes) / Double(totalBytes))
         }
+        progress(.verifying, 1)
         let listed = Set(manifest.members.map(\.path))
         for path in byPath.keys where path != "manifest.json" && !listed.contains(path) {
             throw DocumentError.corrupt("\(path) is not listed in the manifest.")
         }
         guard let database = byPath["show.sqlite"] else { throw DocumentError.corrupt("show.sqlite is missing.") }
         let show: Show
-        do { show = try ShowDatabase.decode(database) } catch let error as DocumentError { throw error } catch {
+        progress(.loadingShow, 0)
+        do { show = try ShowDatabase.decode(database) { progress(.loadingShow, $0) } } catch let error as DocumentError { throw error } catch {
             throw DocumentError.corrupt("\(error)")
         }
         var assets: [String: Data] = [:]
         for asset in show.mediaAssets {
-            guard let bytes = byPath[asset.archivePath], SHA256.hex(bytes) == asset.sha256 else { throw DocumentError.missingAsset(asset.archivePath) }
+            guard let bytes = byPath[asset.archivePath], (hashes[asset.archivePath] ?? SHA256.hex(bytes)) == asset.sha256 else {
+                throw DocumentError.missingAsset(asset.archivePath)
+            }
             assets[asset.archivePath] = bytes
         }
         let extensionMembers = byPath.filter { $0.key.hasPrefix("extensions/") }
@@ -172,6 +204,7 @@ public enum DocumentCodec {
         if !unknownRequired.isEmpty {
             readOnly = "This show requires features this version does not support (\(unknownRequired.joined(separator: ", "))). It is open read-only."
         }
+        progress(.loadingShow, 1)
         return ShowDocument(show: show, assets: assets, extensionMembers: extensionMembers, extensions: manifest.extensions, readOnlyReason: readOnly)
     }
 }

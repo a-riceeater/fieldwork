@@ -190,10 +190,11 @@ enum ShowDatabase {
 
     // MARK: Reading
 
-    static func decode(_ bytes: Data) throws -> Show {
+    /// `progress` receives how much of the database has been read (0...1).
+    static func decode(_ bytes: Data, progress: (Double) -> Void = { _ in }) throws -> Show {
         let db = try SQLiteDatabase(bytes: bytes)
         try migrate(db)
-        return try read(db)
+        return try read(db, progress: progress)
     }
 
     static func id<T>(_ s: String, _ type: TypedID<T>.Type) throws -> TypedID<T> {
@@ -206,7 +207,7 @@ enum ShowDatabase {
         return Rational(n, d)
     }
 
-    static func read(_ db: SQLiteDatabase) throws -> Show {
+    static func read(_ db: SQLiteDatabase, progress: (Double) -> Void = { _ in }) throws -> Show {
         let showRow = try db.prepare("SELECT id, title, max_stride, min_clearance, counting_mode FROM show")
         guard try showRow.step() else { throw DocumentError.corrupt("The show record is missing.") }
         let showID = try id(showRow.text(0), ShowID.self)
@@ -302,9 +303,16 @@ enum ShowDatabase {
             transitions.append(Transition(id: try id(transition.text(0), TransitionID.self), toSetID: try id(transition.text(1), SetID.self),
                                           model: TransitionModel(rawValue: transition.text(2)) ?? .straight))
         }
+        progress(0.1)
+        // Placements (one per performer per set) are most of a large show, so progress follows them.
+        let count = try db.prepare("SELECT COUNT(*) FROM placement")
+        let placementCount = try count.step() ? max(1, count.int(0)) : 1
+        var placementsRead = 0
         var formations: [SetID: Formation] = Dictionary(uniqueKeysWithValues: sets.map { ($0.id, Formation()) })
         let placement = try db.prepare("SELECT set_id, performer_id, state, x, y, z, facing FROM placement")
         while try placement.step() {
+            placementsRead += 1
+            if placementsRead % 2048 == 0 { progress(0.1 + 0.8 * Double(placementsRead) / Double(placementCount)) }
             let setID = try id(placement.text(0), SetID.self)
             let performerID = try id(placement.text(1), PerformerID.self)
             let value: Placement
@@ -317,6 +325,7 @@ enum ShowDatabase {
             }
             formations[setID, default: Formation()][performerID] = value
         }
+        progress(0.9)
         var forms: [Form] = []
         let form = try db.prepare("SELECT id, set_id, kind, x0, y0, x1, y1, bulge FROM form ORDER BY ordinal")
         let member = try db.prepare("SELECT performer_id FROM form_member WHERE form_id = ? ORDER BY ordinal")
