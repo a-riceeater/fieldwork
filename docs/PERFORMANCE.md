@@ -71,6 +71,10 @@ xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork \
 Add `TEST_RUNNER_FIELDWORK_PROFILE_AUDIO=1` to decode the embedded audio, wait for
 waveform peaks, and play through AVFoundation. Use
 `TEST_RUNNER_FIELDWORK_PROFILE_STYLE=paper` or `grass` to check those backgrounds.
+Add `TEST_RUNNER_FIELDWORK_PROFILE_LABELS=1` to include the always-visible label
+overlay. Labels use cached bitmaps at the display's backing resolution, avoiding
+per-frame text shaping. The 350 × 150 Paper run with labels enabled reached 179
+updates in three seconds (16.68 ms median / 17.64 ms p95 intervals).
 Use `TEST_RUNNER_FIELDWORK_PROFILE_DOCUMENT=synthetic` for the original generated
 350 × 150 workload. Test preferences are isolated from the user's field settings.
 

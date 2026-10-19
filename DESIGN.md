@@ -53,10 +53,10 @@ Reference window: 1440 × 960 pt; minimum usable 1024 × 720. The image in `webs
 | Area | Starting size | Contents |
 |---|---|---|
 | Title/toolbar | 54 pt | Document name, undo/redo, tool controls, view mode, export |
-| Navigator | 208 pt, resizable | Movements, sets with counts, roster sections, search/filter |
+| Navigator | 190 pt, resizable | Movements, sets with counts, roster sections, search/filter |
 | Canvas | Flexible center | Field, dots, selection, forms, trajectories and annotations |
-| Inspector | 264 pt, resizable | Context-sensitive values and operations |
-| Timeline | 224 pt, resizable | Transport, rulers, waveform, timing lanes and set transitions |
+| Inspector | 260 pt, resizable | Context-sensitive values and operations |
+| Timeline | 180 pt, resizable | Transport, rulers, waveform, timing lanes and set transitions |
 | Status | 22 pt or integrated | Count, selection, coordinates, warnings and save status |
 
 Use split-view collapse controls. At narrow widths only one side panel remains expanded; the timeline stays useful. Inspector never floats over the active form handle. Store layout preferences per user, not as required show content.

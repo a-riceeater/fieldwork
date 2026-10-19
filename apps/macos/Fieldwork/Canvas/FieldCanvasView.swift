@@ -32,7 +32,12 @@ final class FieldCanvasView: NSView {
     }
     /// One viewport-sized image. Panning, zooming, resizing or changing the field replaces it.
     private var backgroundCache: (key: BackgroundKey, image: CGImage)?
-    private var labelCache: [String: NSAttributedString] = [:]
+    private struct LabelImage {
+        var image: CGImage
+        var size: CGSize
+    }
+    private var labelCache: [String: LabelImage] = [:]
+    private var labelBackingScale: CGFloat = 0
     private var labelFontSize: CGFloat = 0
     private var labelPaperStyle = false
     private var spaceDown = false
@@ -471,10 +476,12 @@ final class FieldCanvasView: NSView {
         // Labels stay in screen points, so zooming out never produces huge text over tiny dots.
         let fontSize: CGFloat = state.alwaysShowLabels ? 8 : max(8, min(11, transform.scale * 0.6))
         let paper = state.fieldStyle == .paper
-        if labelFontSize != fontSize || labelPaperStyle != paper || labelCache.count > max(512, state.dots.count * 2) {
+        let backingScale = window?.backingScaleFactor ?? 2
+        if labelFontSize != fontSize || labelPaperStyle != paper || labelBackingScale != backingScale || labelCache.count > max(512, state.dots.count * 2) {
             labelCache.removeAll(keepingCapacity: true)
             labelFontSize = fontSize
             labelPaperStyle = paper
+            labelBackingScale = backingScale
         }
         let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
@@ -499,14 +506,18 @@ final class FieldCanvasView: NSView {
                 ctx.strokeEllipse(in: CGRect(x: p.x - r - 3, y: p.y - r - 3, width: 2 * r + 6, height: 2 * r + 6))
             }
             if showLabels || dot.selected {
-                let text: NSAttributedString
+                let origin = CGPoint(x: p.x + r + 1, y: p.y)
                 if let cached = labelCache[dot.label] {
-                    text = cached
+                    ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
                 } else {
-                    text = NSAttributedString(string: dot.label, attributes: labelAttributes)
-                    labelCache[dot.label] = text
+                    let text = NSAttributedString(string: dot.label, attributes: labelAttributes)
+                    if let cached = rasterizeLabel(text, scale: backingScale) {
+                        labelCache[dot.label] = cached
+                        ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
+                    } else {
+                        text.draw(at: CGPoint(x: origin.x + 1, y: origin.y + 1))
+                    }
                 }
-                text.draw(at: CGPoint(x: p.x + r + 2, y: p.y + 1))
             }
         }
 
@@ -553,6 +564,21 @@ final class FieldCanvasView: NSView {
             break
         }
         drawCaption(state.caption, at: CGPoint(x: 12, y: bounds.maxY - 24))
+    }
+
+    /// Text shaping and glyph rasterization happen once per label/style, not on every frame.
+    private func rasterizeLabel(_ text: NSAttributedString, scale: CGFloat) -> LabelImage? {
+        let measured = text.size()
+        let size = CGSize(width: ceil(measured.width) + 2, height: ceil(measured.height) + 2)
+        guard let bitmap = CGContext(data: nil, width: Int(ceil(size.width * scale)), height: Int(ceil(size.height * scale)),
+                                     bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        bitmap.scaleBy(x: scale, y: scale)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: bitmap, flipped: false)
+        text.draw(at: CGPoint(x: 1, y: 1))
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap.makeImage().map { LabelImage(image: $0, size: size) }
     }
 
     /// Grid lines, hash marks and yard labels do not change when performers move.
