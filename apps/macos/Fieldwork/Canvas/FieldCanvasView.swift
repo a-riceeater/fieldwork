@@ -32,9 +32,18 @@ final class FieldCanvasView: NSView {
     }
     /// One viewport-sized image. Panning, zooming, resizing or changing the field replaces it.
     private var backgroundCache: (key: BackgroundKey, image: CGImage)?
-    private struct LabelImage {
+    struct LabelImage {
         var image: CGImage
         var size: CGSize
+        var inkImage: CGImage
+        var inkSize: CGSize
+
+        func draw(at point: CGPoint, radius: CGFloat, placement: PerformerLabelPlacement, in ctx: CGContext) {
+            let front = placement == .front
+            let drawnSize = front ? inkSize : size
+            let origin = placement.origin(at: point, radius: radius, size: drawnSize)
+            ctx.draw(front ? inkImage : image, in: CGRect(origin: origin, size: drawnSize))
+        }
     }
     private var labelCache: [String: LabelImage] = [:]
     private var labelBackingScale: CGFloat = 0
@@ -519,14 +528,12 @@ final class FieldCanvasView: NSView {
             }
             if showLabels || dot.selected {
                 if let cached = labelCache[dot.label] {
-                    let origin = state.labelPlacement.origin(at: p, radius: r, size: cached.size)
-                    ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
+                    cached.draw(at: p, radius: r, placement: state.labelPlacement, in: ctx)
                 } else {
                     let text = NSAttributedString(string: dot.label, attributes: labelAttributes)
-                    if let cached = rasterizeLabel(text, scale: backingScale) {
+                    if let cached = Self.rasterizeLabel(text, scale: backingScale) {
                         labelCache[dot.label] = cached
-                        let origin = state.labelPlacement.origin(at: p, radius: r, size: cached.size)
-                        ctx.draw(cached.image, in: CGRect(origin: origin, size: cached.size))
+                        cached.draw(at: p, radius: r, placement: state.labelPlacement, in: ctx)
                     } else {
                         let measured = text.size()
                         let size = CGSize(width: ceil(measured.width) + 2, height: ceil(measured.height) + 2)
@@ -583,18 +590,34 @@ final class FieldCanvasView: NSView {
     }
 
     /// Text shaping and glyph rasterization happen once per label/style, not on every frame.
-    private func rasterizeLabel(_ text: NSAttributedString, scale: CGFloat) -> LabelImage? {
+    static func rasterizeLabel(_ text: NSAttributedString, scale: CGFloat) -> LabelImage? {
         let measured = text.size()
         let size = CGSize(width: ceil(measured.width) + 2, height: ceil(measured.height) + 2)
         guard let bitmap = CGContext(data: nil, width: Int(ceil(size.width * scale)), height: Int(ceil(size.height * scale)),
                                      bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
-                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+                                     bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         bitmap.scaleBy(x: scale, y: scale)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: bitmap, flipped: false)
         text.draw(at: CGPoint(x: 1, y: 1))
         NSGraphicsContext.restoreGraphicsState()
-        return bitmap.makeImage().map { LabelImage(image: $0, size: size) }
+        guard let image = bitmap.makeImage(), let data = bitmap.data else { return nil }
+        // Font line boxes include invisible ascender/descender space. Anchor front
+        // labels to their actual ink instead, independent of zoom and font metrics.
+        let pixels = data.assumingMemoryBound(to: UInt8.self)
+        var minX = bitmap.width, minY = bitmap.height, maxX = -1, maxY = -1
+        for y in 0..<bitmap.height {
+            for x in 0..<bitmap.width where pixels[y * bitmap.bytesPerRow + x * 4 + 3] > 0 {
+                minX = min(minX, x); minY = min(minY, y)
+                maxX = max(maxX, x); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY,
+              let inkImage = image.cropping(to: CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)) else {
+            return LabelImage(image: image, size: size, inkImage: image, inkSize: size)
+        }
+        return LabelImage(image: image, size: size, inkImage: inkImage,
+                          inkSize: CGSize(width: CGFloat(inkImage.width) / scale, height: CGFloat(inkImage.height) / scale))
     }
 
     /// Grid lines, hash marks and yard labels do not change when performers move.

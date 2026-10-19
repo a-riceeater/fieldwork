@@ -1,5 +1,15 @@
 # Progress log
 
+## 2026-10-19: Keep front labels tight to performer dots
+
+Front labels now use cached glyph images cropped to their visible ink, removing
+the invisible font line padding that made the gap appear larger on small dots.
+The visible text edge stays one screen point from the dot edge at every zoom.
+Original offset placement retains its previous image and position. Cropping runs
+only when populating the label cache, avoiding additional per-frame work.
+The Mac suite passes: 19 tests, one opt-in benchmark skipped, zero failures.
+
+
 ## 2026-10-19: Center performer labels toward the front sideline
 
 Labels now default to horizontal centering in front of each dot (toward the

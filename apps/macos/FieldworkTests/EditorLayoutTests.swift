@@ -86,6 +86,30 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertLessThan(inside.redComponent + inside.blueComponent, 1.9)
     }
 
+    @MainActor
+    func testFrontLabelInkStaysOnePointFromDotAtEveryZoom() throws {
+        for scale: CGFloat in [1, 2] {
+            for label in ["T1", "bc12", "g9"] {
+                let text = NSAttributedString(string: label, attributes: [
+                    .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+                    .foregroundColor: NSColor.black, .strokeColor: NSColor.white, .strokeWidth: -3
+                ])
+                let cached = try XCTUnwrap(FieldCanvasView.rasterizeLabel(text, scale: scale))
+                XCTAssertLessThan(cached.inkSize.height, cached.size.height)
+                let bitmap = NSBitmapImageRep(cgImage: cached.inkImage)
+                for row in [0, bitmap.pixelsHigh - 1] {
+                    XCTAssertTrue((0..<bitmap.pixelsWide).contains {
+                        (bitmap.colorAt(x: $0, y: row)?.alphaComponent ?? 0) > 0
+                    }, "Visible ink must reach both vertical edges of the cropped label")
+                }
+                for radius: CGFloat in [3.5, 5, 9] {
+                    let origin = PerformerLabelPlacement.front.origin(at: .zero, radius: radius, size: cached.inkSize)
+                    XCTAssertEqual(-radius - (origin.y + cached.inkSize.height), 1, accuracy: 0.001)
+                }
+            }
+        }
+    }
+
     func testFrontLabelsCenterDifferentWidthsTowardAudience() {
         let point = CGPoint(x: 100, y: 200)
         for width: CGFloat in [10, 25] {
