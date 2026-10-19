@@ -457,9 +457,10 @@ struct SymbolRow: View {
                          sectionSymbol: section?.symbol, showsSelection: choices.count == 1) { symbol in
                 if choices != [symbol] { model.setSymbol(ids, symbol: symbol) }
             }
-            .disabled(!model.isEditable)
+            // While everyone is drawn as circles a change would be invisible, so it is not offered.
+            .disabled(!model.isEditable || model.circlesOnly)
             if model.circlesOnly {
-                Text("Hidden while View › Draw Everyone as Circles is on.").font(.caption).foregroundStyle(Color.fwSecondary)
+                Text("Turn off View › Draw Everyone as Circles to change symbols.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
         }
     }

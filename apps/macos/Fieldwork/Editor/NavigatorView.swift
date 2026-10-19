@@ -190,13 +190,18 @@ struct SectionSymbolButton: View {
                     if let symbol, symbol != section.symbol { model.setSectionSymbol(section.id, symbol: symbol) }
                     editing = false
                 }
-                let custom = model.show.performers(in: section.id).filter { $0.symbol != nil }.count
-                Text(custom == 0 ? "Every \(section.name) performer uses this symbol."
-                     : "\(custom) performer\(custom == 1 ? " has" : "s have") their own symbol and keep\(custom == 1 ? "s" : "") it.")
+                .disabled(model.circlesOnly)
+                let custom = model.show.performers(in: section.id).filter { $0.symbol != nil }.map(\.id)
+                Text(custom.isEmpty ? "Every \(section.name) performer uses this symbol."
+                     : "\(custom.count) performer\(custom.count == 1 ? " has" : "s have") their own symbol and keep\(custom.count == 1 ? "s" : "") it.")
                     .font(.caption).foregroundStyle(Color.fwSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !custom.isEmpty {
+                    Button("Use the Section Symbol for All") { model.setSymbol(custom, symbol: nil) }
+                        .help("Return the \(custom.count) performer\(custom.count == 1 ? "" : "s") with their own symbol to the \(section.name) symbol")
+                }
                 if model.circlesOnly {
-                    Text("Symbols are hidden while View › Draw Everyone as Circles is on.")
+                    Text("Turn off View › Draw Everyone as Circles to change symbols.")
                         .font(.caption).foregroundStyle(Color.fwSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
