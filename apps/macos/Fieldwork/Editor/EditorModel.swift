@@ -831,3 +831,21 @@ private final class PlaybackDisplayTarget: NSObject {
     init(_ callback: @escaping () -> Void) { self.callback = callback }
     @objc func refresh() { callback() }
 }
+
+extension EditorModel {
+    /// Describes the playhead within its current move, using cached set pulses.
+    func moveCountLabel(atPulse pulse: Double, places: Int) -> String {
+        guard let evaluator, !evaluator.sets.isEmpty else { return "" }
+        let index = evaluator.setIndex(atPulse: pulse)
+        let from = evaluator.sets[index].label
+        guard index + 1 < evaluator.sets.count,
+              pulse > evaluator.pulses[index] + 1e-9 else {
+            return "Set \(from)"
+        }
+        let elapsed = max(0, pulse - evaluator.pulses[index])
+        let count = wholeCountsOnly
+            ? TimeFormat.decimal(floor(elapsed + 1e-6), places: 0)
+            : TimeFormat.decimal(elapsed, places: places)
+        return "\(count) counts · Set \(from) → \(evaluator.sets[index + 1].label)"
+    }
+}

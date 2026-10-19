@@ -210,7 +210,7 @@ private struct StatusPlaybackReadout: View {
 
     var body: some View {
         let pulse = model.map?.locate(audioTime: position.readoutSeconds).pulse ?? 0
-        Text("Count \(TimeFormat.decimal(pulse, places: 2))").monospacedDigit()
+        Text(model.moveCountLabel(atPulse: pulse, places: 2)).monospacedDigit()
         Text(TimeFormat.clock(position.readoutSeconds)).monospacedDigit()
     }
 }

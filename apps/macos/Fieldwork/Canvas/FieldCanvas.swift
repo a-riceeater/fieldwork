@@ -91,12 +91,7 @@ extension EditorModel {
                 dots.append(CanvasDot(id: p.id, label: performer.label, point: Point2(p.x, p.y), colorIndex: section?.colorIndex ?? 0,
                                       symbol: circlesOnly ? .circle : (performer.symbol ?? section?.symbol ?? .circle), selected: selection.contains(p.id)))
             }
-            let from = evaluator.sets[scene.setIndex].label
-            if let next = scene.nextSetIndex {
-                caption = "Count \(TimeFormat.decimal(scene.pulse, places: 1)) · moving to Set \(evaluator.sets[next].label)"
-            } else {
-                caption = "Count \(TimeFormat.decimal(scene.pulse, places: 1)) · Set \(from)"
-            }
+            caption = moveCountLabel(atPulse: scene.pulse, places: 1)
             if !isPlaying { caption += " · select a set to edit" }
         }
 

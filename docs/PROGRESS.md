@@ -1,5 +1,15 @@
 # Progress log
 
+## 2026-10-19: Show counts within the current move
+
+Canvas, transport and status readouts now show elapsed counts from the previous
+set and the source/destination labels (for example, “7 counts · Set 22 → 23”).
+At an arrival, before the preset and after the final set, they show the set label.
+The whole-count preference applies consistently across these readouts. Cached
+set pulses supply the offset without evaluating performers or rebuilding timing.
+Read all project Markdown documentation. Verified the diff with `git diff --check`;
+no builds, app tests or computer control run, per the requested lightweight workflow.
+
 ## 2026-10-19: Keep front labels tight to performer dots
 
 Front labels now use cached glyph images cropped to their visible ink, removing

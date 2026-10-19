@@ -133,9 +133,6 @@ private struct PlaybackReadout: View {
             model.wholeCountsOnly ? "m\($0.measureNumber) b\($0.beat)" : $0.label
         } ?? ""
         let pulse = location?.pulse ?? 0
-        let count = model.wholeCountsOnly
-            ? TimeFormat.decimal(floor(pulse + 1e-6), places: 0)
-            : TimeFormat.decimal(pulse, places: 2)
         return HStack(spacing: Tokens.Space.m) {
             TextField("Time", text: $timeText)
                 .frame(width: 92)
@@ -151,7 +148,7 @@ private struct PlaybackReadout: View {
             Text(location?.isPreRoll == true ? "pre-roll" : music)
                 .monospacedDigit()
                 .frame(minWidth: 80, alignment: .leading)
-            Text("count \(count)")
+            Text(model.moveCountLabel(atPulse: pulse, places: 2))
                 .monospacedDigit()
                 .foregroundStyle(Color.fwSecondary)
         }
