@@ -107,6 +107,10 @@ final class EditorModel: ObservableObject {
     @Published var fieldStyle: FieldStyle {
         didSet { preferences.set(fieldStyle.rawValue, forKey: "FieldworkFieldStyle") }
     }
+    /// Draws every performer's path into the current set, not only the selection's. A per-user view preference.
+    @Published var showsAllPaths: Bool {
+        didSet { preferences.set(showsAllPaths, forKey: "FieldworkShowAllPaths") }
+    }
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
     @Published var conflict: PendingConflict?
@@ -141,6 +145,7 @@ final class EditorModel: ObservableObject {
         labelPlacement = PerformerLabelPlacement(rawValue: preferences.string(forKey: "FieldworkLabelPlacement") ?? "") ?? .front
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
         fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .dark
+        showsAllPaths = preferences.bool(forKey: "FieldworkShowAllPaths")
         self.session = session
         self.assets = assets
         self.readOnlyReason = readOnlyReason
@@ -499,6 +504,49 @@ final class EditorModel: ObservableObject {
     }
 
     func detachForm(_ formID: FormID) { perform(.detachForm(formID)) }
+
+    // MARK: Paths
+
+    /// The move into the current set, which paths edit; nil on the preset.
+    var currentMove: (transition: Transition, from: ArrivalSet, counts: Rational)? { try? show.move(into: currentSetID) }
+
+    func commitWaypointMove(_ id: PerformerID, segment: Int, to point: Point2) {
+        guard isEditable else { return }
+        perform { try self.show.makeMoveWaypoint(into: self.currentSetID, performer: id, segment: segment, to: point) }
+    }
+
+    func commitWaypointInsert(_ id: PerformerID, atCount count: Rational, at point: Point2) {
+        guard isEditable else { return }
+        perform { try self.show.makeInsertWaypoint(into: self.currentSetID, performer: id, atCount: count, at: point) }
+    }
+
+    func deleteWaypoint(_ id: PerformerID, segment: Int) {
+        guard isEditable else { return }
+        perform { try self.show.makeDeleteWaypoint(into: self.currentSetID, performer: id, segment: segment) }
+    }
+
+    /// Bends a leg into an arc; within a quarter step of straight it snaps back to a line.
+    func commitCurveLeg(_ id: PerformerID, segment: Int, sagitta: Double, snaps: Bool) {
+        guard isEditable else { return }
+        let snap = snaps ? show.field.stepSize / 4 : 0
+        perform { try self.show.makeCurveLeg(into: self.currentSetID, performer: id, segment: segment, sagitta: sagitta, snap: snap) }
+    }
+
+    /// "Start late by n counts" (start) and "Arrive early by n counts" (end) for the selection; nil keeps that hold.
+    func setHolds(start: Rational?, end: Rational?) {
+        guard isEditable else { return }
+        perform { try self.show.makeHoldPhases(into: self.currentSetID, performers: Array(self.selection), startHold: start, endHold: end) }
+    }
+
+    func evenPaceSelection() {
+        guard isEditable else { return }
+        perform { try self.show.makeEvenPace(into: self.currentSetID, performers: Array(self.selection)) }
+    }
+
+    func straightenSelection() {
+        guard isEditable else { return }
+        perform { try self.show.makeStraighten(into: self.currentSetID, performers: Array(self.selection)) }
+    }
 
     func setCoordinate(_ id: PerformerID, x: Double, y: Double) {
         perform { try self.show.makeSetCoordinate(id, at: self.currentSetID, x: x, y: y) }
