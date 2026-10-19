@@ -242,16 +242,20 @@ final class EditorModel: ObservableObject {
     func selectSet(_ id: SetID) {
         if id != currentSetID { focusedNoteID = nil }
         currentSetID = id
-        isBetweenSets = false
+        if !isPlaying { isBetweenSets = false }
         if let set = show.set(id), let t = try? map?.audioTime(at: set.cursor) {
             playheadSeconds = t
-            if !isPlaying { transport.seek(to: t) }
+            // While playing this restarts the audio clock at the arrival; otherwise the next tick reads the old time back.
+            transport.seek(to: t)
+            if isPlaying { lastPlaybackSetIndex = evaluator?.setIndex(atPulse: currentPulse) }
         }
     }
 
     func stepSet(_ delta: Int) {
         let list = setsInMovement
-        guard let i = list.firstIndex(where: { $0.id == currentSetID }) else { return }
+        // During playback the current set is where play began, so step from the set at the playhead.
+        let baseID = isPlaying ? evaluator.map { $0.sets[$0.setIndex(atPulse: currentPulse)].id } ?? currentSetID : currentSetID
+        guard let i = list.firstIndex(where: { $0.id == baseID }) else { return }
         let j = min(max(i + delta, 0), list.count - 1)
         selectSet(list[j].id)
     }
