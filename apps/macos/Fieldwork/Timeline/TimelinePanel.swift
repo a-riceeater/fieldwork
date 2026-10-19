@@ -8,7 +8,6 @@ struct TimelinePanel: View {
     @ObservedObject var model: EditorModel
     @State private var alignMeasure = 1
     @State private var alignBeat = 1
-    @State private var timeText = ""
     @State private var dropTargeted = false
 
     var body: some View {
@@ -16,7 +15,7 @@ struct TimelinePanel: View {
             HStack(spacing: Tokens.Space.m) {
                 transport
                 Divider().frame(height: 22)
-                position
+                PlaybackReadout(model: model, position: model.playbackPosition)
                 Spacer()
                 alignment
             }
@@ -95,39 +94,6 @@ struct TimelinePanel: View {
         .floatingGlass(cornerRadius: 14)
     }
 
-    private var position: some View {
-        let map = model.map
-        let location = map?.locate(audioTime: model.playheadSeconds)
-        let musicalPosition = location.flatMap { try? map?.musicalPosition(at: $0.cursor) }
-        let music = musicalPosition.map {
-            model.wholeCountsOnly ? "m\($0.measureNumber) b\($0.beat)" : $0.label
-        } ?? ""
-        let pulse = location?.pulse ?? 0
-        let count = model.wholeCountsOnly
-            ? TimeFormat.decimal(floor(pulse + 1e-6), places: 0)
-            : TimeFormat.decimal(pulse, places: 2)
-        return HStack(spacing: Tokens.Space.m) {
-            TextField("Time", text: $timeText)
-                .frame(width: 92)
-                .monospacedDigit()
-                .onSubmit {
-                    if let t = TimeFormat.parseClock(timeText) { model.seek(to: t) }
-                    timeText = TimeFormat.clock(model.playheadSeconds)
-                }
-                .onAppear { timeText = TimeFormat.clock(model.playheadSeconds) }
-                .onChange(of: model.playheadSeconds) { _, t in timeText = TimeFormat.clock(t) }
-                .help("Type a time such as 0:12.400 and press Return")
-                .accessibilityLabel("Playhead time")
-            Text(location?.isPreRoll == true ? "pre-roll" : music)
-                .monospacedDigit()
-                .frame(minWidth: 80, alignment: .leading)
-            Text("count \(count)")
-                .monospacedDigit()
-                .foregroundStyle(Color.fwSecondary)
-        }
-        .font(.system(size: 12))
-    }
-
     private var alignment: some View {
         HStack(spacing: Tokens.Space.s) {
             Stepper("m\(alignMeasure)", value: $alignMeasure, in: 0...999).fixedSize()
@@ -151,4 +117,45 @@ struct TimelinePanel: View {
         panel.message = "Choose a WAV or MP3 file. It will be copied into the show."
         if panel.runModal() == .OK, let url = panel.url { model.importAudio(from: url) }
     }
+}
+
+/// A small clock-dependent subtree; the rest of the editor observes document state only.
+private struct PlaybackReadout: View {
+    let model: EditorModel
+    @ObservedObject var position: PlaybackPosition
+    @State private var timeText = ""
+
+    var body: some View {
+        let map = model.map
+        let location = map?.locate(audioTime: position.seconds)
+        let musicalPosition = location.flatMap { try? map?.musicalPosition(at: $0.cursor) }
+        let music = musicalPosition.map {
+            model.wholeCountsOnly ? "m\($0.measureNumber) b\($0.beat)" : $0.label
+        } ?? ""
+        let pulse = location?.pulse ?? 0
+        let count = model.wholeCountsOnly
+            ? TimeFormat.decimal(floor(pulse + 1e-6), places: 0)
+            : TimeFormat.decimal(pulse, places: 2)
+        return HStack(spacing: Tokens.Space.m) {
+            TextField("Time", text: $timeText)
+                .frame(width: 92)
+                .monospacedDigit()
+                .onSubmit {
+                    if let t = TimeFormat.parseClock(timeText) { model.seek(to: t) }
+                    timeText = TimeFormat.clock(position.seconds)
+                }
+                .onAppear { timeText = TimeFormat.clock(position.seconds) }
+                .onChange(of: position.seconds) { _, t in timeText = TimeFormat.clock(t) }
+                .help("Type a time such as 0:12.400 and press Return")
+                .accessibilityLabel("Playhead time")
+            Text(location?.isPreRoll == true ? "pre-roll" : music)
+                .monospacedDigit()
+                .frame(minWidth: 80, alignment: .leading)
+            Text("count \(count)")
+                .monospacedDigit()
+                .foregroundStyle(Color.fwSecondary)
+        }
+        .font(.system(size: 12))
+    }
+
 }

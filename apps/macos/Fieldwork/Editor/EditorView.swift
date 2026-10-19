@@ -106,8 +106,7 @@ struct StatusBar: View {
         HStack(spacing: Tokens.Space.l) {
             Text(model.currentSet.map { "Set \($0.label)" } ?? "")
                 .font(.system(size: 11, weight: .semibold))
-            Text("Count \(TimeFormat.decimal(model.currentPulse, places: 2))").monospacedDigit()
-            Text(TimeFormat.clock(model.playheadSeconds)).monospacedDigit()
+            StatusPlaybackReadout(model: model, position: model.playbackPosition)
             Text("\(model.selection.count) selected")
             if let message = model.statusMessage {
                 Text(message).lineLimit(1).truncationMode(.tail).foregroundStyle(Color.fwSecondary)
@@ -219,5 +218,16 @@ extension EditorView {
                 .tourAnchor("toolbar.export")
                 .accessibilityIdentifier("toolbar.export")
         }
+    }
+}
+
+private struct StatusPlaybackReadout: View {
+    let model: EditorModel
+    @ObservedObject var position: PlaybackPosition
+
+    var body: some View {
+        let pulse = model.map?.locate(audioTime: position.seconds).pulse ?? 0
+        Text("Count \(TimeFormat.decimal(pulse, places: 2))").monospacedDigit()
+        Text(TimeFormat.clock(position.seconds)).monospacedDigit()
     }
 }

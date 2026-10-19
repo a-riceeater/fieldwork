@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import DrillTiming
 import DrillCore
 
@@ -11,6 +12,7 @@ struct FieldCanvas: NSViewRepresentable {
     func makeNSView(context: Context) -> FieldCanvasView {
         let view = FieldCanvasView(frame: .zero)
         view.delegate = context.coordinator
+        context.coordinator.connect(view)
         return view
     }
 
@@ -26,6 +28,14 @@ struct FieldCanvas: NSViewRepresentable {
     final class Coordinator: NSObject, FieldCanvasDelegate {
         let model: EditorModel
         var lastRequest: UUID?
+        private var frames: AnyCancellable?
+
+        func connect(_ view: FieldCanvasView) {
+            frames = model.playbackPosition.$seconds.dropFirst().sink { [weak self, weak view] seconds in
+                guard let self, self.model.isPlaying else { return }
+                view?.state = self.model.canvasState(at: seconds)
+            }
+        }
 
         init(model: EditorModel) { self.model = model }
 
@@ -52,7 +62,7 @@ struct FieldCanvas: NSViewRepresentable {
 extension EditorModel {
     /// Builds the immutable canvas snapshot: the current set when editing, or the
     /// evaluated frame at the playhead while playing or scrubbing between sets.
-    func canvasState() -> CanvasState {
+    func canvasState(at seconds: Double? = nil) -> CanvasState {
         let show = self.show
         let sections = Dictionary(uniqueKeysWithValues: show.sections.map { ($0.id, $0) })
         var dots: [CanvasDot] = []
@@ -64,7 +74,7 @@ extension EditorModel {
                 guard let p = formation[performer.id].position else { continue }
                 let section = sections[performer.sectionID]
                 dots.append(CanvasDot(id: performer.id, label: performer.label, point: p.point, colorIndex: section?.colorIndex ?? 0,
-                                      symbol: displaySymbol(for: performer), selected: selection.contains(performer.id)))
+                                      symbol: circlesOnly ? .circle : (performer.symbol ?? section?.symbol ?? .circle), selected: selection.contains(performer.id)))
             }
             if let set = currentSet {
                 let music = (try? map?.musicalPosition(at: set.cursor).label) ?? ""
@@ -72,13 +82,13 @@ extension EditorModel {
                 if readOnlyReason != nil { caption += " · read-only" }
             }
         } else if let evaluator {
-            let scene = evaluator.evaluate(audioTime: playheadSeconds)
-            let byID = Dictionary(uniqueKeysWithValues: show.performers.map { ($0.id, $0) })
-            for p in scene.performers where p.state == .placed {
-                guard let performer = byID[p.id] else { continue }
+            let scene = evaluator.evaluate(audioTime: seconds ?? playheadSeconds)
+            // SceneEvaluator preserves roster order, including unresolved and inactive entries.
+            dots.reserveCapacity(show.performers.count)
+            for (p, performer) in zip(scene.performers, show.performers) where p.state == .placed {
                 let section = sections[performer.sectionID]
                 dots.append(CanvasDot(id: p.id, label: performer.label, point: Point2(p.x, p.y), colorIndex: section?.colorIndex ?? 0,
-                                      symbol: displaySymbol(for: performer), selected: selection.contains(p.id)))
+                                      symbol: circlesOnly ? .circle : (performer.symbol ?? section?.symbol ?? .circle), selected: selection.contains(p.id)))
             }
             let from = evaluator.sets[scene.setIndex].label
             if let next = scene.nextSetIndex {
@@ -113,7 +123,7 @@ extension EditorModel {
                 return CanvasNote(id: note.id, text: text, position: note.position, focused: note.id == focused)
             }
         }
-        let flagged = Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
+        let flagged: Set<PerformerID> = paths.isEmpty ? [] : Set(analysisIssues.filter { $0.setID == currentSetID && $0.kind == .largeStride }.flatMap(\.performers))
         return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, warningPaths: flagged, editable: isEditable, tool: tool,
                            snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption, fieldStyle: fieldStyle)
     }

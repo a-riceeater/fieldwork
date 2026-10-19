@@ -29,7 +29,7 @@ struct NavigatorView: View {
             List(selection: Binding(get: { model.currentSetID }, set: { if let id = $0 { model.selectSet(id) } })) {
                 Section(model.movement.name) {
                     ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in
-                        SetRow(set: set, isPreset: index == 0, counts: (try? model.show.moveCounts(into: set.id)) ?? .zero,
+                        SetRow(set: set, isPreset: index == 0, counts: (try? model.show.moveCounts(into: set.id, map: model.map)) ?? .zero,
                                music: model.show.measureLabel(for: set, map: map),
                                arrivalCount: model.show.cumulativeCount(of: set, map: map),
                                countsOnly: model.show.countingMode == .counts,

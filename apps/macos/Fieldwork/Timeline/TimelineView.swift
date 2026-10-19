@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 import DrillTiming
 import DrillCore
 import DrillMedia
@@ -333,6 +334,7 @@ struct TimelineLanes: NSViewRepresentable {
     func makeNSView(context: Context) -> TimelineCanvasView {
         let view = TimelineCanvasView(frame: .zero)
         view.delegate = context.coordinator
+        context.coordinator.connect(view)
         return view
     }
 
@@ -344,7 +346,14 @@ struct TimelineLanes: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, TimelineDelegate {
         let model: EditorModel
+        private var frames: AnyCancellable?
         init(model: EditorModel) { self.model = model }
+        func connect(_ view: TimelineCanvasView) {
+            frames = model.playbackPosition.$seconds.dropFirst().sink { [weak self, weak view] seconds in
+                guard self?.model.isPlaying == true else { return }
+                view?.state?.playhead = seconds
+            }
+        }
         func timelineSeek(_ seconds: Double) { model.seek(to: seconds) }
         func timelineSelectSet(_ id: SetID) { model.selectSet(id) }
         func timelineMoveAnchor(_ id: AnchorID, to seconds: Double) { model.moveAnchor(id, toSeconds: seconds) }

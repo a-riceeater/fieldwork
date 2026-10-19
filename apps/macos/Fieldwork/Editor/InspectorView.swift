@@ -136,7 +136,7 @@ struct SetInspector: View {
                         .font(.caption).monospacedDigit().foregroundStyle(Color.fwSecondary)
                 }
                 if model.show.previousSet(before: set.id) != nil {
-                    let counts = (try? model.show.moveCounts(into: set.id)) ?? .zero
+                    let counts = (try? model.show.moveCounts(into: set.id, map: model.map)) ?? .zero
                     NumberField(label: "Move counts", value: counts.doubleValue, places: 0) { model.setMoveCounts(Int($0.rounded())) }
                     Text("Later sets shift so their moves keep their lengths.").font(.caption).foregroundStyle(Color.fwSecondary)
                     if counts.isInteger, counts.numerator > 1 {

@@ -74,7 +74,15 @@ final class EditorModel: ObservableObject {
     /// Interval between neighbors for quick shapes and Place All, in steps.
     @Published var shapeSpacingSteps: Double = 2
     @Published var axisLock: AxisLock = .none
-    @Published var playheadSeconds: Double = 0
+    /// Frame updates have their own publisher so the document UI stays idle while playing.
+    let playbackPosition = PlaybackPosition()
+    var playheadSeconds: Double {
+        get { playbackPosition.seconds }
+        set {
+            if !isPlaying { objectWillChange.send() }
+            playbackPosition.seconds = newValue
+        }
+    }
     /// True while the canvas shows an interpolated frame between sets.
     @Published var isBetweenSets = false
     @Published private(set) var isPlaying = false
@@ -683,7 +691,8 @@ final class EditorModel: ObservableObject {
         if playheadSeconds > timelineDuration + 1 { pause(); return }
         guard let evaluator else { return }
         let index = evaluator.setIndex(atPulse: currentPulse)
-        if let last = lastPlaybackSetIndex, index != last {
+        if let last = lastPlaybackSetIndex, index != last,
+           tour.currentStep?.requirements.contains(where: { $0.contains(TourEvent.playbackCrossedSet) }) == true {
             tour.handle(TourEvent.playbackCrossedSet)
             TourStore.save(tour)
         }
@@ -741,4 +750,10 @@ enum TourStore {
     static func save(_ tour: Tour) {
         if let data = try? JSONEncoder().encode(tour.progress) { UserDefaults.standard.set(data, forKey: key) }
     }
+}
+
+/// Only time readouts and native drawing surfaces subscribe to the display clock.
+@MainActor
+final class PlaybackPosition: ObservableObject {
+    @Published var seconds: Double = 0
 }

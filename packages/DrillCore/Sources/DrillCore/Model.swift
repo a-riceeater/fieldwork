@@ -416,10 +416,10 @@ public struct Show: Hashable, Codable, Sendable {
     }
 
     /// Counts in the move into a set (0 for a preset).
-    public func moveCounts(into id: SetID) throws -> Rational {
+    public func moveCounts(into id: SetID, map: TimingMap? = nil) throws -> Rational {
         guard let set = set(id) else { throw DrillError("Unknown set.") }
         guard let previous = previousSet(before: id) else { return .zero }
-        let map = try timingMap(for: set.movementID)
+        let map = try map ?? timingMap(for: set.movementID)
         return try map.pulse(at: set.cursor) - map.pulse(at: previous.cursor)
     }
 
