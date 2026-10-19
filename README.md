@@ -96,11 +96,12 @@ generated project. The generated project remains ignored by git.
   - Line and arc forms keep their geometry and order, with equal arc-length spacing.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
+  - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.
 - Playback and analysis:
-  - Straight-path scene evaluation driven by audio time.
-  - Warnings for stride, zero-count jumps, close passes, field bounds and missing positions.
+  - Scene evaluation driven by audio time; performers follow their path or move straight.
+  - Warnings for stride (per path segment), zero-count jumps, close passes (exact on straight pieces, sampled and marked on arcs), field bounds (including arc bulges) and missing positions.
 - Documents:
-  - `.fieldwork` save and reopen preserves every M1 feature.
+  - `.fieldwork` save and reopen preserves every M1 feature and paths (schema 5 `path_segment`, required capability `drill.paths.v1`).
   - Verified writes and atomic replace that keeps the previous version.
   - Refuses newer formats, preserves unknown extensions, migrates on a copy.
   - Recovery journal replays only complete entries.
@@ -124,12 +125,16 @@ generated project. The generated project remains ignored by git.
 - Crash-recovery prompt.
 - Liquid Glass on macOS 26 floating controls, with material or opaque fallbacks.
 
+**Written but not yet compiled on a Mac:**
+
+- Path drawing on the field with count ticks and hold markers (selection, or View › Show All Paths), waypoint and curve handles, and a path inspector with hold phases, even pace, straighten and per-segment step sizes.
+
 **Not implemented yet:**
 
 - Shapes and paths:
   - Composite Bézier, ellipse, block and freehand forms.
   - Proximity or pinned assignment.
-  - Custom paths, midsets and group transforms.
+  - Path generators: follow-the-leader and block rotation (P2); cubic path segments.
 - Timing editing:
   - Meter changes after sets exist.
   - Count insert/delete with impact previews.
