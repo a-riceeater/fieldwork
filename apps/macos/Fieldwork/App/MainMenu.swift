@@ -82,6 +82,7 @@ enum MainMenu {
             item("Zoom Out", #selector(EditorWindowController.zoomOutField(_:)), "-"),
             .separator(),
             item("Draw Everyone as Circles", #selector(EditorWindowController.toggleCirclesOnly(_:)), "o", [.command, .option]),
+            item("Show All Paths", #selector(EditorWindowController.toggleAllPaths(_:))),
             item("Always Show Performer Labels", #selector(EditorWindowController.togglePerformerLabels(_:))),
             submenu("Performer Label Position", PerformerLabelPlacement.allCases.map { placement in
                 let menuItem = item(placement.title, #selector(EditorWindowController.setLabelPlacement(_:)))

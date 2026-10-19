@@ -57,6 +57,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func zoomInField(_ sender: Any?) { model.requestCanvas(.zoomIn) }
     @MainActor @objc func zoomOutField(_ sender: Any?) { model.requestCanvas(.zoomOut) }
     @MainActor @objc func toggleCirclesOnly(_ sender: Any?) { model.circlesOnly.toggle() }
+    @MainActor @objc func toggleAllPaths(_ sender: Any?) { model.showsAllPaths.toggle() }
     @MainActor @objc func setFieldStyle(_ sender: Any?) {
         if let raw = (sender as? NSMenuItem)?.representedObject as? String, let style = FieldStyle(rawValue: raw) { model.fieldStyle = style }
     }
@@ -100,6 +101,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
             return true
         case #selector(setLabelPlacement(_:)):
             menuItem.state = menuItem.representedObject as? String == model.labelPlacement.rawValue ? .on : .off
+            return true
+        case #selector(toggleAllPaths(_:)):
+            menuItem.state = model.showsAllPaths ? .on : .off
             return true
         case #selector(setFieldStyle(_:)):
             menuItem.state = menuItem.representedObject as? String == model.fieldStyle.rawValue ? .on : .off
