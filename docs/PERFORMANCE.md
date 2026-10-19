@@ -1,0 +1,85 @@
+# Playback performance
+
+## Contract
+
+Smooth native playback is a primary product requirement. The reference workload is
+350 performers × 150 sets at 60 display updates per second. Measure the complete
+editor, including waveform, navigator and inspector, rather than inferring UI
+performance from the portable evaluator benchmark. Audio remains the master clock.
+
+## October 19, 2026 investigation
+
+Machine: Apple M3, macOS 26.6.1, Xcode 26.6, arm64, 2× backing scale. The UI harness
+opens a 1440 × 960 point editor window. The supplied `drill1.fieldwork` contains
+261 performers and 215 sets; analysis produces 5,480 warnings. The input is read
+only and is not checked into this repository.
+
+A five-second `sample` of the original running Debug app found repeated timing-map
+compilation underneath `NavigatorView` → `Show.moveCounts`, full SwiftUI editor
+invalidation, and warning filtering in every canvas snapshot. The native scene
+evaluator was not the main bottleneck.
+
+Changes:
+
+- Give playback frames their own publisher. Native canvas and timeline coordinators
+  subscribe directly; the navigator, inspector and toolbar update on document/view
+  changes. Numeric time/count readouts refresh at 10 Hz and immediately on pause.
+- Supply the session's compiled timing map when constructing incoming move counts.
+- Preserve roster order when mapping evaluated performers to canvas dots and use
+  the section lookup already available for symbols. Skip warning filtering when
+  there are no paths to draw.
+- Cache one field-background bitmap at the viewport's backing resolution. Changes
+  to field, style, zoom, pan, bounds or backing scale replace it.
+- Use the canvas's display link, which follows the view's display, instead of an
+  unsynchronized timer that enqueues a main-actor task for each tick. A headless
+  client retains a timer fallback. Neither clock advances authored musical time.
+- Composite the timeline playhead as a separate layer. Waveform and marker lanes
+  redraw for content, viewport and size changes, rather than every clock tick.
+- Decode audio and build the waveform peak pyramid away from the main actor;
+  discard obsolete audio-load results before publishing them.
+
+The controlled baseline with embedded audio disabled measured **70.10 ms median,
+76.25 ms p95, 87.43 ms maximum** per synthetic UI refresh iteration. Each iteration
+sets a playhead value, services the main run loop for at least 1/60 second, and
+forces pending window drawing. These figures include the deliberate wait and are
+not standalone rendering costs or GPU-presented FPS.
+
+The audio-inclusive Debug run with the Paper background reached **178 display
+updates in 3 seconds**, with **16.72 ms median / 18.36 ms p95** update intervals.
+The synthetic refresh loop in that run measured 18.51 ms median / 24.67 ms p95,
+including its deliberate wait. The baseline disabled audio; use the same no-audio
+mode for a direct before/after synthetic comparison.
+
+## Reproducing measurements
+
+After `./scripts/bootstrap-macos.sh`, run the opt-in app test:
+
+```sh
+TEST_RUNNER_FIELDWORK_PROFILE_DOCUMENT="$HOME/Downloads/drill1.fieldwork" \
+xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork \
+  -configuration Debug CODE_SIGNING_ALLOWED=NO \
+  -only-testing:FieldworkTests/PlaybackPerformanceTests test
+```
+
+Add `TEST_RUNNER_FIELDWORK_PROFILE_AUDIO=1` to decode the embedded audio, wait for
+waveform peaks, and play through AVFoundation. Use
+`TEST_RUNNER_FIELDWORK_PROFILE_STYLE=paper` or `grass` to check those backgrounds.
+Use `TEST_RUNNER_FIELDWORK_PROFILE_DOCUMENT=synthetic` for the original generated
+350 × 150 workload. Test preferences are isolated from the user's field settings.
+
+`PLAYBACK PROFILE` reports the 120 synthetic refresh iterations described above.
+`LIVE CLOCK` reports display update count and median/p95 intervals over three
+seconds of normal playback, beginning at 45 seconds. It measures callbacks reaching
+the native surfaces, not GPU presentation or acoustic latency. Run measurements
+without another playing editor or an active build competing for resources.
+
+The regular app suite verifies that a 350-performer scene reaches both native
+surfaces without document-wide notifications, that pausing refreshes the editing
+UI/readouts, that field cache changes render correctly, and that moving the
+playhead does not invalidate the waveform lanes. Portable tests continue to verify
+timing, scene interpolation, command undo and document round trips.
+
+Use Release builds for normal performance evaluation. Debug retains `-Onone` for
+useful debugging; the fixes must also keep that build responsive. No comparative
+OpenMarch benchmark, GPU frame capture, Intel performance result or long-duration
+acoustic synchronization claim is implied by these measurements.

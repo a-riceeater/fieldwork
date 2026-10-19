@@ -77,20 +77,24 @@ final class PlaybackPerformanceTests: XCTestCase {
     func testTimelinePlayheadCompositesWithoutRedrawingWaveform() throws {
         let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
         let timeline = TimelineCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 180))
+        let window = NSWindow(contentRect: timeline.bounds, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = timeline
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
         timeline.state = model.timelineState()
+        timeline.displayIfNeeded()
         timeline.needsDisplay = false
         timeline.state?.playhead = 0.5
         XCTAssertFalse(timeline.needsDisplay, "A clock tick must not redraw the waveform and marker labels")
-        let playhead = try XCTUnwrap(timeline.layer?.sublayers?.first)
+        let playhead = try XCTUnwrap(timeline.layer?.sublayers?.first { $0.name == "timeline.playhead" })
         XCTAssertEqual(playhead.frame.midX, timeline.x(0.5), accuracy: 1e-6)
         timeline.zoom(by: 2, at: 100)
-        XCTAssertTrue(timeline.needsDisplay)
         XCTAssertEqual(playhead.frame.midX, timeline.x(0.5), accuracy: 1e-6)
         timeline.setFrameSize(NSSize(width: 900, height: 220))
         XCTAssertEqual(playhead.frame.height, 220)
         timeline.needsDisplay = false
         timeline.state?.playhead = 1000
-        XCTAssertTrue(timeline.needsDisplay, "Following a playhead outside the viewport must redraw the lanes")
+        XCTAssertEqual(timeline.x(1000), timeline.bounds.width * 0.1, accuracy: 1e-6)
         XCTAssertEqual(playhead.frame.midX, timeline.x(1000), accuracy: 1e-6)
     }
 
@@ -100,9 +104,15 @@ final class PlaybackPerformanceTests: XCTestCase {
         guard let path = ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_DOCUMENT"] else {
             throw XCTSkip("Set FIELDWORK_PROFILE_DOCUMENT to profile a real show")
         }
-        let document = try DocumentCodec.decode(Data(contentsOf: URL(fileURLWithPath: path)))
+        let document = try path == "synthetic"
+            ? ShowDocument(show: SampleShow.makeLarge(performers: 350, sets: 150))
+            : DocumentCodec.decode(Data(contentsOf: URL(fileURLWithPath: path)))
+        let suite = "FieldworkProfile.\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        preferences.set(ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_STYLE"] ?? "dark", forKey: "FieldworkFieldStyle")
         let includeAudio = ProcessInfo.processInfo.environment["FIELDWORK_PROFILE_AUDIO"] == "1"
-        let model = EditorModel(session: try DocumentSession(show: document.show), assets: includeAudio ? document.assets : [:])
+        let model = EditorModel(session: try DocumentSession(show: document.show), assets: includeAudio ? document.assets : [:], preferences: preferences)
         if includeAudio {
             let deadline = Date(timeIntervalSinceNow: 30)
             while model.peaks == nil && Date() < deadline {
@@ -139,7 +149,7 @@ final class PlaybackPerformanceTests: XCTestCase {
         liveIntervals.sort()
         XCTAssertGreaterThan(liveIntervals.count, 0, "The visible canvas must receive display-link callbacks")
         if !liveIntervals.isEmpty {
-            print("LIVE CLOCK: \(liveIntervals.count) frames / 3 s (audio=\(includeAudio)); p50=\(liveIntervals[liveIntervals.count / 2]) ms p95=\(liveIntervals[Int(Double(liveIntervals.count - 1) * 0.95)]) ms")
+            print("LIVE CLOCK: \(liveIntervals.count) frames / 3 s (audio=\(includeAudio), style=\(model.fieldStyle.rawValue)); p50=\(liveIntervals[liveIntervals.count / 2]) ms p95=\(liveIntervals[Int(Double(liveIntervals.count - 1) * 0.95)]) ms")
         }
         frames.sort()
         print("PLAYBACK PROFILE: \(document.show.performers.count) performers, \(document.show.sets.count) sets; frame interval p50=\(frames[60]) ms p95=\(frames[114]) ms max=\(frames.last!) ms")

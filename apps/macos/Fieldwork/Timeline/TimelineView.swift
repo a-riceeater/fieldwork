@@ -82,6 +82,7 @@ final class TimelineCanvasView: NSView {
         setAccessibilityLabel("Timeline")
         setAccessibilityIdentifier("timeline.lanes")
         wantsLayer = true
+        playheadLayer.name = "timeline.playhead"
         layer?.addSublayer(playheadLayer)
     }
 

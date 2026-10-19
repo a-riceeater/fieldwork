@@ -62,6 +62,11 @@ macOS app (unsigned Debug build verified with Xcode 26.6):
 xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Debug CODE_SIGNING_ALLOWED=NO build
 ```
 
+For performance testing and everyday use, build with `-configuration Release` instead
+of `Debug`. Debug intentionally keeps Swift optimization disabled for debugging.
+Playback diagnosis, the 350-performer target and the opt-in full-editor benchmark
+are documented in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
 No signing identity is committed. Personal settings go in `apps/macos/Config/Local.xcconfig`, which git ignores (see the `.template`).
 
 The bootstrap script pins XcodeGen 2.46.0 and generates [synchronized source folders](https://github.com/yonaskolb/XcodeGen/blob/2.46.0/Docs/ProjectSpec.md#target-source)
