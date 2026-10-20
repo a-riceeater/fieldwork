@@ -1,5 +1,17 @@
 # Progress log
 
+## 2026-10-20: Scale performer dots with the zoomed-out field
+
+Removed the canvas's 3.5-point minimum performer radius, which made dots grow
+relative to field spacing when zooming out. Dots now use the existing 0.3-meter
+radius down to the minimum zoom, retaining the 9-point close-up cap. Symbol
+strokes and grass/paper halos shrink with small dots too. The minimum click
+target remains 7.5 points, independent of the visible radius.
+
+Validation: unsigned Debug macOS build and app suite passed (25 tests, one
+opt-in benchmark skipped), including zoom, label rendering and canvas clipping
+checks. No manual UI session was run.
+
 ## 2026-10-19: Shorter, safer shape assignments in a fraction of the time
 
 Three causes of long or odd marches and slow arrangement were traced in the code

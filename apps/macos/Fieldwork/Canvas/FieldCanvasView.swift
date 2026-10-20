@@ -123,14 +123,15 @@ final class FieldCanvasView: NSView {
 
     // MARK: Geometry helpers
 
-    private var dotRadius: CGFloat { max(3.5, min(9, 0.3 * transform.scale)) }
+    // A 0.3-meter radius shrinks with the field; only close-up views cap its size.
+    private var dotRadius: CGFloat { min(9, 0.3 * transform.scale) }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
     private func world(_ v: CGPoint) -> Point2 { transform.toWorld(v, in: bounds) }
 
     private func hitDot(at v: CGPoint) -> CanvasDot? {
         guard let state else { return nil }
-        let limit = dotRadius + 4
+        let limit = max(7.5, dotRadius + 4)
         var best: (CanvasDot, CGFloat)?
         for dot in state.dots {
             let p = view(dot.point)
@@ -656,7 +657,8 @@ final class FieldCanvasView: NSView {
             let color = Tokens.sectionColor(dot.colorIndex)
             if state.fieldStyle != .dark {
                 ctx.saveGState()
-                ctx.setShadow(offset: .zero, blur: state.fieldStyle == .paper ? 1.5 : 3, color: NSColor.black.withAlphaComponent(0.7).cgColor)
+                let blur: CGFloat = state.fieldStyle == .paper ? 1.5 : 3
+                ctx.setShadow(offset: .zero, blur: blur * min(1, r / 3.5), color: NSColor.black.withAlphaComponent(0.7).cgColor)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
                 ctx.restoreGState()
             } else {
@@ -1041,7 +1043,7 @@ final class FieldCanvasView: NSView {
     private func drawSymbol(_ symbol: PerformerSymbol, at p: CGPoint, radius r: CGFloat, color: NSColor, in ctx: CGContext) {
         ctx.setFillColor(color.cgColor)
         ctx.setStrokeColor(color.cgColor)
-        ctx.setLineWidth(max(1.5, r * 0.35))
+        ctx.setLineWidth(max(1.5 * min(1, r / 3.5), r * 0.35))
         switch symbol {
         case .circle:
             ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r))
