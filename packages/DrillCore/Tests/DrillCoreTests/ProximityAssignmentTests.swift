@@ -72,6 +72,36 @@ final class ProximityAssignmentTests: XCTestCase {
         XCTAssertEqual(session.show.proximityOrder(ids.reversed(), to: points, at: set), ids.reversed())
     }
 
+    func testPlaceUnplacedMatchesPreviousDotsAcrossSectionBlocks() throws {
+        let session = try session()
+        let preset = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        try session.perform(try session.show.makePlaceUnplaced(at: preset))
+        let points = ids.map { session.show.formation(preset)[$0].position!.point }
+        let expected = Dictionary(uniqueKeysWithValues: zip(ids, points.reversed()))
+        try session.perform(.setPlacements(preset, expected.mapValues { .placed(Position(x: $0.x, y: $0.y)) }))
+        try session.perform(try session.show.makeCreateSet(after: preset, counts: 8, copyPositions: false))
+        let arrival = try XCTUnwrap(session.show.nextSet(after: preset)).id
+        try session.perform(try session.show.makePlaceUnplaced(at: arrival))
+        for id in ids {
+            XCTAssertEqual(session.show.formation(arrival)[id].position?.point, expected[id])
+        }
+    }
+
+    func testMissingPositionsAndEqualDistancesHaveStableAssignments() throws {
+        let session = try session()
+        let set = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        let points = FormGeometry.line(start: Point2(-7, 0), end: Point2(7, 0)).distribute(ids.count)
+        XCTAssertEqual(session.show.proximityOrder(ids.reversed(), to: points, at: set), ids)
+        try session.perform(.setPlacements(set, Dictionary(uniqueKeysWithValues: ids.map {
+            ($0, Placement.placed(Position(x: 0, y: 0)))
+        })))
+        let first = session.show.proximityOrder(ids, to: points, at: set)
+        XCTAssertEqual(Set(first), Set(ids))
+        XCTAssertEqual(session.show.proximityOrder(ids.reversed(), to: points, at: set), first)
+    }
+
     func testUnresolvedArrivalUsesPreviousPositionsAndUnplacedFillRemainingDots() throws {
         let session = try session()
         let preset = session.show.sets[0].id

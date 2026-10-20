@@ -1,5 +1,26 @@
 # Progress log
 
+## 2026-10-19: Assign shape dots by proximity
+
+New drawn lines/arcs and quick lines, arcs, blocks and circles now assign members
+by minimum total straight-line travel in meters using a deterministic Hungarian
+matching. Section and roster order no longer determine destinations for placed
+performers. An unresolved arrival uses the previous set's position when available;
+performers without either position fill remaining dots in stable roster order.
+Place Unplaced also matches across its section blocks when prior positions exist.
+Existing form handle edits and explicit Reverse Order retain their assignments.
+The Mac editor and C bridge use the same core assignment, and undo/redo preserves
+the resulting membership and placements.
+
+Validation: all portable suites passed (DrillTiming 20, DrillCore 50,
+DrillDocument 28, DrillBridge 2); the final DrillCore run passed 52 tests including
+six proximity regressions. The unsigned Debug macOS app test suite passed via
+`xcodebuild ... test`. Tests cover all four quick shapes with reversed section
+order, drawn line/arc membership, undo/redo, previous-set fallback, mixed placed
+and unplaced members, deterministic ties, and a case where greedy nearest-dot
+selection produces unnecessary travel. No manual UI session was run.
+
+
 ## 2026-10-19: Per-performer paths (P0 and P1 of `FIELDWORK_PATHS.md`)
 
 Environment: Windows 11 Home (10.0.26200), Swift 6.4 (`swift-6.4-RELEASE`), .NET SDK. **No Mac was available**, so the macOS part was written but not compiled or run.

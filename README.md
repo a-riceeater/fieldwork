@@ -94,6 +94,9 @@ generated project. The generated project remains ignored by git.
   - Field presets (high school, college and pro football, indoor floor) and custom dimensions.
   - Sets placed by counts; later sets shift, and the timeline extends inside the same transaction.
   - Line and arc forms keep their geometry and order, with equal arc-length spacing.
+  - New lines, arcs, blocks and circles assign performers by minimum total travel
+    distance across sections, using current positions (or the previous set for
+    unresolved arrivals). Unplaced performers fill remaining dots in roster order.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
   - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.
@@ -133,7 +136,7 @@ generated project. The generated project remains ignored by git.
 
 - Shapes and paths:
   - Composite Bézier, ellipse, block and freehand forms.
-  - Proximity or pinned assignment.
+  - Pinned assignment and assignment previews.
   - Path generators: follow-the-leader and block rotation (P2); cubic path segments.
 - Timing editing:
   - Meter changes after sets exist.
