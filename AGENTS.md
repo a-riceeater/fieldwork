@@ -11,3 +11,4 @@
   a colon and a space, then an imperative, lowercase description with no trailing period.
   Mark breaking changes with `!` before the colon.
 - Push once all the code for the task is done.
+- Never co-author, or add a co-authored by tag.
