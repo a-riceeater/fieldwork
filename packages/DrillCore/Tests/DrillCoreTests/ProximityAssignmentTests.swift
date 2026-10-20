@@ -111,8 +111,12 @@ final class ProximityAssignmentTests: XCTestCase {
         let arrival = try XCTUnwrap(session.show.nextSet(after: preset)).id
         let points = [Point2(-10, 0), Point2(0, 0), Point2(10, 0)]
         XCTAssertEqual(session.show.proximityOrder(ids, to: points, at: arrival), [ids[1], ids[2], ids[0]])
-        // An actual current position takes precedence over the previous set.
+        // A provisional position on the edited set does not change where the
+        // performer marches from.
         try session.perform(try session.show.makeSetCoordinate(ids[0], at: arrival, x: -10, y: 0))
+        XCTAssertEqual(session.show.proximityOrder(ids, to: points, at: arrival), [ids[1], ids[2], ids[0]])
+        // With no placed neighbor set, the current position is the anchor.
+        try session.perform(.setPlacements(preset, [ids[0]: .unresolved]))
         XCTAssertEqual(session.show.proximityOrder(ids, to: points, at: arrival), ids)
     }
 }
