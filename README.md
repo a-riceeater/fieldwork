@@ -94,9 +94,13 @@ generated project. The generated project remains ignored by git.
   - Field presets (high school, college and pro football, indoor floor) and custom dimensions.
   - Sets placed by counts; later sets shift, and the timeline extends inside the same transaction.
   - Line and arc forms keep their geometry and order, with equal arc-length spacing.
-  - New lines, arcs, blocks and circles assign performers by minimum total travel
-    distance across sections, using current positions (or the previous set for
-    unresolved arrivals). Unplaced performers fill remaining dots in roster order.
+  - New lines, arcs, blocks and circles start with minimum-distance assignment
+    across sections, then reduce timed close passes in the incoming and outgoing
+    moves. Checks use the show's minimum clearance, include unselected performers
+    and retained holds/arcs/waypoints, and prioritize fewer close passes over travel.
+    Matching uses current positions (or the previous set for unresolved arrivals);
+    performers without positions fill remaining dots in roster order. Collision
+    refinement is a bounded local search; remaining close passes stay visible as warnings.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
   - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.

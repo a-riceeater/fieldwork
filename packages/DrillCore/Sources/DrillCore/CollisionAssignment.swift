@@ -95,7 +95,21 @@ extension Show {
                 let own = (0..<n).filter { $0 != i }.reduce(fixedRisk(active[i])) { $0 + pair(active[i], active[$1]) }
                 guard own.passes > 0 else { continue }
                 var best: Int?, bestDelta = AssignmentRisk(), bestTravel = 0.0
+                // Try shorter adjacent-move routes first. A swap eliminating
+                // every affected close pass can stop the search immediately.
+                func adjacentTravel(_ member: Int, _ dot: Int) -> Double {
+                    moves.reduce(0) { total, move in
+                        total + (move.other[members[member]].position?.point.distance(to: targets[dot]) ?? 0)
+                    }
+                }
+                var candidates: [(index: Int, cost: Double)] = []
                 for j in 0..<n where j != i {
+                    let cost = adjacentTravel(order[j], i) + adjacentTravel(order[i], j)
+                    candidates.append((j, cost))
+                }
+                candidates.sort { a, b in a.cost == b.cost ? a.index < b.index : a.cost < b.cost }
+                for candidate in candidates {
+                    let j = candidate.index
                     let left = routes(order[j], i), right = routes(order[i], j)
                     var before = fixedRisk(active[i]) + fixedRisk(active[j]) + pair(active[i], active[j])
                     var after = fixedRisk(left) + fixedRisk(right) + pair(left, right)
@@ -108,6 +122,7 @@ extension Show {
                     let tied = delta.passes == bestDelta.passes && abs(delta.deficit - bestDelta.deficit) <= 1e-9
                     if delta.improves(on: bestDelta) || (tied && distance < bestTravel - 1e-9) {
                         best = j; bestDelta = delta; bestTravel = distance
+                        if after.passes == 0 && delta.passes < 0 { break }
                     }
                 }
                 if let j = best {

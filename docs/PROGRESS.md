@@ -1,5 +1,33 @@
 # Progress log
 
+## 2026-10-19: Consider timed collisions during shape assignment
+
+Shape creation now refines the proximity matching with up to four deterministic
+pair-swap sweeps. The objective prioritizes fewer close-pass warnings, then less
+clearance deficit, then shorter travel. It checks both adjacent moves, including
+unselected moving and stationary performers, using the show's `minClearance`.
+Candidate routes receive the same endpoint adjustment and canonicalization as
+committed paths. The shared analyzer supplies exact straight/hold measurements
+and sampled/refined arc measurements, so crossing at different counts is allowed.
+No performer outside the selection is reassigned, and path timing and control
+points remain authored. A zero clearance disables this refinement.
+
+This is bounded local optimization, not a global or collision-free guarantee.
+Fixed endpoint spacing cannot be repaired by assignment; remaining mid-move
+close passes still use the normal analysis warnings. Initial presets with no adjacent move keep proximity behavior;
+existing form-handle and explicit reverse-order edits retain their assignments.
+
+Validation: all portable suites passed (DrillTiming 20, DrillCore 59,
+DrillDocument 28, DrillBridge 2). The unsigned Debug Mac suite passed 22 tests
+with one opt-in benchmark skipped. Seven new collision regressions cover
+incoming/outgoing moves, an unselected stationary performer, staggered holds,
+an unselected arc whose chord misses the collision, disabled clearance,
+undo/redo and a 350-performer reversed formation. The large formation has no
+remaining close-pass warnings after assignment. All seven collision regressions
+also passed in Release; the 350-performer assignment command took 0.492 seconds
+(about 4.1–4.5 seconds in Debug). No manual UI session was run.
+
+
 ## 2026-10-19: Assign shape dots by proximity
 
 New drawn lines/arcs and quick lines, arcs, blocks and circles now assign members

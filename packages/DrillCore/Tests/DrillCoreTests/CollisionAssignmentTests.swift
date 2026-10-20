@@ -62,14 +62,41 @@ final class CollisionAssignmentTests: XCTestCase {
         try place(targets, ids: ids, at: arrival, in: session)
         XCTAssertEqual(try closePasses(session).count, 1)
         try session.perform(try session.show.makeSetPaths(into: arrival, [
-            ids[0]: [.hold(counts: 4), .line(counts: 4, to: targets[0])],
-            ids[1]: [.line(counts: 4, to: targets[1]), .hold(counts: 4)],
+            ids[0]: [.hold(counts: Rational(4)), .line(counts: Rational(4), to: targets[0])],
+            ids[1]: [.line(counts: Rational(4), to: targets[1]), .hold(counts: Rational(4))],
         ]))
         XCTAssertTrue(try closePasses(session).isEmpty)
         let paths = session.show.transition(into: arrival)?.paths
         try session.perform(try session.show.makeForm(.line(start: targets[0], end: targets[1]), members: ids, at: arrival))
         XCTAssertEqual(session.show.forms.last?.members, ids)
         XCTAssertEqual(session.show.transition(into: arrival)?.paths, paths)
+        XCTAssertTrue(try closePasses(session).isEmpty)
+    }
+
+    func testUnselectedArcIsCheckedInsteadOfItsStraightChord() throws {
+        let (session, ids, _, arrival) = try fixture([Point2(0, 0), Point2(-3, 6), Point2(0, -2)])
+        let targets = [Point2(4, 0), Point2(-4, 2)]
+        try place(targets + [Point2(0, 2)], ids: ids, at: arrival, in: session)
+        XCTAssertTrue(try closePasses(session).isEmpty, "Straight chords miss the curved collision")
+        try session.perform(try session.show.makeSetPaths(into: arrival, [
+            ids[2]: [.arc(counts: Rational(8), to: Point2(0, 2), sweep: -180)],
+        ]))
+        XCTAssertTrue(try closePasses(session).contains { $0.isSampled })
+        let arc = session.show.transition(into: arrival)?.paths[ids[2]]
+        try session.perform(try session.show.makeForm(.line(start: targets[0], end: targets[1]), members: Array(ids.prefix(2)), at: arrival))
+        XCTAssertTrue(try closePasses(session).isEmpty)
+        XCTAssertEqual(session.show.transition(into: arrival)?.paths[ids[2]], arc)
+        XCTAssertEqual(session.show.forms.last?.members, Array(ids.prefix(2).reversed()))
+    }
+
+    func testLargeReversedFormationReducesClosePasses() throws {
+        let points = (0..<350).map { Point2((Double($0) - 174.5) * 0.3, 0) }
+        let (session, ids, _, arrival) = try fixture(points)
+        try place(points.reversed(), ids: ids, at: arrival, in: session)
+        let start = Date()
+        try session.perform(try session.show.makeForm(.line(start: points[0], end: points[349]), members: ids, at: arrival))
+        print("350-performer collision assignment: \(Date().timeIntervalSince(start)) seconds")
+        XCTAssertEqual(session.show.forms.last?.members, ids)
         XCTAssertTrue(try closePasses(session).isEmpty)
     }
 
