@@ -636,7 +636,7 @@ When opening a file:
 3. If it is lower, the reader applies each step `v → v+1` in its own transaction on the in-memory copy, then reads the result. The archive on disk is **never touched**.
 4. The next save writes a fresh schema 5 database.
 
-Fieldwork itself always writes schema 5, with or without paths. Other writers (such as a converter) may write schema 4 when they have no paths; readers open both. `spec/fixtures/paths.fieldwork` is a schema 5 file that uses every segment kind.
+Fieldwork itself always writes schema 5, with or without paths. Other writers (such as a converter) may write schema 4 when they have no paths; readers open both. `spec/fixtures/paths.fieldwork` is a schema 5 file that uses every segment kind. A converter that writes paths follows [`spec/converter-paths.md`](../spec/converter-paths.md), which has a runnable reference in `spec/examples/paths_reference.py`.
 
 `examples/first-light.fieldwork` is currently a schema 1 file. It has no `counting_mode`, `rehearsal_mark`, `measure_marker`, `symbol` or `field_note`, and it opens through this migration path.
 

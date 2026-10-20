@@ -79,6 +79,7 @@ Canonical units: positions in **meters** from field center (+x toward the audien
 - An arc with sweep θ from `P0` to `P1` has its center at `M − n·(L/2)/tan(θ/2)`, where `M` is the chord's midpoint, `L` its length and `n` its left normal. It turns from `P0` by `−θ·s` around that center and lands exactly on `P1`.
 - `z` and facing interpolate over the whole move. A performer is not moving during a hold.
 - Writers store only canonical paths: no rows for a single straight line or for standing still, no zero-length lines, no adjacent holds, no mergeable adjacent lines or arcs, and no arc with a sagitta under 1e-6 m. Rows are inserted by arrival-set, performer and segment order.
+- Converters that write paths follow [`converter-paths.md`](converter-paths.md).
 
 ### Timeline semantics
 
