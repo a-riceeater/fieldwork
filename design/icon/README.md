@@ -3,8 +3,9 @@
 The mark is a drill formation: ten performer dots on an exact 104-unit grid form
 an F. The field-blue tile, white dots and blue accent use the app's existing
 design tokens. Flat fills and circles keep the mark legible without illustration,
-text, gradients or simulated materials. The mark has equal horizontal padding
-and generous vertical padding inside the tile.
+text, gradients or simulated materials. The mark retains generous padding inside the tile. Its position is offset
+24 units right and down from the geometric center to balance the F's visual
+weight toward the upper left, especially at Dock sizes.
 
 `fieldwork.svg` is the editable 1024 × 1024 master. The rounded tile includes
 transparent padding for the macOS icon silhouette. All seven PNG sizes in

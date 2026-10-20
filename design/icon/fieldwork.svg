@@ -3,17 +3,17 @@
   <desc>Ten evenly spaced performer dots form an F on a field-blue rounded square.</desc>
   <rect x="100" y="100" width="824" height="824" rx="184" fill="#192A36"/>
   <g fill="#F1F3F8">
-    <circle cx="356" cy="304" r="32"/>
-    <circle cx="356" cy="408" r="32"/>
-    <circle cx="356" cy="512" r="32"/>
-    <circle cx="356" cy="616" r="32"/>
-    <circle cx="356" cy="720" r="32"/>
+    <circle cx="380" cy="328" r="32"/>
+    <circle cx="380" cy="432" r="32"/>
+    <circle cx="380" cy="536" r="32"/>
+    <circle cx="380" cy="640" r="32"/>
+    <circle cx="380" cy="744" r="32"/>
   </g>
   <g fill="#82A7FF">
-    <circle cx="460" cy="304" r="32"/>
-    <circle cx="564" cy="304" r="32"/>
-    <circle cx="668" cy="304" r="32"/>
-    <circle cx="460" cy="512" r="32"/>
-    <circle cx="564" cy="512" r="32"/>
+    <circle cx="484" cy="328" r="32"/>
+    <circle cx="588" cy="328" r="32"/>
+    <circle cx="692" cy="328" r="32"/>
+    <circle cx="484" cy="536" r="32"/>
+    <circle cx="588" cy="536" r="32"/>
   </g>
 </svg>
