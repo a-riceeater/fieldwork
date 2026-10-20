@@ -175,18 +175,19 @@ extension Show {
         }
 
         // Each conflicting dot's nearest other dots: the usual swap partners.
-        let nearestCount = min(n - 1, 12)
+        // Later sweeps widen the search for conflicts that remain.
+        let nearestLimit = min(n - 1, 48)
         var nearestCache = [[Int]?](repeating: nil, count: n)
-        func nearest(_ i: Int) -> [Int] {
-            if let value = nearestCache[i] { return value }
+        func nearest(_ i: Int, _ count: Int) -> ArraySlice<Int> {
+            if let value = nearestCache[i] { return value.prefix(count) }
             let others: [(index: Int, distance: Double)] = (0..<n).filter { $0 != i }.map { j in
                 let d = targets[i] - targets[j]
                 return (j, d.dot(d))
             }
             let sorted = others.sorted { $0.distance == $1.distance ? $0.index < $1.index : $0.distance < $1.distance }
-            let value = sorted.prefix(nearestCount).map(\.index)
+            let value = sorted.prefix(nearestLimit).map(\.index)
             nearestCache[i] = value
-            return value
+            return value.prefix(count)
         }
 
         var fixedCache = [AssignmentRisk?](repeating: nil, count: n * n)
@@ -236,13 +237,14 @@ extension Show {
             }
         }
 
-        for _ in 0..<8 {
+        for sweep in 0..<8 {
             var changed = false
+            let width = 12 << min(sweep / 2, 2)
             for i in 0..<n {
                 if exhausted { return order.map { members[$0] } }
                 guard totals[i].passes > 0 else { continue }
                 // Nearby dots plus every conflicting partner, cheapest first.
-                var candidates: [(index: Int, cost: Double)] = Set(nearest(i)).union(neighbors[i].keys).map { j in
+                var candidates: [(index: Int, cost: Double)] = Set(nearest(i, width)).union(neighbors[i].keys).map { j in
                     let swapped = travel(order[j], i) + travel(order[i], j)
                     return (j, swapped - travel(order[i], i) - travel(order[j], j))
                 }

@@ -4,8 +4,10 @@ extension Show {
     /// Returns members in target-dot order, starting with minimum total squared
     /// marching distance: from each member's previous-set position and to their
     /// next-set position. Squaring keeps everyone's move short rather than sending
-    /// one performer across the form to save others a little, and when everyone
-    /// moves straight at once it keeps matched paths from crossing. Members with
+    /// one performer across the form to save others a little. When only the move
+    /// from the previous set is matched and everyone travels straight, no two
+    /// matched performers come closer than 1/√2 of their spacing at the start or
+    /// the end (swapping their dots would otherwise cost less). Members with
     /// neither neighbor placed match from their current position. Sections and
     /// labels never contribute to the cost. Members with no position at all fill
     /// unused dots in stable roster order after the others have been matched.
