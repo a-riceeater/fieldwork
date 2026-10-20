@@ -636,7 +636,8 @@ final class FieldCanvasView: NSView {
         // Dots. On grass and paper a soft dark halo keeps light section colors readable.
         let r = dotRadius
         let showLabels = state.alwaysShowLabels || transform.scale >= 10
-        // Labels stay in screen points, so zooming out never produces huge text over tiny dots.
+        // Cache text at its close-up size, then shrink it with small dots when drawing.
+        let labelScale = min(1, r / 3.5)
         let fontSize: CGFloat = state.alwaysShowLabels ? 8 : max(8, min(11, transform.scale * 0.6))
         let paper = state.fieldStyle == .paper
         let backingScale = window?.backingScaleFactor ?? 2
@@ -670,20 +671,25 @@ final class FieldCanvasView: NSView {
                 ctx.strokeEllipse(in: CGRect(x: p.x - r - 3, y: p.y - r - 3, width: 2 * r + 6, height: 2 * r + 6))
             }
             if showLabels || dot.selected {
+                ctx.saveGState()
+                ctx.translateBy(x: p.x, y: p.y)
+                ctx.scaleBy(x: labelScale, y: labelScale)
+                let labelRadius = r / labelScale
                 if let cached = labelCache[dot.label] {
-                    cached.draw(at: p, radius: r, placement: state.labelPlacement, in: ctx)
+                    cached.draw(at: .zero, radius: labelRadius, placement: state.labelPlacement, in: ctx)
                 } else {
                     let text = NSAttributedString(string: dot.label, attributes: labelAttributes)
                     if let cached = Self.rasterizeLabel(text, scale: backingScale) {
                         labelCache[dot.label] = cached
-                        cached.draw(at: p, radius: r, placement: state.labelPlacement, in: ctx)
+                        cached.draw(at: .zero, radius: labelRadius, placement: state.labelPlacement, in: ctx)
                     } else {
                         let measured = text.size()
                         let size = CGSize(width: ceil(measured.width) + 2, height: ceil(measured.height) + 2)
-                        let origin = state.labelPlacement.origin(at: p, radius: r, size: size)
+                        let origin = state.labelPlacement.origin(at: .zero, radius: labelRadius, size: size)
                         text.draw(at: CGPoint(x: origin.x + 1, y: origin.y + 1))
                     }
                 }
+                ctx.restoreGState()
             }
         }
 

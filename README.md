@@ -130,7 +130,7 @@ generated project. The generated project remains ignored by git.
 
 - NSDocument document type with a single save path.
 - AppKit field canvas: select, Shift-select, box select, drag with one commit, Space-drag pan, zoom, nudge, snap with Option bypass, axis lock, line and arc tools, form handles.
-- Field-focused default layout with resizable panes, collapsible warnings, and an optional fixed-size performer-label overlay at every zoom level.
+- Field-focused default layout with resizable panes, collapsible warnings, and optional always-visible performer labels that shrink with the dots when zoomed out.
 - Timeline with seconds and measure rulers, cached waveform, set and anchor lanes, scrubbing and anchor drag.
 - AVFoundation playback with the audio clock as master; WAV and MP3 decoding through AVFoundation.
 - Align Here and Align Set Here.

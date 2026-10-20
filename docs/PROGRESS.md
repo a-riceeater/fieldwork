@@ -1,5 +1,17 @@
 # Progress log
 
+## 2026-10-20: Scale performer labels with zoomed-out dots
+
+Performer labels now shrink by the same factor as small dots, including their
+outline and gap from the dot. This applies to always-visible labels and selected
+performers, in both label placements. Close-up font sizes stay unchanged. Cached
+label images are scaled at drawing time so zooming out does not rerasterize text
+or round tiny fonts to oversized pixel bounds.
+
+Validation: unsigned Debug macOS build and app suite passed (25 tests, one
+opt-in benchmark skipped), including label rendering and placement checks.
+No manual UI session was run.
+
 ## 2026-10-20: Scale performer dots with the zoomed-out field
 
 Removed the canvas's 3.5-point minimum performer radius, which made dots grow
