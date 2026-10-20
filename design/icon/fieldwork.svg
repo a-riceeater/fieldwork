@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Fieldwork</title>
+  <desc>Ten evenly spaced performer dots form an F on a field-blue rounded square.</desc>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="#192A36"/>
+  <g fill="#F1F3F8">
+    <circle cx="352" cy="256" r="40"/>
+    <circle cx="352" cy="384" r="40"/>
+    <circle cx="352" cy="512" r="40"/>
+    <circle cx="352" cy="640" r="40"/>
+    <circle cx="352" cy="768" r="40"/>
+  </g>
+  <g fill="#82A7FF">
+    <circle cx="480" cy="256" r="40"/>
+    <circle cx="608" cy="256" r="40"/>
+    <circle cx="736" cy="256" r="40"/>
+    <circle cx="480" cy="512" r="40"/>
+    <circle cx="608" cy="512" r="40"/>
+  </g>
+</svg>

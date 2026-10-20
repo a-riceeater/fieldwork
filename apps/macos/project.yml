@@ -53,6 +53,7 @@ targets:
         SWIFT_VERSION: "5.0"
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   FieldworkTests:
     type: bundle.unit-test
     platform: macOS
