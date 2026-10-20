@@ -14,6 +14,17 @@ struct EditorView: View {
             if let banner = model.recoveredBanner ?? model.readOnlyReason {
                 BannerView(text: banner, isWarning: model.readOnlyReason != nil) { model.recoveredBanner = nil }
             }
+            if model.isArranging {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Arranging performers…")
+                    Spacer()
+                    Button("Cancel") { model.cancelArrangement() }
+                }
+                .padding(.horizontal, Tokens.Space.l)
+                .padding(.vertical, Tokens.Space.s)
+                .background(.bar)
+            }
             EditorWorkspace(model: model)
             StatusBar(model: model)
         }

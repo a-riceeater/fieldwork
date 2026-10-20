@@ -1,0 +1,81 @@
+import XCTest
+import DrillCore
+@testable import Fieldwork
+
+final class ArrangementTests: XCTestCase {
+    @MainActor
+    private func waitUntil(_ condition: () -> Bool) {
+        let deadline = Date(timeIntervalSinceNow: 3)
+        while !condition(), Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+        }
+        XCTAssertTrue(condition())
+    }
+
+    @MainActor
+    func testBlockedCalculationLeavesEditorResponsiveAndCommitsOneUndoStep() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let original = model.show
+        let gate = DispatchSemaphore(value: 0)
+        defer { gate.signal() }
+        model.buildArrangement { _ in
+            XCTAssertFalse(Thread.isMainThread)
+            guard gate.wait(timeout: .now() + 3) == .success else { throw DrillError("Test worker timed out") }
+            return .renameShow("Arranged")
+        }
+        XCTAssertTrue(model.isArranging)
+        XCTAssertFalse(model.isEditable)
+        XCTAssertEqual(model.show, original)
+        // This main-actor edit runs while calculation is deliberately blocked.
+        model.statusMessage = "Still responsive"
+        XCTAssertEqual(model.statusMessage, "Still responsive")
+        gate.signal()
+        waitUntil { !model.isArranging }
+        XCTAssertEqual(model.show.title, "Arranged")
+        XCTAssertEqual(model.session.revision, 1)
+        model.undo()
+        XCTAssertEqual(model.show, original)
+        model.redo()
+        XCTAssertEqual(model.show.title, "Arranged")
+    }
+
+    @MainActor
+    func testCancelAndContextChangesDiscardPendingResults() throws {
+        let invalidations: [(EditorModel) -> Void] = [
+            { $0.cancelArrangement() },
+            { $0.selection = [$0.show.performers[0].id] },
+            { $0.currentSetID = $0.show.sets[1].id },
+            { $0.perform(.renameShow("Newer edit")) },
+        ]
+        for invalidate in invalidations {
+            let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+            let gate = DispatchSemaphore(value: 0), finished = DispatchSemaphore(value: 0)
+            defer { gate.signal() }
+            model.buildArrangement { _ in
+                defer { finished.signal() }
+                guard gate.wait(timeout: .now() + 3) == .success else { throw DrillError("Test worker timed out") }
+                return .renameShow("Stale result")
+            }
+            XCTAssertTrue(model.isArranging)
+            invalidate(model)
+            XCTAssertFalse(model.isArranging)
+            let expected = model.show
+            gate.signal()
+            XCTAssertEqual(finished.wait(timeout: .now() + 3), .success)
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+            XCTAssertEqual(model.show, expected)
+            XCTAssertNotEqual(model.show.title, "Stale result")
+        }
+    }
+
+    @MainActor
+    func testWorkerFailureClearsProgressAndLeavesDocumentUntouched() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let before = model.show
+        model.buildArrangement { _ in throw DrillError("Cannot arrange this selection") }
+        waitUntil { !model.isArranging }
+        XCTAssertEqual(model.show, before)
+        XCTAssertNotNil(model.alert)
+        XCTAssertTrue(model.isEditable)
+    }
+}

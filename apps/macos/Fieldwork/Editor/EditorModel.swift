@@ -59,13 +59,18 @@ final class EditorModel: ObservableObject {
 
     @Published private(set) var revision = 0
     @Published var selection: Set<PerformerID> = [] {
-        didSet { if !selection.isEmpty { focusedNoteID = nil } }
+        didSet {
+            if selection != oldValue { cancelArrangement() }
+            if !selection.isEmpty { focusedNoteID = nil }
+        }
     }
     /// The field note shown in the inspector. Notes are focused, never selected with performers.
     @Published var focusedNoteID: NoteID?
     /// Text being typed into the focused note, drawn on the field before it commits.
     @Published var noteDraft: FieldNote?
-    @Published var currentSetID: SetID
+    @Published var currentSetID: SetID {
+        didSet { if currentSetID != oldValue { cancelArrangement() } }
+    }
     /// The set Align Set Here pins: the last set the user chose. Scrubbing changes the
     /// set shown on the field, but not this, so a set can be aligned anywhere in the music.
     @Published private(set) var alignSetID: SetID
@@ -111,6 +116,9 @@ final class EditorModel: ObservableObject {
     @Published var showsAllPaths: Bool {
         didSet { preferences.set(showsAllPaths, forKey: "FieldworkShowAllPaths") }
     }
+    @Published private(set) var isArranging = false
+    private var arrangementTask: Task<DrillCommand, Error>?
+    private var arrangementGeneration = UUID()
     @Published var statusMessage: String?
     @Published var alert: EditorAlert?
     @Published var conflict: PendingConflict?
@@ -159,6 +167,7 @@ final class EditorModel: ObservableObject {
     deinit {
         displayTimer?.invalidate()
         displayLink?.invalidate()
+        arrangementTask?.cancel()
     }
 
     // MARK: Model access
@@ -168,7 +177,7 @@ final class EditorModel: ObservableObject {
     var movement: Movement { show.movements[0] }
     var map: TimingMap? { try? session.timingMap(for: movementID) }
     var hasAudio: Bool { movement.audioAssetID != nil }
-    var isEditable: Bool { readOnlyReason == nil && !isPlaying && !isBetweenSets }
+    var isEditable: Bool { readOnlyReason == nil && !isPlaying && !isBetweenSets && !isArranging }
     var currentSet: ArrivalSet? { show.set(currentSetID) }
     var alignSet: ArrivalSet? { show.set(alignSetID) }
     var setsInMovement: [ArrivalSet] { show.sets(in: movementID) }
@@ -228,6 +237,7 @@ final class EditorModel: ObservableObject {
     }
 
     private func afterCommit(_ event: CommitEvent) {
+        cancelArrangement()
         revision = session.revision
         document?.didCommit(event)
         if event.action == .perform {
@@ -464,7 +474,8 @@ final class EditorModel: ObservableObject {
             return
         }
         let members = Array(selection)
-        perform { try self.show.makeForm(geometry, members: members, at: self.currentSetID) }
+        let set = currentSetID
+        buildArrangement { try $0.makeForm(geometry, members: members, at: set) }
         // Back to Select so the next click picks performers instead of drawing again.
         tool = .select
     }
@@ -480,7 +491,8 @@ final class EditorModel: ObservableObject {
             statusMessage = "Select a set to arrange performers."
             return
         }
-        perform { try self.show.makeQuickShape(shape, members: Array(self.selection), at: self.currentSetID, spacingSteps: self.shapeSpacingSteps) }
+        let members = Array(selection), set = currentSetID, spacing = shapeSpacingSteps
+        buildArrangement { try $0.makeQuickShape(shape, members: members, at: set, spacingSteps: spacing) }
         tool = .select
     }
 
@@ -489,8 +501,47 @@ final class EditorModel: ObservableObject {
             statusMessage = "Select a set to place performers."
             return
         }
-        perform { try self.show.makePlaceUnplaced(at: self.currentSetID, spacingSteps: self.shapeSpacingSteps) }
-        requestCanvas(.fitField)
+        let set = currentSetID, spacing = shapeSpacingSteps
+        buildArrangement({ try $0.makePlaceUnplaced(at: set, spacingSteps: spacing) }) { [weak self] in
+            self?.requestCanvas(.fitField)
+        }
+    }
+
+    /// Build from a value snapshot away from AppKit. Only a current, completed
+    /// result may enter the document's normal atomic command/undo pipeline.
+    func buildArrangement(_ build: @escaping @Sendable (Show) throws -> DrillCommand,
+                          completion: @escaping @MainActor () -> Void = {}) {
+        guard isEditable else { return }
+        let snapshot = show, startingRevision = session.revision, set = currentSetID, members = selection
+        let generation = UUID()
+        arrangementGeneration = generation
+        isArranging = true
+        let worker = Task.detached(priority: .userInitiated) { try build(snapshot) }
+        arrangementTask = worker
+        Task { [weak self] in
+            do {
+                let command = try await worker.value
+                guard let self, self.arrangementGeneration == generation else { return }
+                self.arrangementTask = nil
+                self.isArranging = false
+                guard !worker.isCancelled, self.session.revision == startingRevision,
+                      self.currentSetID == set, self.selection == members, self.isEditable else { return }
+                if self.perform(command) { completion() }
+            } catch {
+                guard let self, self.arrangementGeneration == generation else { return }
+                self.arrangementTask = nil
+                self.isArranging = false
+                if !worker.isCancelled { self.report(error) }
+            }
+        }
+    }
+
+    func cancelArrangement() {
+        guard isArranging else { return }
+        arrangementTask?.cancel()
+        arrangementTask = nil
+        arrangementGeneration = UUID()
+        isArranging = false
     }
 
     func commitHandle(_ formID: FormID, geometry: FormGeometry) {
