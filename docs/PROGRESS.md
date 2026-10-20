@@ -1,5 +1,51 @@
 # Progress log
 
+## 2026-10-19: Shorter, safer shape assignments in a fraction of the time
+
+Three causes of long or odd marches and slow arrangement were traced in the code
+and fixed:
+
+- **One performer crossing the form.** Total straight-line distance ties between
+  "everyone steps one dot" and "one performer runs to the far end", so the old
+  matching could choose the latter. It now minimizes total *squared* travel. In a
+  straight move from the previous set this also keeps every matched pair at least
+  1/√2 of its start or end spacing apart, so most close passes never arise.
+- **Matching the wrong move.** The cost used each performer's current position on
+  the edited set, so retrying shapes on one set matched against the previous
+  attempt rather than the actual march. It now uses the previous set's position
+  and, when the next set is placed, the next set's position; the current position
+  is used only when neither neighbor is placed.
+- **Slow refinement.** Each proposed swap rescored every performer and every swap
+  partner was tried, so the 500,000-unit budget was usually exhausted. Swaps now
+  go only to nearby dots (12, widening to 48 in later sweeps) and to performers
+  already in conflict, with a grid broad phase and sparse pair scores. A swap may
+  not trade a close pass for a large stride. Sorting the selection by roster order
+  also looked up performers linearly inside the comparator; it now ranks once.
+
+Measurements on the Windows machine (Release, assignment only, 16-count moves):
+
+| Case | Before | After |
+|---|---|---|
+| 48-dot block shifted diagonally, longest move | 8.24 m | 4.12 m (everyone shifts once) |
+| 120 scattered → block | 0.47 s | 0.003 s |
+| 350 scattered → circle | 0.16 s | 0.015 s |
+| 350 scattered → block, both moves placed | 0.54 s, 1,326 close passes | 0.15 s, 900 |
+| 100 through 150 stationary performers → arc | 0.49 s, 7 close passes | 0.07 s, 5 |
+
+In Debug, the same 120 → block case fell from 4.03 s to 0.020 s and 350 → circle
+from 1.25 s to 0.19 s. Cases that end with many unavoidable conflicts still run
+to the work budget: 0.5–1.1 s in Debug (previously 3.4–4.5 s). These figures come
+from a scratch benchmark that was not committed. They cover assignment only, not
+end-to-end editor latency.
+
+Validation: all portable suites passed (DrillTiming 20, DrillCore 64,
+DrillDocument 28, DrillBridge 2). New regressions cover retrying a shape on a set
+whose positions were reversed by an earlier attempt, the one-dot shift that
+previously tied, and a far-off performer that must not stall the broad phase.
+Tests that relied on the current position overriding the previous set were updated
+to the new rule. The Mac app was not built or run; its arrangement
+calls these same core functions.
+
 ## 2026-10-19: Keep collision-aware arrangement responsive
 
 The previous collision optimizer executed on the Mac main actor and repeated

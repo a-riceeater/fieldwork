@@ -94,13 +94,19 @@ generated project. The generated project remains ignored by git.
   - Field presets (high school, college and pro football, indoor floor) and custom dimensions.
   - Sets placed by counts; later sets shift, and the timeline extends inside the same transaction.
   - Line and arc forms keep their geometry and order, with equal arc-length spacing.
-  - New lines, arcs, blocks and circles start with minimum-distance assignment
-    across sections, then reduce timed close passes in the incoming and outgoing
-    moves. Checks use the show's minimum clearance, include unselected performers
-    and retained holds/arcs/waypoints, and prioritize fewer close passes over travel.
-    Matching uses current positions (or the previous set for unresolved arrivals);
-    performers without positions fill remaining dots in roster order. Collision
-    refinement has a fixed work budget; remaining close passes stay visible as warnings.
+  - New lines, arcs, blocks and circles start with a minimum squared-travel
+    assignment across sections: each performer's march from the previous set and
+    to the next set, or their current position when neither neighbor is placed.
+    Squaring avoids sending one performer across the form to save others a little,
+    and when only the incoming move is matched and everyone travels straight, no
+    two matched performers come closer than about 70% of their spacing at the
+    start or the end. Swaps between
+    nearby or conflicting dots then reduce timed close passes in both adjacent
+    moves without adding large strides. Checks use the show's minimum clearance,
+    include unselected performers and retained holds/arcs/waypoints, and prioritize
+    fewer warnings over travel. Performers without positions fill remaining dots in
+    roster order. Collision refinement has a fixed work budget; remaining close
+    passes stay visible as warnings.
     The Mac editor calculates arrangements in the background with progress and Cancel,
     and discards pending results when the selection, set or document changes.
   - Reverse assignment order, detach, exact coordinates and nudge.
