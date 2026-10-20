@@ -463,7 +463,7 @@ final class EditorModel: ObservableObject {
             report(DrillError("Select performers first, then draw the \(geometry.kindName.lowercased())."))
             return
         }
-        let members = show.sequentialOrder(Array(selection))
+        let members = Array(selection)
         perform { try self.show.makeForm(geometry, members: members, at: self.currentSetID) }
         // Back to Select so the next click picks performers instead of drawing again.
         tool = .select

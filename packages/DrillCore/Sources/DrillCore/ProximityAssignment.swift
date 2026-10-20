@@ -16,6 +16,9 @@ extension Show {
         }
         guard !located.isEmpty else { return members }
         let costs = located.map { member in targets.map { member.point.distance(to: $0) } }
+        // Invalid geometry must reach normal command validation, never stall
+        // the augmenting-path search on an infinite or NaN cost.
+        guard costs.allSatisfy({ $0.allSatisfy(\.isFinite) }) else { return members }
         let matching = Self.minimumDistanceAssignment(costs)
         var ordered = [PerformerID?](repeating: nil, count: targets.count)
         for (row, column) in matching.enumerated() { ordered[column] = located[row].id }

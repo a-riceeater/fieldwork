@@ -91,7 +91,7 @@ final class BridgeSession: @unchecked Sendable {
             let start = Point2(try require(command.x0, "x0"), try require(command.y0, "y0"))
             let end = Point2(try require(command.x1, "x1"), try require(command.y1, "y1"))
             let geometry: FormGeometry = command.type == "placeLine" ? .line(start: start, end: end) : .arc(start: start, end: end, bulge: command.bulge ?? 0)
-            drill = try show.makeForm(geometry, members: show.sequentialOrder(try performerIDs(command.performers)), at: try setID(command.set))
+            drill = try show.makeForm(geometry, members: try performerIDs(command.performers), at: try setID(command.set))
         case "undo":
             guard session.undo() != nil else { throw BridgeFailure(status: FWStatus.commandFailed, message: "Nothing to undo.") }
             drill = nil

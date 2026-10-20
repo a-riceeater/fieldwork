@@ -15,14 +15,14 @@ public enum QuickShape: String, CaseIterable, Sendable {
 }
 
 extension Show {
-    /// Places performers, in drill-label order, into a shape on one set as a
+    /// Places performers into the nearest available shape dots on one set as a
     /// single undoable step. Lines and arcs become retained forms with handles;
     /// blocks and circles are plain positions. The shape is centered on the
     /// performers' current positions, or on the field center when none are placed.
     public func makeQuickShape(_ shape: QuickShape, members ids: [PerformerID], at setID: SetID,
                                spacingSteps: Double = 2, center: Point2? = nil) throws -> DrillCommand {
         guard set(setID) != nil else { throw DrillError("Unknown set.") }
-        let members = sequentialOrder(ids.filter { performer($0) != nil })
+        let members = sequentialOrder(Array(Set(ids.filter { performer($0) != nil })))
         guard !members.isEmpty else { throw DrillError("Select performers first, then choose a shape.") }
         guard spacingSteps.isFinite, spacingSteps > 0 else { throw DrillError("Spacing must be more than zero steps.") }
         let spacing = spacingSteps * field.stepSize
@@ -87,22 +87,23 @@ extension Show {
         }
         rows.append((rowStart..<blocks.count, x - gap))
         let totalDepth = -y + rowDepth
-        var placements: [PerformerID: Placement] = [:]
+        var targets: [Point2] = []
         for row in rows {
             for i in row.range {
                 let b = blocks[i]
                 let blockCenter = Point2(b.origin.x - row.width / 2 + Double(b.columns - 1) * spacing / 2,
                                          b.origin.y + totalDepth / 2 - Double(b.rows - 1) * spacing / 2)
                 let points = Self.blockPoints(b.members.count, spacing: spacing, center: blockCenter, columns: b.columns)
-                for (id, p) in zip(b.members, points) { placements[id] = .placed(Position(x: p.x, y: p.y)) }
+                targets.append(contentsOf: points)
             }
         }
+        let placements = placements(groups.flatMap { $0 }, at: targets, in: setID)
         return .batch(placements.count == 1 ? "Place Performer" : "Place \(placements.count) Performers", [.setPlacements(setID, placements)])
     }
 
     private func placements(_ members: [PerformerID], at points: [Point2], in setID: SetID) -> [PerformerID: Placement] {
         var result: [PerformerID: Placement] = [:]
-        for (id, p) in zip(members, points) {
+        for (id, p) in zip(proximityOrder(members, to: points, at: setID), points) {
             var position = formation(setID)[id].position ?? Position(x: p.x, y: p.y)
             position.x = p.x
             position.y = p.y

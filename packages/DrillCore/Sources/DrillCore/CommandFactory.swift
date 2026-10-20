@@ -264,14 +264,19 @@ extension Show {
         return .setPlacements(setID, [id: .placed(p)])
     }
 
-    /// Applies a line or arc to performers in the given order.
+    /// Applies a line or arc using minimum-distance assignment to its dots.
     public func makeForm(_ geometry: FormGeometry, members: [PerformerID], at setID: SetID, formID: FormID = FormID()) throws -> DrillCommand {
+        guard set(setID) != nil else { throw DrillError("Unknown set.") }
         guard !members.isEmpty else { throw DrillError("Select performers before applying a form.") }
+        guard Set(members).count == members.count, members.allSatisfy({ performer($0) != nil }) else {
+            throw DrillError("Form members must be distinct performers in this show.")
+        }
         guard geometry.length > 1e-6 || members.count == 1 else { throw DrillError("Drag to give the form a length.") }
-        return .applyForm(Form(id: formID, setID: setID, geometry: geometry, members: members))
+        let ordered = proximityOrder(members, to: geometry.distribute(members.count), at: setID)
+        return .applyForm(Form(id: formID, setID: setID, geometry: geometry, members: ordered))
     }
 
-    /// Performers ordered for assignment along a new form: by drill label within section order.
+    /// Stable section/roster order, used when performers have no positions to match.
     public func sequentialOrder(_ ids: [PerformerID]) -> [PerformerID] {
         let sectionOrder = Dictionary(uniqueKeysWithValues: sections.enumerated().map { ($1.id, $0) })
         let index = Dictionary(uniqueKeysWithValues: performers.enumerated().map { ($1.id, $0) })
