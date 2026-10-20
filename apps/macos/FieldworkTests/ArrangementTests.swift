@@ -75,7 +75,7 @@ final class ArrangementTests: XCTestCase {
         model.buildArrangement { _ in throw DrillError("Cannot arrange this selection") }
         waitUntil { !model.isArranging }
         XCTAssertEqual(model.show, before)
-        XCTAssertNotNil(model.alert)
+        XCTAssertEqual(model.statusMessage, "Cannot arrange this selection")
         XCTAssertTrue(model.isEditable)
     }
 }

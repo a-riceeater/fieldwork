@@ -100,7 +100,9 @@ generated project. The generated project remains ignored by git.
     and retained holds/arcs/waypoints, and prioritize fewer close passes over travel.
     Matching uses current positions (or the previous set for unresolved arrivals);
     performers without positions fill remaining dots in roster order. Collision
-    refinement is a bounded local search; remaining close passes stay visible as warnings.
+    refinement has a fixed work budget; remaining close passes stay visible as warnings.
+    The Mac editor calculates arrangements in the background with progress and Cancel,
+    and discards pending results when the selection, set or document changes.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
   - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.

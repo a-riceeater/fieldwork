@@ -42,7 +42,7 @@ extension Show {
     /// Refines the distance matching with deterministic, bounded pair swaps.
     /// Close-pass count wins first, then clearance deficit, then travel distance.
     /// This is a local improvement, not a proof of collision-free choreography.
-    func collisionAwareOrder(_ members: [PerformerID], to targets: [Point2], at setID: SetID) -> [PerformerID] {
+    func collisionAwareOrder(_ members: [PerformerID], to targets: [Point2], at setID: SetID, workLimit: Int = 500_000) -> [PerformerID] {
         let clearance = analysis.minClearance
         guard members.count > 1, clearance.isFinite, clearance > 0 else { return members }
         let selected = Set(members), current = formation(setID)
@@ -72,7 +72,7 @@ extension Show {
         }
         // Charge broad-phase checks as well as arc samples/refinement. Exhaustion
         // discards an unfinished candidate, retaining the last fully scored order.
-        var workRemaining = 500_000
+        var workRemaining = max(0, workLimit)
         var exhausted = false
         func risk(_ a: Mover?, _ b: Mover?) -> AssignmentRisk {
             guard !exhausted, !Task.isCancelled, workRemaining > 0 else {

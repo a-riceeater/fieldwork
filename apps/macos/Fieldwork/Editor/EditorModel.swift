@@ -516,7 +516,12 @@ final class EditorModel: ObservableObject {
         let generation = UUID()
         arrangementGeneration = generation
         isArranging = true
-        let worker = Task.detached(priority: .userInitiated) { try build(snapshot) }
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let command = try build(snapshot)
+            try Task.checkCancellation()
+            return command
+        }
         arrangementTask = worker
         Task { [weak self] in
             do {

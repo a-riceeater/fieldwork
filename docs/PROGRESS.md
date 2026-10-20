@@ -1,5 +1,38 @@
 # Progress log
 
+## 2026-10-19: Keep collision-aware arrangement responsive
+
+The previous collision optimizer executed on the Mac main actor and repeated
+current-pair measurements for every proposed swap. Four sweeps alone did not
+bound its cubic work or its per-arc sampling, so dense drill could block the UI.
+The app was not running when investigated; this cause was traced in the code.
+
+- Cache the current pair-risk matrix and per-performer totals, refreshing only
+  changed rows after an accepted swap. Cache unselected-performer scores too.
+- Limit collision refinement to 500,000 work units, charging broad-phase checks
+  and reserving arc sampling/refinement work before each narrow-phase call.
+  Stop on cancellation or budget exhaustion. Discard incompletely evaluated
+  candidates and return the last fully scored assignment; an incomplete baseline
+  leaves the proximity assignment intact. Normal close-pass warnings remain.
+- Build drawn forms, quick shapes and Place All from an immutable show snapshot
+  on a detached task. Show “Arranging performers…” and Cancel. Commit the result
+  as one normal undo step on the main actor only if the document revision, set,
+  selection and editability still match. Cancellation, edits, selection changes
+  and set navigation discard obsolete results.
+
+Validation: all portable suites passed (DrillTiming 20, DrillCore 61,
+DrillDocument 28, DrillBridge 2). The Mac suite passed 25 tests with one opt-in
+benchmark skipped; the three arrangement tests passed again after adding explicit
+worker cancellation checks. Tests deliberately block background calculation to
+verify main-actor responsiveness, one undo step, Cancel, obsolete-result rejection
+and failure recovery. Nine collision regressions also passed in Release. The
+350-performer assignment measured 0.361 s Release (previously 0.492 s) and 2.77 s
+Debug (previously 4.1–4.5 s). An 80-performer curved case with an intentionally
+small 5,000-unit budget returned its intact baseline in 0.36 ms Release / 2.0 ms
+Debug. These measurements cover assignment, not end-to-end editor latency.
+No manual UI session or user-document reproduction was run.
+
+
 ## 2026-10-19: Consider timed collisions during shape assignment
 
 Shape creation now refines the proximity matching with up to four deterministic

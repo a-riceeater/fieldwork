@@ -100,6 +100,34 @@ final class CollisionAssignmentTests: XCTestCase {
         XCTAssertTrue(try closePasses(session).isEmpty)
     }
 
+    func testExhaustedBudgetKeepsACompleteAssignment() throws {
+        let (session, ids, _, arrival) = try fixture([Point2(-2, 0), Point2(2, 0)])
+        let targets = [Point2(-2, 0), Point2(2, 0)], initial = Array(ids.reversed())
+        for budget in 0...8 {
+            let result = session.show.collisionAwareOrder(initial, to: targets, at: arrival, workLimit: budget)
+            XCTAssertEqual(Set(result), Set(ids))
+            XCTAssertEqual(result, session.show.collisionAwareOrder(initial, to: targets, at: arrival, workLimit: budget))
+            if budget == 0 { XCTAssertEqual(result, initial) }
+        }
+    }
+
+    func testDenseCurvedSearchStopsWithinItsWorkBudget() throws {
+        let points = (0..<80).map { i in
+            Point2(20 * cos(Double(i) * .pi / 40), 20 * sin(Double(i) * .pi / 40))
+        }
+        let (session, ids, _, arrival) = try fixture(points)
+        let targets = Array(points.reversed())
+        try place(targets, ids: ids, at: arrival, in: session)
+        let paths = Dictionary(uniqueKeysWithValues: zip(ids, targets).map {
+            ($0, Optional([PathSegment.arc(counts: Rational(8), to: $1, sweep: 90)]))
+        })
+        try session.perform(try session.show.makeSetPaths(into: arrival, paths))
+        let start = Date()
+        let result = session.show.collisionAwareOrder(ids, to: targets, at: arrival, workLimit: 5_000)
+        print("80-performer dense curved budget: \(Date().timeIntervalSince(start)) seconds")
+        XCTAssertEqual(result, ids, "An incompletely scored baseline must retain the original assignment")
+    }
+
     func testDisabledClearanceUsesDistanceOnly() throws {
         let (session, ids, _, arrival) = try fixture([Point2(-2, 0), Point2(2, 0)])
         try place([Point2(2, 0), Point2(-2, 0)], ids: ids, at: arrival, in: session)
