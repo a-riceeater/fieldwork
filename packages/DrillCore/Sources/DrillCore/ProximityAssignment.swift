@@ -1,7 +1,7 @@
 import Foundation
 
 extension Show {
-    /// Returns members in target-dot order, minimizing total straight-line travel
+    /// Returns members in target-dot order, starting with minimum straight-line travel
     /// in meters. Sections and labels never contribute to the distance cost.
     /// Unplaced members fill unused dots in stable roster order after placed
     /// members have been matched. An unresolved arrival uses its previous set.
@@ -14,7 +14,7 @@ extension Show {
             let position = current[id].position ?? (current[id] == .unresolved ? previous?[id].position : nil)
             return position.map { (id, $0.point) }
         }
-        guard !located.isEmpty else { return members }
+        guard !located.isEmpty else { return collisionAwareOrder(members, to: targets, at: setID) }
         let costs = located.map { member in targets.map { member.point.distance(to: $0) } }
         // Invalid geometry must reach normal command validation, never stall
         // the augmenting-path search on an infinite or NaN cost.
@@ -24,7 +24,8 @@ extension Show {
         for (row, column) in matching.enumerated() { ordered[column] = located[row].id }
         let placedIDs = Set(located.map(\.id))
         var remaining = members.filter { !placedIDs.contains($0) }.makeIterator()
-        return ordered.map { $0 ?? remaining.next()! }
+        let result = ordered.map { $0 ?? remaining.next()! }
+        return collisionAwareOrder(result, to: targets, at: setID)
     }
 
     /// Rectangular Hungarian assignment: one distinct column per row, with

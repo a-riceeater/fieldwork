@@ -88,3 +88,37 @@ extension Show {
             let source = current[id].position ?? (current[id] == .unresolved ? previous?[id].position : nil)
             return source?.point.distance(to: targets[dot]) ?? 0
         }
+        var active = order.indices.map { routes(order[$0], $0) }
+        for _ in 0..<4 {
+            var changed = false
+            for i in 0..<n {
+                let own = (0..<n).filter { $0 != i }.reduce(fixedRisk(active[i])) { $0 + pair(active[i], active[$1]) }
+                guard own.passes > 0 else { continue }
+                var best: Int?, bestDelta = AssignmentRisk(), bestTravel = 0.0
+                for j in 0..<n where j != i {
+                    let left = routes(order[j], i), right = routes(order[i], j)
+                    var before = fixedRisk(active[i]) + fixedRisk(active[j]) + pair(active[i], active[j])
+                    var after = fixedRisk(left) + fixedRisk(right) + pair(left, right)
+                    for k in 0..<n where k != i && k != j {
+                        before = before + pair(active[i], active[k]) + pair(active[j], active[k])
+                        after = after + pair(left, active[k]) + pair(right, active[k])
+                    }
+                    let delta = AssignmentRisk(passes: after.passes - before.passes, deficit: after.deficit - before.deficit)
+                    let distance = travel(order[j], i) + travel(order[i], j) - travel(order[i], i) - travel(order[j], j)
+                    let tied = delta.passes == bestDelta.passes && abs(delta.deficit - bestDelta.deficit) <= 1e-9
+                    if delta.improves(on: bestDelta) || (tied && distance < bestTravel - 1e-9) {
+                        best = j; bestDelta = delta; bestTravel = distance
+                    }
+                }
+                if let j = best {
+                    order.swapAt(i, j)
+                    active[i] = routes(order[i], i)
+                    active[j] = routes(order[j], j)
+                    changed = true
+                }
+            }
+            if !changed { break }
+        }
+        return order.map { members[$0] }
+    }
+}
