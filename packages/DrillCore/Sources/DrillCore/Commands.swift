@@ -230,8 +230,9 @@ public indirect enum DrillCommand: Hashable, Codable, Sendable {
             guard show.set(setID) != nil else { throw DrillError("Unknown set.") }
             var formation = show.formation(setID)
             var deltas: [PerformerID: Point2?] = [:]
+            let known = Set(show.performers.map(\.id))
             for (id, placement) in placements {
-                guard show.performer(id) != nil else { throw DrillError("Unknown performer.") }
+                guard known.contains(id) else { throw DrillError("Unknown performer.") }
                 if let old = formation[id].position, let new = placement.position {
                     deltas[id] = new.point - old.point
                 } else {

@@ -268,7 +268,8 @@ extension Show {
     public func makeForm(_ geometry: FormGeometry, members: [PerformerID], at setID: SetID, formID: FormID = FormID()) throws -> DrillCommand {
         guard set(setID) != nil else { throw DrillError("Unknown set.") }
         guard !members.isEmpty else { throw DrillError("Select performers before applying a form.") }
-        guard Set(members).count == members.count, members.allSatisfy({ performer($0) != nil }) else {
+        let known = Set(performers.map(\.id))
+        guard Set(members).count == members.count, members.allSatisfy(known.contains) else {
             throw DrillError("Form members must be distinct performers in this show.")
         }
         guard geometry.length > 1e-6 || members.count == 1 else { throw DrillError("Drag to give the form a length.") }
@@ -279,12 +280,13 @@ extension Show {
     /// Stable section/roster order, used when performers have no positions to match.
     public func sequentialOrder(_ ids: [PerformerID]) -> [PerformerID] {
         let sectionOrder = Dictionary(uniqueKeysWithValues: sections.enumerated().map { ($1.id, $0) })
-        let index = Dictionary(uniqueKeysWithValues: performers.enumerated().map { ($1.id, $0) })
-        return ids.sorted {
-            let a = performer($0)!, b = performer($1)!
-            if a.sectionID != b.sectionID { return sectionOrder[a.sectionID, default: 0] < sectionOrder[b.sectionID, default: 0] }
-            return index[$0, default: 0] < index[$1, default: 0]
-        }
+        // Rank once; looking performers up inside the comparator made sorting quadratic.
+        let rank = Dictionary(uniqueKeysWithValues: performers.enumerated().map {
+            ($1.id, (section: sectionOrder[$1.sectionID, default: 0], index: $0))
+        })
+        return ids.map { (id: $0, rank: rank[$0]!) }
+            .sorted { $0.rank.section != $1.rank.section ? $0.rank.section < $1.rank.section : $0.rank.index < $1.rank.index }
+            .map(\.id)
     }
 
     /// Embeds an audio asset and selects it as the movement's clock.

@@ -22,7 +22,7 @@ extension Show {
     public func makeQuickShape(_ shape: QuickShape, members ids: [PerformerID], at setID: SetID,
                                spacingSteps: Double = 2, center: Point2? = nil) throws -> DrillCommand {
         guard set(setID) != nil else { throw DrillError("Unknown set.") }
-        let members = sequentialOrder(Array(Set(ids.filter { performer($0) != nil })))
+        let members = sequentialOrder(Array(Set(ids).intersection(performers.map(\.id))))
         guard !members.isEmpty else { throw DrillError("Select performers first, then choose a shape.") }
         guard spacingSteps.isFinite, spacingSteps > 0 else { throw DrillError("Spacing must be more than zero steps.") }
         let spacing = spacingSteps * field.stepSize
