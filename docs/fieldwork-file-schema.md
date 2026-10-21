@@ -660,6 +660,7 @@ The writer validates the whole show before encoding, and the reader validates it
 | 4 | New `field_note` table | Empty |
 | 5 | New `path_segment` table | Empty: every performer moves straight |
 | 6 | Retained circle forms | Existing lines and arcs retain geometry and membership |
+| 7 | Retained curve forms and ordered `form_point` table | Existing forms retain geometry and membership; no curve points |
 
 When opening a file:
 
