@@ -100,7 +100,7 @@ final class FieldCanvasView: NSView {
         }
         let shape = DrawnShape.curve(points: curvePoints)
         do { try shape.validate() } catch {
-            delegate?.canvasMessage(error.localizedDescription)
+            delegate?.canvasMessage(String(describing: error))
             return
         }
         if state?.draft != nil { delegate?.canvasCommitDraftShape(shape) }
