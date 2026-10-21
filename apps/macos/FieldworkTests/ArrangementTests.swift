@@ -75,13 +75,18 @@ final class ArrangementTests: XCTestCase {
         for invalidate in invalidations {
             let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
             let gate = DispatchSemaphore(value: 0), finished = DispatchSemaphore(value: 0)
+            let started = DispatchSemaphore(value: 0)
             defer { gate.signal() }
             model.buildArrangement { _ in
+                started.signal()
                 defer { finished.signal() }
                 guard gate.wait(timeout: .now() + 3) == .success else { throw DrillError("Test worker timed out") }
                 return .renameShow("Stale result")
             }
             XCTAssertTrue(model.isArranging)
+            // Cancel a calculation already running; cancellation before its closure starts
+            // correctly skips the closure and would never signal `finished`.
+            XCTAssertEqual(started.wait(timeout: .now() + 3), .success)
             invalidate(model)
             XCTAssertFalse(model.isArranging)
             let expected = model.show
