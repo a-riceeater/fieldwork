@@ -93,7 +93,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
         }
     }
 
-    /// Handles a canvas shows for direct editing: endpoints plus the arc midpoint.
+    /// Handles for direct editing: endpoints, arc midpoint, circle grips, or every spline point.
     public var handles: [Point2] {
         switch self {
         case .curve(let points): return points

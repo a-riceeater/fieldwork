@@ -24,7 +24,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
         }
     }
 
-    /// Lines, arcs and circles become retained forms with handles once routed.
+    /// Lines, arcs, curves and circles become retained forms with handles once routed.
     public var formGeometry: FormGeometry? {
         switch self {
         case .curve(let points): return .curve(points: points)
@@ -223,7 +223,7 @@ extension Show {
 
     /// Fills drawn shapes with `ids` as one undoable step, matching performers to
     /// dots with the same proximity and collision assignment the quick shapes use.
-    /// Lines, arcs and circles become forms with handles; blocks and text are plain
+    /// Lines, arcs, curves and circles become forms with handles; blocks and text are plain
     /// positions. With `holdOthers`, everyone else stands where they were at the
     /// previous set, so leaving a section out of the route keeps it in place.
     public func makeDrawnSet(_ shapes: [DrawnShape], members ids: [PerformerID], at setID: SetID,

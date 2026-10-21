@@ -62,6 +62,9 @@ final class CurveToolTests: XCTestCase {
             let expected = FormGeometry.curve(points: view.curvePoints)
             try key(36)
             XCTAssertTrue(view.curvePoints.isEmpty)
+            let deadline = Date(timeIntervalSinceNow: 3)
+            while model.isArranging, Date() < deadline { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01)) }
+            XCTAssertFalse(model.isArranging)
             if drawing {
                 XCTAssertEqual(model.draft?.shapes.last?.formGeometry, expected)
                 XCTAssertEqual(model.show, before)
@@ -75,6 +78,7 @@ final class CurveToolTests: XCTestCase {
                 XCTAssertEqual(model.show, before)
             }
             // Escape discards the next curve; changing tools clears its points too.
+            if !drawing { model.tool = .curve }
             view.state = model.canvasState()
             try click(Point2(-10, 0))
             try key(53)

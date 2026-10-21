@@ -840,7 +840,7 @@ final class FieldCanvasView: NSView {
             ctx.setLineDash(phase: 0, lengths: [6, 4])
             for shape in draft.shapes { strokeOutlines(shape.outlines, in: ctx) }
             ctx.setLineDash(phase: 0, lengths: [])
-            if !draft.routed {
+            if !draft.routed, !(curveToolActive && curvePoints.count >= 2) {
                 ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
                 for p in draft.preview {
                     let c = view(p)
@@ -995,7 +995,7 @@ final class FieldCanvasView: NSView {
             strokeOutlines([geometry.polyline()], in: ctx)
             let preview: [Point2]
             if let draft = state.draft {
-                preview = (try? Show(title: "Curve preview", field: state.field).drawnTargets(draft.shapes + [.curve(points: points)], count: draft.memberCount).last) ?? []
+                preview = (try? Show(title: "Curve preview", field: state.field, movements: [], sets: []).drawnTargets(draft.shapes + [.curve(points: points)], count: draft.memberCount).flatMap { $0 }) ?? []
             } else {
                 preview = points.count >= 2 ? geometry.distribute(state.dots.filter(\.selected).count) : []
             }

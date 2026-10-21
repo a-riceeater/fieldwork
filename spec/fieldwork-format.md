@@ -69,8 +69,9 @@ Canonical units: positions in **meters** from field center (+x toward the audien
 | `transition(id, to_set_id UNIQUE, model)` | The move into a set. Version 1 has one model: `straight`, which applies to every performer without a path. It stays `straight` when paths exist. |
 | `path_segment(transition_id, performer_id, ordinal, kind 'hold'\|'line'\|'arc', counts_num, counts_den, x1 NULL, y1 NULL, sweep NULL)` | One performer's route through one move, in order. Durations are exact rationals in count pulses (> 0) and add up exactly to the move's length. `x1`, `y1` is the end point of a `line` or `arc` (NULL for a `hold`). `sweep` is an arc's signed turn in degrees, 0 < \|sweep\| < 360, positive clockwise seen from above (bulging left of start→end); NULL otherwise. The start is the performer's placement at the previous set, and the last leg ends exactly at the placement at `to_set_id`. Unknown kinds are damage, never read as straight. |
 | `placement(set_id, performer_id, state, x, y, z, facing)` | `state` is `placed`, `unresolved` or `inactive`. Coordinates are NULL unless the state is `placed`. |
-| `form(id, set_id, ordinal, kind 'line'\|'arc', x0, y0, x1, y1, bulge)` | Retained form geometry. `bulge` is the signed sagitta in meters. |
+| `form(id, set_id, ordinal, kind 'line'\|'arc'\|'circle'\|'curve', x0, y0, x1, y1, bulge)` | Retained form geometry. `bulge` is the signed sagitta in meters. |
 | `form_member(form_id, ordinal, performer_id)` | Assignment order along the form |
+| `form_point(form_id, ordinal, x, y)` | Ordered spline points, including start and end, for curve forms (schema 7) |
 | `field_note(id, set_id, ordinal, x, y, text)` | A text box shown on the field at one set. `x`, `y` is the box's top-left corner in meters. Notes are reminders for the author and never affect drill. |
 
 ### Path semantics
