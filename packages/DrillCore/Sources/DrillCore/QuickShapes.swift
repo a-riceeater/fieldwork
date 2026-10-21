@@ -16,8 +16,8 @@ public enum QuickShape: String, CaseIterable, Sendable {
 
 extension Show {
     /// Places performers into the nearest available shape dots on one set as a
-    /// single undoable step. Lines and arcs become retained forms with handles;
-    /// blocks and circles are plain positions. The shape is centered on the
+    /// single undoable step. Lines, arcs and circles become retained forms with handles;
+    /// blocks are plain positions. The shape is centered on the
     /// performers' current positions, or on the field center when none are placed.
     public func makeQuickShape(_ shape: QuickShape, members ids: [PerformerID], at setID: SetID,
                                spacingSteps: Double = 2, center: Point2? = nil) throws -> DrillCommand {
@@ -46,12 +46,8 @@ extension Show {
         case .block:
             return .batch(name, [.setPlacements(setID, placements(members, at: Self.blockPoints(n, spacing: spacing, center: c), in: setID))])
         case .circle:
-            let radius = max(spacing, Double(n) * spacing / (2 * .pi))
-            let points = (0..<n).map { i -> Point2 in
-                let angle = -Double.pi / 2 + 2 * Double.pi * Double(i) / Double(n)
-                return c + Point2(radius * cos(angle), radius * sin(angle))
-            }
-            return .batch(name, [.setPlacements(setID, placements(members, at: points, in: setID))])
+            let radius = FormGeometry.circleRadius(spacing: spacing, count: n)
+            return .batch(name, [try makeForm(.circle(center: c, radius: radius), members: members, at: setID)])
         }
     }
 

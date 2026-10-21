@@ -71,16 +71,20 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// positive bulges to the left of the start→end direction.
     case arc(start: Point2, end: Point2, bulge: Double)
 
+    case circle(center: Point2, radius: Double)
+
     public var kindName: String {
         switch self {
         case .line: return "Line"
         case .arc: return "Arc"
+        case .circle: return "Circle"
         }
     }
 
     public var endpoints: (Point2, Point2) {
         switch self {
         case .line(let s, let e), .arc(let s, let e, _): return (s, e)
+        case .circle(let c, let r): return (c, c + Point2(r, 0))
         }
     }
 
@@ -89,6 +93,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
         switch self {
         case .line(let s, let e): return [s, e]
         case .arc(let s, let e, _): return [s, e, point(at: 0.5)]
+        case .circle(let c, let r): return [c, c + Point2(r, 0), c + Point2(0, r), c - Point2(r, 0), c - Point2(0, r)]
         }
     }
 
@@ -96,7 +101,21 @@ public enum FormGeometry: Hashable, Codable, Sendable {
         switch self {
         case .line(let s, let e): return .line(start: s + d, end: e + d)
         case .arc(let s, let e, let b): return .arc(start: s + d, end: e + d, bulge: b)
+        case .circle(let c, let r): return .circle(center: c + d, radius: r)
         }
+    }
+
+    /// Straight-line distance between adjacent performers, including the closing pair.
+    public func neighborSpacing(count: Int) -> Double {
+        guard count > 1 else { return 0 }
+        if case .circle(_, let radius) = self {
+            return 2 * radius * sin(.pi / Double(count))
+        }
+        return length / Double(count - 1)
+    }
+
+    public static func circleRadius(spacing: Double, count: Int) -> Double {
+        count > 1 ? spacing / (2 * sin(.pi / Double(count))) : spacing
     }
 
     /// Circle parameters for a non-degenerate arc.
@@ -127,6 +146,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Total length along the form.
     public var length: Double {
         switch self {
+        case .circle(_, let r): return 2 * .pi * r
         case .line(let s, let e): return s.distance(to: e)
         case .arc(let s, let e, _):
             guard let c = circle else { return s.distance(to: e) }
@@ -137,6 +157,9 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Point at normalized arc length `t` in 0...1 (exact for lines and circular arcs).
     public func point(at t: Double) -> Point2 {
         switch self {
+        case .circle(let c, let r):
+            let angle = -Double.pi / 2 + 2 * .pi * t
+            return c + Point2(r * cos(angle), r * sin(angle))
         case .line(let s, let e):
             return s.lerp(to: e, t)
         case .arc(let s, let e, _):
@@ -149,6 +172,9 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// `count` points at equal arc-length spacing, endpoints included.
     public func distribute(_ count: Int) -> [Point2] {
         guard count > 0 else { return [] }
+        if case .circle = self {
+            return (0..<count).map { point(at: Double($0) / Double(count)) }
+        }
         if count == 1 { return [point(at: 0.5)] }
         return (0..<count).map { point(at: Double($0) / Double(count - 1)) }
     }
@@ -157,13 +183,15 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     public func polyline(segments: Int = 48) -> [Point2] {
         switch self {
         case .line(let s, let e): return [s, e]
-        case .arc: return (0...segments).map { point(at: Double($0) / Double(segments)) }
+        case .arc, .circle: return (0...segments).map { point(at: Double($0) / Double(segments)) }
         }
     }
 
     /// Returns geometry with handle `index` moved to `p` (endpoints; for arcs index 2 sets the bulge).
     public func movingHandle(_ index: Int, to p: Point2) -> FormGeometry {
         switch self {
+        case .circle(let c, let r):
+            return index == 0 ? .circle(center: p, radius: r) : .circle(center: c, radius: max(1e-6, c.distance(to: p)))
         case .line(let s, let e):
             return index == 0 ? .line(start: p, end: e) : .line(start: s, end: p)
         case .arc(let s, let e, let b):
