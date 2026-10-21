@@ -54,6 +54,7 @@ enum MainMenu {
             item("Select Tool", #selector(EditorWindowController.toolSelect(_:)), "1", [.command, .option]),
             item("Line Tool", #selector(EditorWindowController.toolLine(_:)), "2", [.command, .option]),
             item("Arc Tool", #selector(EditorWindowController.toolArc(_:)), "3", [.command, .option]),
+            item("Curve Tool", #selector(EditorWindowController.toolCurve(_:)), "5", [.command, .option]),
             item("Text Tool", #selector(EditorWindowController.toolText(_:)), "4", [.command, .option]),
             .separator(),
             item("Add Section…", #selector(EditorWindowController.addSection(_:)), "k", [.command, .shift]),

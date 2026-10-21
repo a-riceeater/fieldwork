@@ -191,7 +191,7 @@ extension EditorView {
                     }
                 }
                 .pickerStyle(.segmented)
-                .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3), Text (Option-Command-4). Select performers, then drag on the field with Line, Arc or Text.")
+                .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3), Text (Option-Command-4). Select performers, then drag on the field with Line, Arc or Text. Curve (Option-Command-5): click start and end, click between to shape, drag points to adjust, Return to finish, Escape to cancel.")
                 .tourAnchor("toolbar.forms")
                 .accessibilityIdentifier("toolbar.forms")
                 if model.tool == .text {

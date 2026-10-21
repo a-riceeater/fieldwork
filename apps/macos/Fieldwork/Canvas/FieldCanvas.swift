@@ -143,7 +143,7 @@ extension EditorModel {
                                             symbol: circlesOnly ? .circle : (performer.symbol ?? section?.symbol ?? .circle), selected: false))
                 }
             }
-            canvasDraft = CanvasDraft(shapes: draft.shapes, tool: draft.tool, preview: (try? draftPreview.get()) ?? [], routed: draft.routed)
+            canvasDraft = CanvasDraft(shapes: draft.shapes, tool: draft.tool, preview: (try? draftPreview.get()) ?? [], routed: draft.routed, memberCount: draftMembers.count)
             if let set = currentSet { caption = "Drawing set \(set.label) · \(draftMembers.count) performers" }
         }
         var notes: [CanvasNote] = []

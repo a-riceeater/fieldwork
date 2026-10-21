@@ -18,10 +18,30 @@ final class ContainerTests: XCTestCase {
         XCTAssertEqual(Set(form.members), Set(members))
     }
 
+    func testCurvesSurviveSaveReopenAndSchemaSixMigration() throws {
+        let session = try DocumentSession(show: SampleShow.make())
+        let oldDatabase = try SQLiteDatabase(bytes: ShowDatabase.encode(session.show, writer: "test"))
+        try oldDatabase.execute("DROP TABLE form_point")
+        try oldDatabase.setUserVersion(6)
+        try ShowDatabase.migrate(oldDatabase)
+        XCTAssertEqual(try ShowDatabase.read(oldDatabase), session.show)
+        XCTAssertEqual(try oldDatabase.scalarInt("SELECT COUNT(*) FROM pragma_foreign_key_check"), 0)
+        let shapes: [DrawnShape] = [
+            .curve(points: [Point2(-12, 0), Point2(-4, 6), Point2(4, -6), Point2(12, 0)]),
+            .curve(points: [Point2(-10, 10), Point2(0, 15), Point2(10, 10)])
+        ]
+        let set = session.show.sets[0].id
+        try session.perform(try session.show.makeDrawnSet(shapes, members: session.show.performers.map(\.id), at: set))
+        let reopened = try DocumentCodec.decode(DocumentCodec.encode(ShowDocument(show: session.show)))
+        XCTAssertEqual(reopened.show, session.show)
+        XCTAssertEqual(reopened.show.forms(on: set).map(\.geometry), shapes.compactMap(\.formGeometry))
+    }
+
     func testSchemaFiveFormsMigrateWithoutLosingMembers() throws {
         let original = try SampleShow.make()
         let db = try SQLiteDatabase(bytes: ShowDatabase.encode(original, writer: "test"))
         try db.execute("""
+        DROP TABLE form_point;
         CREATE TABLE old_form (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
             kind TEXT NOT NULL CHECK (kind IN ('line','arc')), x0 REAL NOT NULL, y0 REAL NOT NULL,
             x1 REAL NOT NULL, y1 REAL NOT NULL, bulge REAL NOT NULL);

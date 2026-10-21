@@ -139,6 +139,7 @@ enum ShowDatabase {
             try db.execute(schemaV4Changes)
             try db.execute(schemaV5Changes)
             try db.execute(schemaV6Changes)
+            try db.execute(schemaV7Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])

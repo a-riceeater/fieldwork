@@ -57,6 +57,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation, NS
     @MainActor @objc func toolSelect(_ sender: Any?) { model.tool = .select }
     @MainActor @objc func toolLine(_ sender: Any?) { model.tool = .line }
     @MainActor @objc func toolArc(_ sender: Any?) { model.tool = .arc }
+    @MainActor @objc func toolCurve(_ sender: Any?) { model.tool = .curve }
     @MainActor @objc func toolText(_ sender: Any?) { model.tool = .text }
     @MainActor @objc func toggleSnap(_ sender: Any?) { model.snapEnabled.toggle() }
     @MainActor @objc func fitField(_ sender: Any?) { model.requestCanvas(.fitField) }
@@ -121,6 +122,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation, NS
         case #selector(toolSelect(_:)): menuItem.state = model.tool == .select ? .on : .off; return true
         case #selector(toolLine(_:)): menuItem.state = model.tool == .line ? .on : .off; return true
         case #selector(toolArc(_:)): menuItem.state = model.tool == .arc ? .on : .off; return true
+        case #selector(toolCurve(_:)): menuItem.state = model.tool == .curve ? .on : .off; return true
         case #selector(toolText(_:)): menuItem.state = model.tool == .text ? .on : .off; return true
         case #selector(drawNextSet(_:)): return model.isEditable
         case #selector(deleteSet(_:)):

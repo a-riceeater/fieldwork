@@ -18,6 +18,7 @@ final class FieldCanvasView: NSView {
             if oldValue?.tool != state?.tool || oldValue?.draft?.tool != state?.draft?.tool
                 || oldValue?.caption != state?.caption || state?.editable != true {
                 curvePoints = []
+                curveHistory = []
                 curveHover = nil
                 curveDragIndex = nil
             }
@@ -82,6 +83,7 @@ final class FieldCanvasView: NSView {
 
     private var drag: Drag = .none
     private(set) var curvePoints: [Point2] = []
+    private var curveHistory: [[Point2]] = []
     private var curveHover: Point2?
     private var curveDragIndex: Int?
     private var curveToolActive: Bool { state?.draft.map { $0.tool == .curve } ?? (state?.tool == .curve) }
@@ -116,6 +118,7 @@ final class FieldCanvasView: NSView {
         if state?.draft != nil { delegate?.canvasCommitDraftShape(shape) }
         else { delegate?.canvasCommitForm(.curve(points: curvePoints)) }
         curvePoints = []
+        curveHistory = []
         curveHover = nil
         curveDragIndex = nil
         needsDisplay = true
@@ -486,9 +489,11 @@ final class FieldCanvasView: NSView {
             let point = snapped(world(v), event: event)
             if let index = curvePoints.indices.min(by: { view(curvePoints[$0]).distance(to: v) < view(curvePoints[$1]).distance(to: v) }),
                view(curvePoints[index]).distance(to: v) <= 9 {
+                curveHistory.append(curvePoints)
                 curveDragIndex = index
             } else if event.clickCount < 2 {
                 let index = Self.curveInsertionIndex(point, in: curvePoints)
+                curveHistory.append(curvePoints)
                 curvePoints.insert(point, at: index)
                 curveDragIndex = index
             }
@@ -730,11 +735,11 @@ final class FieldCanvasView: NSView {
             switch event.keyCode {
             case 36, 76: finishCurve(); return
             case 53:
-                curvePoints = []; curveHover = nil; curveDragIndex = nil
+                curvePoints = []; curveHistory = []; curveHover = nil; curveDragIndex = nil
                 needsDisplay = true
                 return
             case 51, 117:
-                curvePoints.removeLast(); curveHover = nil; curveDragIndex = nil
+                curvePoints = curveHistory.popLast() ?? []; curveHover = nil; curveDragIndex = nil
                 needsDisplay = true
                 return
             default: break
@@ -995,8 +1000,13 @@ final class FieldCanvasView: NSView {
             ctx.setLineWidth(2)
             let geometry = FormGeometry.curve(points: points)
             strokeOutlines([geometry.polyline()], in: ctx)
-            let count = state.draft == nil ? state.dots.filter(\.selected).count : state.draft?.preview.count ?? 0
-            for point in geometry.distribute(count) where points.count >= 2 {
+            let preview: [Point2]
+            if let draft = state.draft {
+                preview = (try? Show(title: "Curve preview", field: state.field).drawnTargets(draft.shapes + [.curve(points: points)], count: draft.memberCount).last) ?? []
+            } else {
+                preview = points.count >= 2 ? geometry.distribute(state.dots.filter(\.selected).count) : []
+            }
+            for point in preview {
                 let p = view(point)
                 ctx.strokeEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r))
             }
@@ -1005,7 +1015,7 @@ final class FieldCanvasView: NSView {
                 ctx.fillEllipse(in: CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10))
                 drawCaption(index == 0 ? "Start" : (index == curvePoints.count - 1 ? "End" : "\(index)"), at: CGPoint(x: p.x + 9, y: p.y + 9))
             }
-            let instruction = curvePoints.isEmpty ? "Click to place the start" : (curvePoints.count == 1 ? "Click to place the end" : "Click between points to shape · Drag points to adjust · Return to finish · Delete to remove last · Esc to cancel")
+            let instruction = curvePoints.isEmpty ? "Click to place the start" : (curvePoints.count == 1 ? "Click to place the end" : "Click between points to shape · Drag points to adjust · Return to finish · Delete to undo point · Esc to cancel")
             drawCaption(instruction, at: CGPoint(x: 12, y: 56))
         }
         drawCaption(state.caption, at: CGPoint(x: 12, y: bounds.maxY - 24))

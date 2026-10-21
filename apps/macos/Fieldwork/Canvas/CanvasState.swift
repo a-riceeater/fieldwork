@@ -92,6 +92,7 @@ struct CanvasDraft: Equatable {
     var tool: DrawTool
     var preview: [Point2]
     var routed: Bool
+    var memberCount: Int = 0
 }
 
 /// How the canvas draws the field. A per-user view preference, not show data.

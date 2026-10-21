@@ -20,7 +20,7 @@ struct DrawSetBar: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    .help("Drag on the field to draw. Line, Arc and Text run from where you press to where you let go; Block goes corner to corner; Circle grows out from its center.")
+                    .help("Drag on the field to draw. Line, Arc and Text run from where you press to where you let go; Block goes corner to corner; Circle grows out from its center. Curve: click start and end, click between to shape, drag points to adjust, Return to finish, Escape to cancel.")
                     if draft.tool == .text {
                         TextField("Text to spell", text: $model.shapeText)
                             .textFieldStyle(.roundedBorder)
@@ -75,7 +75,7 @@ struct DrawSetBar: View {
         if let problem, !draft.shapes.isEmpty {
             Text(problem).foregroundStyle(Color.fwWarning)
         } else if draft.shapes.isEmpty {
-            Text("Drag on the field to draw the shapes for \(label). \(members) performers will fill them.")
+            Text(draft.tool == .curve ? "Click the start and end, then add shaping points between them. Return to finish; Escape to cancel." : "Drag on the field to draw the shapes for \(label). \(members) performers will fill them.")
                 .foregroundStyle(Color.fwSecondary)
         } else {
             let others = model.show.performers.count - members
