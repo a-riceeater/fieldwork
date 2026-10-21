@@ -50,6 +50,26 @@ final class EditorLayoutTests: XCTestCase {
     }
 
     @MainActor
+    func testZoomOutStopsAtFullFieldAndFollowsViewportSize() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 980, height: 680))
+        canvas.state = model.canvasState()
+        let fitted = CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds)
+        for _ in 0..<4 { canvas.fit(.zoomIn) }
+        XCTAssertGreaterThan(canvas.transform.scale, fitted.scale)
+        for _ in 0..<20 { canvas.fit(.zoomOut) }
+        XCTAssertEqual(canvas.transform, fitted)
+        canvas.setFrameSize(NSSize(width: 1200, height: 800))
+        XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
+
+        // Enlarging the viewport must also respect its new zoom-out limit when
+        // the prior view was manually zoomed, rather than following field fit.
+        canvas.fit(.zoomIn)
+        canvas.setFrameSize(NSSize(width: 1800, height: 1200))
+        XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
+    }
+
+    @MainActor
     func testZoomedCanvasCannotPaintOutsideItsViewport() throws {
         let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
         let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 200, height: 160))

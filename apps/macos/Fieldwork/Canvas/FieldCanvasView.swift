@@ -94,7 +94,10 @@ final class FieldCanvasView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         let resized = newSize != frame.size
         super.setFrameSize(newSize)
-        if resized, followsFieldFit { fit(.fitField) }
+        if resized, let state,
+           followsFieldFit || transform.scale < CanvasTransform.fit(state.field.bounds, in: bounds).scale {
+            fit(.fitField)
+        }
     }
 
     // MARK: View commands
@@ -114,13 +117,24 @@ final class FieldCanvasView: NSView {
             followsFieldFit = false
             transform = CanvasTransform.fit(rect, in: bounds)
         case .zoomIn:
-            followsFieldFit = false
-            transform.zoom(by: 1.25, at: CGPoint(x: bounds.midX, y: bounds.midY), in: bounds)
+            zoom(by: 1.25, at: CGPoint(x: bounds.midX, y: bounds.midY))
         case .zoomOut:
-            followsFieldFit = false
-            transform.zoom(by: 0.8, at: CGPoint(x: bounds.midX, y: bounds.midY), in: bounds)
+            zoom(by: 0.8, at: CGPoint(x: bounds.midX, y: bounds.midY))
         }
         needsDisplay = true
+    }
+
+    /// The full-field overview is the furthest useful zoom-out. All zoom inputs
+    /// share this limit, and reaching it restores the centered, resize-following fit.
+    private func zoom(by factor: CGFloat, at anchor: CGPoint) {
+        guard let state else { return }
+        let fitted = CanvasTransform.fit(state.field.bounds, in: bounds)
+        if factor < 1, transform.scale * factor <= fitted.scale {
+            fit(.fitField)
+            return
+        }
+        followsFieldFit = false
+        transform.zoom(by: factor, at: anchor, in: bounds)
     }
 
     // MARK: Geometry helpers
@@ -577,20 +591,19 @@ final class FieldCanvasView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        followsFieldFit = false
         let v = convert(event.locationInWindow, from: nil)
         if event.modifierFlags.contains(.command) || !event.hasPreciseScrollingDeltas {
             let factor = exp(event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 0.01 : 0.1))
-            transform.zoom(by: factor, at: v, in: bounds)
+            zoom(by: factor, at: v)
         } else {
+            followsFieldFit = false
             transform.center = transform.center - Point2(Double(event.scrollingDeltaX / transform.scale), Double(-event.scrollingDeltaY / transform.scale))
         }
         needsDisplay = true
     }
 
     override func magnify(with event: NSEvent) {
-        followsFieldFit = false
-        transform.zoom(by: 1 + event.magnification, at: convert(event.locationInWindow, from: nil), in: bounds)
+        zoom(by: 1 + event.magnification, at: convert(event.locationInWindow, from: nil))
         needsDisplay = true
     }
 
