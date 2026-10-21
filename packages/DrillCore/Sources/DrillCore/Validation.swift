@@ -68,6 +68,7 @@ extension Show {
             try validatePaths(t, from: from, counts: end - begin, performerIDs: performerIDs)
         }
         for form in forms {
+            if case .curve(let points) = form.geometry { try DrawnShape.curve(points: points).validate() }
             if case .circle(let center, let radius) = form.geometry {
                 guard center.x.isFinite, center.y.isFinite, radius.isFinite, radius > 0 else {
                     throw DrillError("Circles must have a finite center and a positive radius.")

@@ -71,10 +71,14 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// positive bulges to the left of the start→end direction.
     case arc(start: Point2, end: Point2, bulge: Double)
 
+    /// Smooth interpolating spline through ordered endpoints and shaping points.
+    case curve(points: [Point2])
+
     case circle(center: Point2, radius: Double)
 
     public var kindName: String {
         switch self {
+        case .curve: return "Curve"
         case .line: return "Line"
         case .arc: return "Arc"
         case .circle: return "Circle"
@@ -84,6 +88,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     public var endpoints: (Point2, Point2) {
         switch self {
         case .line(let s, let e), .arc(let s, let e, _): return (s, e)
+        case .curve(let points): return (points.first ?? .zero, points.last ?? .zero)
         case .circle(let c, let r): return (c, c + Point2(r, 0))
         }
     }
@@ -91,6 +96,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Handles a canvas shows for direct editing: endpoints plus the arc midpoint.
     public var handles: [Point2] {
         switch self {
+        case .curve(let points): return points
         case .line(let s, let e): return [s, e]
         case .arc(let s, let e, _): return [s, e, point(at: 0.5)]
         case .circle(let c, let r): return [c, c + Point2(r, 0), c + Point2(0, r), c - Point2(r, 0), c - Point2(0, r)]
@@ -99,6 +105,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
 
     public func translated(by d: Point2) -> FormGeometry {
         switch self {
+        case .curve(let points): return .curve(points: points.map { $0 + d })
         case .line(let s, let e): return .line(start: s + d, end: e + d)
         case .arc(let s, let e, let b): return .arc(start: s + d, end: e + d, bulge: b)
         case .circle(let c, let r): return .circle(center: c + d, radius: r)
@@ -146,6 +153,9 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Total length along the form.
     public var length: Double {
         switch self {
+        case .curve:
+            let samples = polyline()
+            return zip(samples, samples.dropFirst()).reduce(0) { $0 + $1.0.distance(to: $1.1) }
         case .circle(_, let r): return 2 * .pi * r
         case .line(let s, let e): return s.distance(to: e)
         case .arc(let s, let e, _):
@@ -157,6 +167,8 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Point at normalized arc length `t` in 0...1 (exact for lines and circular arcs).
     public func point(at t: Double) -> Point2 {
         switch self {
+        case .curve:
+            return Self.samplePolyline(polyline(), at: t)
         case .circle(let c, let r):
             let angle = -Double.pi / 2 + 2 * .pi * t
             return c + Point2(r * cos(angle), r * sin(angle))
@@ -172,6 +184,10 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// `count` points at equal arc-length spacing, endpoints included.
     public func distribute(_ count: Int) -> [Point2] {
         guard count > 0 else { return [] }
+        if case .curve = self {
+            let samples = polyline()
+            return (0..<count).map { Self.samplePolyline(samples, at: count == 1 ? 0.5 : Double($0) / Double(count - 1)) }
+        }
         if case .circle = self {
             return (0..<count).map { point(at: Double($0) / Double(count)) }
         }
@@ -182,6 +198,7 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Sampled polyline for drawing.
     public func polyline(segments: Int = 48) -> [Point2] {
         switch self {
+        case .curve(let points): return Self.spline(points, subdivisions: max(16, segments))
         case .line(let s, let e): return [s, e]
         case .arc, .circle: return (0...segments).map { point(at: Double($0) / Double(segments)) }
         }
@@ -190,6 +207,10 @@ public enum FormGeometry: Hashable, Codable, Sendable {
     /// Returns geometry with handle `index` moved to `p` (endpoints; for arcs index 2 sets the bulge).
     public func movingHandle(_ index: Int, to p: Point2) -> FormGeometry {
         switch self {
+        case .curve(var points):
+            guard points.indices.contains(index) else { return self }
+            points[index] = p
+            return .curve(points: points)
         case .circle(let c, let r):
             return index == 0 ? .circle(center: p, radius: r) : .circle(center: c, radius: max(1e-6, c.distance(to: p)))
         case .line(let s, let e):
@@ -203,5 +224,44 @@ public enum FormGeometry: Hashable, Codable, Sendable {
                 return .arc(start: s, end: e, bulge: (p - s.lerp(to: e, 0.5)).dot(left))
             }
         }
+    }
+}
+
+extension FormGeometry {
+    /// Centripetal Catmull–Rom interpolation avoids loops between unevenly spaced points.
+    private static func spline(_ points: [Point2], subdivisions: Int) -> [Point2] {
+        var knots: [Point2] = []
+        for point in points where knots.last.map({ $0.distance(to: point) > 1e-9 }) ?? true { knots.append(point) }
+        guard knots.count > 2 else { return knots }
+        var result = [knots[0]]
+        for i in 0..<(knots.count - 1) {
+            let p1 = knots[i], p2 = knots[i + 1]
+            let p0 = i > 0 ? knots[i - 1] : p1 * 2 - p2
+            let p3 = i + 2 < knots.count ? knots[i + 2] : p2 * 2 - p1
+            let t0 = 0.0, t1 = p0.distance(to: p1).squareRoot()
+            let t2 = t1 + p1.distance(to: p2).squareRoot()
+            let t3 = t2 + p2.distance(to: p3).squareRoot()
+            func blend(_ a: Point2, _ b: Point2, _ ta: Double, _ tb: Double, _ t: Double) -> Point2 {
+                a * ((tb - t) / (tb - ta)) + b * ((t - ta) / (tb - ta))
+            }
+            for j in 1...subdivisions {
+                let t = t1 + (t2 - t1) * Double(j) / Double(subdivisions)
+                let a1 = blend(p0, p1, t0, t1, t), a2 = blend(p1, p2, t1, t2, t), a3 = blend(p2, p3, t2, t3, t)
+                let b1 = blend(a1, a2, t0, t2, t), b2 = blend(a2, a3, t1, t3, t)
+                result.append(blend(b1, b2, t1, t2, t))
+            }
+        }
+        return result
+    }
+
+    private static func samplePolyline(_ samples: [Point2], at t: Double) -> Point2 {
+        guard let first = samples.first else { return .zero }
+        let lengths = zip(samples, samples.dropFirst()).map { $0.distance(to: $1) }
+        var remaining = min(1, max(0, t)) * lengths.reduce(0, +)
+        for (i, length) in lengths.enumerated() {
+            if remaining <= length, length > 0 { return samples[i].lerp(to: samples[i + 1], remaining / length) }
+            remaining -= length
+        }
+        return samples.last ?? first
     }
 }

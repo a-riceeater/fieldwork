@@ -4,6 +4,7 @@ import Foundation
 /// Draw Next Set. Performers are spread over all drawn shapes at one common
 /// spacing when the set is routed.
 public enum DrawnShape: Hashable, Codable, Sendable {
+    case curve(points: [Point2])
     case line(start: Point2, end: Point2)
     /// `bulge` is the signed sagitta in meters, as in `FormGeometry.arc`.
     case arc(start: Point2, end: Point2, bulge: Double)
@@ -14,6 +15,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
 
     public var kindName: String {
         switch self {
+        case .curve: return "Curve"
         case .line: return "Line"
         case .arc: return "Arc"
         case .block: return "Block"
@@ -25,6 +27,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     /// Lines, arcs and circles become retained forms with handles once routed.
     public var formGeometry: FormGeometry? {
         switch self {
+        case .curve(let points): return .curve(points: points)
         case .line(let s, let e): return .line(start: s, end: e)
         case .arc(let s, let e, let b): return .arc(start: s, end: e, bulge: b)
         case .circle(let c, let r): return .circle(center: c, radius: r)
@@ -40,7 +43,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     /// Outlines for drawing, in world meters.
     public var outlines: [[Point2]] {
         switch self {
-        case .line, .arc: return [formGeometry!.polyline()]
+        case .line, .arc, .curve: return [formGeometry!.polyline()]
         case .block:
             let r = rect!
             return [[Point2(r.minX, r.minY), Point2(r.maxX, r.minY), Point2(r.maxX, r.maxY), Point2(r.minX, r.maxY), Point2(r.minX, r.minY)]]
@@ -56,6 +59,9 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     public func validate() throws {
         let numbers: [Double]
         switch self {
+        case .curve(let points):
+            numbers = points.flatMap { [$0.x, $0.y] }
+            guard points.count >= 2, formGeometry!.length > 1e-6 else { throw DrillError("Place at least two distinct curve points.") }
         case .line(let s, let e), .arc(let s, let e, _):
             if case .arc(_, _, let b) = self { numbers = [s.x, s.y, e.x, e.y, b] } else { numbers = [s.x, s.y, e.x, e.y] }
             guard s.distance(to: e) > 1e-6 else { throw DrillError("Drag to give the \(kindName.lowercased()) a length.") }
@@ -75,7 +81,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     /// Fewest dots that still show the shape.
     func minimumCount() throws -> Int {
         switch self {
-        case .line, .arc: return 2
+        case .line, .arc, .curve: return 2
         case .block: return 1
         case .circle: return 3
         case .text(let text): return try text.minimumCount()
@@ -85,7 +91,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     /// Dots the shape holds at about `spacing` apart.
     func capacity(spacing s: Double) throws -> Int {
         switch self {
-        case .line, .arc: return max(2, Int((formGeometry!.length / s).rounded()) + 1)
+        case .line, .arc, .curve: return max(2, Int((formGeometry!.length / s).rounded()) + 1)
         case .block:
             let r = rect!
             return (Int((r.width / s).rounded()) + 1) * (Int((r.height / s).rounded()) + 1)
@@ -98,7 +104,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     /// with the widest spacing receives any dots left over.
     func spacing(_ count: Int) -> Double {
         switch self {
-        case .line, .arc: return formGeometry!.length / Double(max(1, count - 1))
+        case .line, .arc, .curve: return formGeometry!.length / Double(max(1, count - 1))
         case .block:
             let r = rect!
             return r.width * r.height > 1e-9 ? (r.width * r.height / Double(count)).squareRoot() : max(r.width, r.height) / Double(max(1, count - 1))
@@ -115,7 +121,7 @@ public enum DrawnShape: Hashable, Codable, Sendable {
     public func points(_ count: Int) throws -> [Point2] {
         guard count > 0 else { return [] }
         switch self {
-        case .line, .arc: return formGeometry!.distribute(count)
+        case .line, .arc, .curve: return formGeometry!.distribute(count)
         case .block: return Self.gridPoints(count, in: rect!)
         case .circle(let c, let radius):
             // The first dot faces the audience, like the Circle quick shape.
