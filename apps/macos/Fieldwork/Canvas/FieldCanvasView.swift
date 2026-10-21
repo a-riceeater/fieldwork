@@ -139,9 +139,12 @@ final class FieldCanvasView: NSView {
 
     // MARK: Geometry helpers
 
-    // Keep overview dots visible without enlarging the midrange markers that
-    // leave daylight between tightly spaced performers. Cap only close-ups.
-    private var dotRadius: CGFloat { min(9, max(2.5, 0.15 * transform.scale)) }
+    // Paper needs a slightly larger minimum marker to stand clear of its grid.
+    // Keep midrange markers compact enough to distinguish tight intervals.
+    private var dotRadius: CGFloat {
+        let minimum: CGFloat = state?.fieldStyle == .paper ? 3 : 2.5
+        return min(9, max(minimum, 0.15 * transform.scale))
+    }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
     private func world(_ v: CGPoint) -> Point2 { transform.toWorld(v, in: bounds) }
@@ -744,7 +747,7 @@ final class FieldCanvasView: NSView {
             }
         }
 
-        // Dots. On grass and paper a soft dark halo keeps light section colors readable.
+        // Dots. Paper uses a crisp ink edge; grass uses a soft dark halo.
         let r = dotRadius
         let showLabels = state.alwaysShowLabels || transform.scale >= 10
         // Labels shrink with the field through midrange zooms too, so they do not
@@ -768,10 +771,13 @@ final class FieldCanvasView: NSView {
         for dot in state.dots {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
-            if state.fieldStyle != .dark {
+            if paper {
+                // A solid edge stays visible at overview zooms, even for pale colors.
+                drawSymbol(dot.symbol, at: p, radius: r + 0.8, color: Tokens.Paper.ink, in: ctx)
+                drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
+            } else if state.fieldStyle == .grass {
                 ctx.saveGState()
-                let blur: CGFloat = state.fieldStyle == .paper ? 1.5 : 3
-                ctx.setShadow(offset: .zero, blur: blur * r / 9, color: NSColor.black.withAlphaComponent(0.7).cgColor)
+                ctx.setShadow(offset: .zero, blur: 3 * r / 9, color: NSColor.black.withAlphaComponent(0.7).cgColor)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
                 ctx.restoreGState()
             } else {
