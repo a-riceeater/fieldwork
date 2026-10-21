@@ -17,7 +17,7 @@ extension QuickShape {
         case .line: return "Put the selection in a straight line you can reshape with handles"
         case .arc: return "Put the selection in an arc you can reshape with handles"
         case .block: return "Put the selection in a block, rows front to back"
-        case .circle: return "Put the selection in a circle"
+        case .circle: return "Put the selection in a circle you can resize with handles"
         }
     }
 }
@@ -51,22 +51,38 @@ struct SpacingMenu: View {
         Menu {
             ForEach([1.0, 1.5, 2, 3, 4], id: \.self) { steps in
                 Button {
-                    model.shapeSpacingSteps = steps
+                    if let form = selectedCircle {
+                        model.spaceCircle(form.id, spacingSteps: steps)
+                    } else {
+                        model.shapeSpacingSteps = steps
+                    }
                 } label: {
-                    if model.shapeSpacingSteps == steps { Label(label(steps), systemImage: "checkmark") } else { Text(label(steps)) }
+                    if abs(spacingSteps - steps) < 0.000001 { Label(label(steps), systemImage: "checkmark") } else { Text(label(steps)) }
                 }
             }
         } label: {
-            Text(label(model.shapeSpacingSteps)).monospacedDigit()
+            Text(label(spacingSteps)).monospacedDigit()
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Spacing between neighbors in new shapes")
+        .help(selectedCircle == nil ? "Spacing between neighbors in new shapes" : "Resize the selected circle to set the distance between neighboring performers")
         .accessibilityLabel("Shape spacing")
     }
 
+    private var selectedCircle: Form? {
+        model.show.forms(on: model.currentSetID).first {
+            if case .circle = $0.geometry { return Set($0.members) == model.selection }
+            return false
+        }
+    }
+
+    private var spacingSteps: Double {
+        guard let form = selectedCircle else { return model.shapeSpacingSteps }
+        return form.geometry.neighborSpacing(count: form.members.count) / model.show.field.stepSize
+    }
+
     private func label(_ steps: Double) -> String {
-        "\(TimeFormat.decimal(steps, places: steps.rounded() == steps ? 0 : 1))-step"
+        "\(TimeFormat.decimal(steps, places: steps.rounded() == steps ? 0 : 2))-step"
     }
 }
 

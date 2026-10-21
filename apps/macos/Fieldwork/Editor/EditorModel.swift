@@ -727,6 +727,25 @@ final class EditorModel: ObservableObject {
         perform(.updateFormGeometry(formID, geometry))
     }
 
+    func resizeCircle(_ formID: FormID, diameterSteps: Double) {
+        guard diameterSteps.isFinite, diameterSteps > 0 else {
+            statusMessage = "Diameter must be more than zero steps."
+            return
+        }
+        guard let form = show.form(formID), case .circle(let center, _) = form.geometry else { return }
+        commitHandle(formID, geometry: .circle(center: center, radius: diameterSteps * show.field.stepSize / 2))
+    }
+
+    func spaceCircle(_ formID: FormID, spacingSteps: Double) {
+        guard spacingSteps.isFinite, spacingSteps > 0 else {
+            statusMessage = "Spacing must be more than zero steps."
+            return
+        }
+        guard let form = show.form(formID), case .circle(let center, _) = form.geometry else { return }
+        let radius = FormGeometry.circleRadius(spacing: spacingSteps * show.field.stepSize, count: form.members.count)
+        commitHandle(formID, geometry: .circle(center: center, radius: radius))
+    }
+
     func reverseForm(_ formID: FormID) {
         guard let form = show.form(formID) else { return }
         perform(.updateFormMembers(formID, form.members.reversed()))

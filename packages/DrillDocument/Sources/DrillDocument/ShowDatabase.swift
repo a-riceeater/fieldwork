@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 5
+    static let currentSchemaVersion = 6
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -73,12 +73,28 @@ enum ShowDatabase {
         PRIMARY KEY (transition_id, performer_id, ordinal));
     """
 
+    /// Schema 6: retained circles. Store center in x0/y0 and radius in bulge.
+    static let schemaV6Changes = """
+    CREATE TABLE form_v6 (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('line','arc','circle')), x0 REAL NOT NULL, y0 REAL NOT NULL,
+        x1 REAL NOT NULL, y1 REAL NOT NULL, bulge REAL NOT NULL);
+    INSERT INTO form_v6 SELECT * FROM form;
+    CREATE TABLE form_member_v6 (form_id TEXT NOT NULL REFERENCES form_v6(id), ordinal INTEGER NOT NULL,
+        performer_id TEXT NOT NULL REFERENCES performer(id), PRIMARY KEY (form_id, ordinal));
+    INSERT INTO form_member_v6 SELECT * FROM form_member;
+    DROP TABLE form_member;
+    DROP TABLE form;
+    ALTER TABLE form_v6 RENAME TO form;
+    ALTER TABLE form_member_v6 RENAME TO form_member;
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
     static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) },
                                                2: { db in try db.execute(schemaV3Changes) },
                                                3: { db in try db.execute(schemaV4Changes) },
-                                               4: { db in try db.execute(schemaV5Changes) }]
+                                               4: { db in try db.execute(schemaV5Changes) },
+                                               5: { db in try db.execute(schemaV6Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -104,6 +120,7 @@ enum ShowDatabase {
             try db.execute(schemaV3Changes)
             try db.execute(schemaV4Changes)
             try db.execute(schemaV5Changes)
+            try db.execute(schemaV6Changes)
             try db.setUserVersion(currentSchemaVersion)
             let meta = try db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
             try meta.run([.text("writer"), .text(writer)])
@@ -184,6 +201,7 @@ enum ShowDatabase {
                 let (start, end) = fm.geometry.endpoints
                 var kind = "line", bulge = 0.0
                 if case .arc(_, _, let b) = fm.geometry { kind = "arc"; bulge = b }
+                if case .circle(_, let r) = fm.geometry { kind = "circle"; bulge = r }
                 try form.run([.text(fm.id.description), .text(fm.setID.description), .int(i), .text(kind), .double(start.x), .double(start.y),
                               .double(end.x), .double(end.y), .double(bulge)])
                 for (j, m) in fm.members.enumerated() { try member.run([.text(fm.id.description), .int(j), .text(m.description)]) }
@@ -362,7 +380,12 @@ enum ShowDatabase {
         let member = try db.prepare("SELECT performer_id FROM form_member WHERE form_id = ? ORDER BY ordinal")
         while try form.step() {
             let start = Point2(form.double(3), form.double(4)), end = Point2(form.double(5), form.double(6))
-            let geometry: FormGeometry = form.text(2) == "arc" ? .arc(start: start, end: end, bulge: form.double(7)) : .line(start: start, end: end)
+            let geometry: FormGeometry
+            switch form.text(2) {
+            case "circle": geometry = .circle(center: start, radius: form.double(7))
+            case "arc": geometry = .arc(start: start, end: end, bulge: form.double(7))
+            default: geometry = .line(start: start, end: end)
+            }
             let formID = try id(form.text(0), FormID.self)
             try member.bind([.text(formID.description)])
             var members: [PerformerID] = []

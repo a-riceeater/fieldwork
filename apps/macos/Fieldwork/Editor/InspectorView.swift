@@ -493,6 +493,25 @@ struct FormInspector: View {
                     VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                         Text("\(form.geometry.kindName) · \(form.members.count) performers · \(TimeFormat.decimal(form.geometry.length / model.show.field.stepSize, places: 1)) steps long")
                             .font(.system(size: 12))
+                        if case .circle(let center, let radius) = form.geometry {
+                            let step = model.show.field.stepSize
+                            NumberField(label: "Diameter (steps)", value: 2 * radius / step, places: 2) {
+                                model.resizeCircle(form.id, diameterSteps: $0)
+                            }
+                            if form.members.count > 1 {
+                                NumberField(label: "Spacing (steps)", value: form.geometry.neighborSpacing(count: form.members.count) / step, places: 2) {
+                                    model.spaceCircle(form.id, spacingSteps: $0)
+                                }
+                            }
+                            NumberField(label: "Center X (m)", value: center.x, places: 2) {
+                                model.commitHandle(form.id, geometry: .circle(center: Point2($0, center.y), radius: radius))
+                            }
+                            NumberField(label: "Center Y (m)", value: center.y, places: 2) {
+                                model.commitHandle(form.id, geometry: .circle(center: Point2(center.x, $0), radius: radius))
+                            }
+                            Text("Spacing is the straight-line distance between neighbors. Changing spacing resizes the circle; changing diameter updates spacing.")
+                                .font(.caption).foregroundStyle(Color.fwSecondary)
+                        }
                         if case .arc(let s, let e, let bulge) = form.geometry {
                             NumberField(label: "Bulge (m)", value: bulge, places: 2) { model.commitHandle(form.id, geometry: .arc(start: s, end: e, bulge: $0)) }
                         }
@@ -503,7 +522,7 @@ struct FormInspector: View {
                         }
                     }
                 }
-                Text("Drag a ring to reshape; spacing stays equal along the form. Drag the line or any performer to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
+                Text("Drag a ring to reshape; spacing stays equal along the form. Drag the outline or any performer to move the whole form. Double-click a performer to work on it alone; moving it on its own takes it out of the form.").font(.caption).foregroundStyle(Color.fwSecondary)
             }
         }
     }
