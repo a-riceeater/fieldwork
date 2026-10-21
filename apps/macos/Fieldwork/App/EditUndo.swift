@@ -23,7 +23,7 @@ extension AppDelegate: NSMenuItemValidation {
     @objc func undoEdit(_ sender: Any?) {
         if editingText != nil {
             NSApp.sendAction(Selector(("undo:")), to: nil, from: sender)
-        } else if let editor = activeEditor, editor.model.readOnlyReason == nil, editor.model.session.canUndo {
+        } else if let editor = activeEditor, editor.model.readOnlyReason == nil, editor.model.canUndo {
             editor.model.undo()
         } else {
             NSSound.beep()
@@ -33,7 +33,7 @@ extension AppDelegate: NSMenuItemValidation {
     @objc func redoEdit(_ sender: Any?) {
         if editingText != nil {
             NSApp.sendAction(Selector(("redo:")), to: nil, from: sender)
-        } else if let editor = activeEditor, editor.model.readOnlyReason == nil, editor.model.session.canRedo {
+        } else if let editor = activeEditor, editor.model.readOnlyReason == nil, editor.model.canRedo {
             editor.model.redo()
         } else {
             NSSound.beep()
@@ -56,8 +56,8 @@ extension AppDelegate: NSMenuItemValidation {
             menuItem.title = redo ? "Redo" : "Undo"
             return false
         }
-        let name = redo ? model.session.redoName : model.session.undoName
+        let name = redo ? model.redoName : model.undoName
         menuItem.title = name.map { "\(redo ? "Redo" : "Undo") \($0)" } ?? (redo ? "Redo" : "Undo")
-        return model.readOnlyReason == nil && (redo ? model.session.canRedo : model.session.canUndo)
+        return model.readOnlyReason == nil && (redo ? model.canRedo : model.canUndo)
     }
 }

@@ -56,6 +56,14 @@ struct SetDraft: Equatable {
     var showsPreviousSet = true
     /// Set once Auto Route has placed performers, so the canvas shows them.
     var routed = false
+    var routedShapes: [DrawnShape] = []
+    var routedSections: Set<SectionID>?
+    var undoShapes: [[DrawnShape]] = []
+    var redoShapes: [[DrawnShape]] = []
+
+    var hasPendingChanges: Bool {
+        shapes != routedShapes || (!shapes.isEmpty && sections != routedSections)
+    }
 }
 
 enum AxisLock: String, CaseIterable, Identifiable {
@@ -109,8 +117,13 @@ final class EditorModel: ObservableObject {
     }
     /// Draw Next Set in progress, if any.
     @Published var draft: SetDraft? {
-        didSet { if draft?.shapes != oldValue?.shapes { cancelArrangement() } }
+        didSet {
+            if draft?.shapes != oldValue?.shapes || draft?.sections != oldValue?.sections { cancelArrangement() }
+        }
     }
+    @Published var showsDraftExitConfirmation = false
+    private var pendingDraftExit: (() -> Void)?
+
     /// Text the Text tool and the Spell button put performers in.
     @Published var shapeText = ""
     /// The set Align Set Here pins: the last set the user chose. Scrubbing changes the
@@ -267,13 +280,32 @@ final class EditorModel: ObservableObject {
         do { perform(try build()) } catch { report(error) }
     }
 
+    var canUndo: Bool { draft.map { !$0.undoShapes.isEmpty } ?? session.canUndo }
+    var canRedo: Bool { draft.map { !$0.redoShapes.isEmpty } ?? session.canRedo }
+    var undoName: String? { draft == nil ? session.undoName : (canUndo ? "Draw Shape" : nil) }
+    var redoName: String? { draft == nil ? session.redoName : (canRedo ? "Draw Shape" : nil) }
+
     func undo() {
+        if var draft {
+            guard let shapes = draft.undoShapes.popLast() else { return }
+            draft.redoShapes.append(draft.shapes)
+            draft.shapes = shapes
+            self.draft = draft
+            return
+        }
         guard let event = session.undo() else { return }
         afterCommit(event)
         statusMessage = "Undid \(event.name)"
     }
 
     func redo() {
+        if var draft {
+            guard let shapes = draft.redoShapes.popLast() else { return }
+            draft.undoShapes.append(draft.shapes)
+            draft.shapes = shapes
+            self.draft = draft
+            return
+        }
         guard let event = session.redo() else { return }
         afterCommit(event)
         statusMessage = "Redid \(event.name)"
@@ -343,6 +375,9 @@ final class EditorModel: ObservableObject {
     // MARK: Sets and navigation
 
     func selectSet(_ id: SetID) {
+        if id != currentSetID {
+            guard !deferDraftExit({ [weak self] in self?.selectSet(id) }) else { return }
+        }
         if id != currentSetID { focusedNoteID = nil }
         currentSetID = id
         alignSetID = id
@@ -365,12 +400,14 @@ final class EditorModel: ObservableObject {
     }
 
     func addSet(counts: Int) {
+        guard !deferDraftExit({ [weak self] in self?.addSet(counts: counts) }) else { return }
         let id = SetID()
         perform { try self.show.makeCreateSet(after: self.currentSetID, counts: counts, newSetID: id) }
         if show.set(id) != nil { selectSet(id) }
     }
 
     func deleteCurrentSet() {
+        guard !deferDraftExit({ [weak self] in self?.deleteCurrentSet() }) else { return }
         guard let previous = show.previousSet(before: currentSetID) else {
             report(DrillError("The preset cannot be deleted. Clear its positions instead."))
             return
@@ -384,6 +421,7 @@ final class EditorModel: ObservableObject {
 
     /// Splits the move into `setID` with a subset `count` counts in, then shows the subset.
     func splitMove(into setID: SetID, atCount count: Int) {
+        guard !deferDraftExit({ [weak self] in self?.splitMove(into: setID, atCount: count) }) else { return }
         let id = SetID()
         perform { try self.show.makeSplitMove(into: setID, atCount: Rational(count), newSetID: id) }
         guard let subset = show.set(id) else { return }
@@ -628,6 +666,7 @@ final class EditorModel: ObservableObject {
     /// Adds a set after the current one and starts drawing its shapes. The set
     /// copies the current formation, so anyone left out of the route stays put.
     func drawNextSet(counts: Int = 16) {
+        guard !deferDraftExit({ [weak self] in self?.drawNextSet(counts: counts) }) else { return }
         guard isEditable else {
             statusMessage = "Select a set to draw the next one after it."
             return
@@ -658,7 +697,7 @@ final class EditorModel: ObservableObject {
                 shape = .text(text)
             }
             try shape.validate()
-            draft?.shapes.append(shape)
+            editDraftShapes { $0.append(shape) }
         } catch {
             report(error)
         }
@@ -666,10 +705,20 @@ final class EditorModel: ObservableObject {
 
     func removeLastDraftShape() {
         guard draft?.shapes.isEmpty == false else { return }
-        draft?.shapes.removeLast()
+        editDraftShapes { $0.removeLast() }
     }
 
-    func clearDraftShapes() { draft?.shapes = [] }
+    func clearDraftShapes() { editDraftShapes { $0.removeAll() } }
+
+    private func editDraftShapes(_ edit: (inout [DrawnShape]) -> Void) {
+        guard var draft else { return }
+        let before = draft.shapes
+        edit(&draft.shapes)
+        guard draft.shapes != before else { return }
+        draft.undoShapes.append(before)
+        draft.redoShapes = []
+        self.draft = draft
+    }
 
     func toggleDraftSection(_ id: SectionID) {
         guard let draft else { return }
@@ -711,13 +760,44 @@ final class EditorModel: ObservableObject {
         buildArrangement({ try $0.makeDrawnSet(shapes, members: members, at: set, holdOthers: true) }) { [weak self] in
             guard let self else { return }
             self.draft?.routed = true
+            self.draft?.routedShapes = shapes
+            self.draft?.routedSections = self.draft?.sections
             let plural = shapes.count == 1 ? "" : "s"
             self.statusMessage = "Routed \(members.count) performers into \(shapes.count) shape\(plural). Change the shapes and route again, or choose Done."
         }
     }
 
+    /// Defers actions which would lose an unrouted drawing until the user chooses.
+    /// Returns true when the caller must stop and wait for the confirmation.
+    @discardableResult
+    func deferDraftExit(_ action: @escaping () -> Void) -> Bool {
+        guard let draft else { return false }
+        if draft.hasPendingChanges || isArranging {
+            if pendingDraftExit == nil { pendingDraftExit = action }
+            showsDraftExitConfirmation = true
+            return true
+        }
+        self.draft = nil
+        return false
+    }
+
+    func cancelDraftExit() {
+        pendingDraftExit = nil
+        showsDraftExitConfirmation = false
+    }
+
+    func confirmDraftExit() {
+        let action = pendingDraftExit
+        pendingDraftExit = nil
+        showsDraftExitConfirmation = false
+        cancelArrangement()
+        draft = nil
+        statusMessage = nil
+        action?()
+    }
+
     func finishDraft() {
-        guard draft != nil else { return }
+        guard !deferDraftExit({ [weak self] in self?.finishDraft() }) else { return }
         draft = nil
         statusMessage = nil
     }
@@ -966,6 +1046,7 @@ final class EditorModel: ObservableObject {
     func togglePlay() { isPlaying ? pause() : play() }
 
     func play() {
+        guard !deferDraftExit({ [weak self] in self?.play() }) else { return }
         isBetweenSets = true
         transport.play(from: playheadSeconds)
         isPlaying = true
@@ -1028,6 +1109,7 @@ final class EditorModel: ObservableObject {
     }
 
     func seek(to seconds: Double) {
+        guard !deferDraftExit({ [weak self] in self?.seek(to: seconds) }) else { return }
         playheadSeconds = seconds
         transport.seek(to: seconds)
         if !isPlaying { snapToSetIfAtArrival() }

@@ -4,7 +4,7 @@ import SwiftUI
 /// Hosts the SwiftUI editor in an NSWindow. The SwiftUI toolbar is bridged
 /// into the window toolbar (system Liquid Glass on macOS 26). Menu commands
 /// arrive here through the responder chain.
-final class EditorWindowController: NSWindowController, NSMenuItemValidation {
+final class EditorWindowController: NSWindowController, NSMenuItemValidation, NSWindowDelegate {
     let model: EditorModel
 
     @MainActor
@@ -19,11 +19,16 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         window.contentMinSize = NSSize(width: 1024, height: 720)
         window.backgroundColor = Tokens.window
         super.init(window: window)
+        window.delegate = self
         shouldCascadeWindows = true
         window.setFrameAutosaveName("FieldworkEditorWindow")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        !model.deferDraftExit { [weak sender] in sender?.performClose(nil) }
+    }
 
     // MARK: Edit
 

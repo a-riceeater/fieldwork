@@ -37,6 +37,15 @@ struct EditorView: View {
         .sheet(isPresented: $model.showExport) { ExportSheet(model: model) }
         .sheet(isPresented: $model.showAddSection) { AddSectionSheet(model: model) }
         .sheet(isPresented: $model.showProjectSettings) { ProjectSettingsSheet(model: model) }
+        .confirmationDialog("Leave Draw Next Set?", isPresented: $model.showsDraftExitConfirmation, titleVisibility: .visible) {
+            Button("Discard Drawing and Leave", role: .destructive) { model.confirmDraftExit() }
+            Button("Keep Drawing", role: .cancel) { model.cancelDraftExit() }
+        } message: {
+            Text("Your drawing has changes that haven't been applied with Auto Route. Leaving discards those changes. Performers already placed by Auto Route will stay where they are.")
+        }
+        .onChange(of: model.showsDraftExitConfirmation) { _, showing in
+            if !showing { model.cancelDraftExit() }
+        }
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
         }
@@ -171,11 +180,11 @@ extension EditorView {
     var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button { model.undo() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
-                .help(model.session.undoName.map { "Undo \($0)" } ?? "Nothing to undo")
-                .disabled(!model.session.canUndo)
+                .help(model.undoName.map { "Undo \($0)" } ?? "Nothing to undo")
+                .disabled(!model.canUndo)
             Button { model.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
-                .help(model.session.redoName.map { "Redo \($0)" } ?? "Nothing to redo")
-                .disabled(!model.session.canRedo)
+                .help(model.redoName.map { "Redo \($0)" } ?? "Nothing to redo")
+                .disabled(!model.canRedo)
         }
         ToolbarItem(placement: .principal) {
             HStack(spacing: Tokens.Space.s) {
