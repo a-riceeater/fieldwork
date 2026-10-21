@@ -519,7 +519,7 @@ final class FieldCanvasView: NSView {
         case .form(let start, _, let startView):
             drag = .form(start: start, end: snapped(world(v), event: event), startView: startView)
         case .handle(let form, let index, let start, _):
-            let target = form.geometry.handles[index] + world(v) - start
+            let target = form.geometry.handles[index] + (world(v) - start)
             drag = .handle(form: form, index: index, start: start, geometry: form.geometry.movingHandle(index, to: snapped(target, event: event)))
         case .moveNote(let id, let start, _):
             drag = .moveNote(id: id, start: start, delta: constrain(world(v) - start))
