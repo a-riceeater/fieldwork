@@ -62,7 +62,7 @@ final class FieldCanvasView: NSView {
         case moveDots(ids: [PerformerID], anchor: Point2, start: Point2, delta: Point2, narrowTo: PerformerID?)
         case box(start: CGPoint, current: CGPoint, additive: Bool)
         case form(start: Point2, end: Point2, startView: CGPoint)
-        case handle(form: CanvasForm, index: Int, geometry: FormGeometry)
+        case handle(form: CanvasForm, index: Int, start: Point2, geometry: FormGeometry)
         case moveNote(id: NoteID, start: Point2, delta: Point2)
         /// Dragging the waypoint at the end of segment `segment`.
         case waypoint(path: CanvasPath, segment: Int, point: Point2)
@@ -158,24 +158,43 @@ final class FieldCanvasView: NSView {
         return best?.0
     }
 
-    /// Handles are rings drawn around the dots they sit on.
-    private var handleRadius: CGFloat { max(8, dotRadius + 6) }
+    private let handleRadius: CGFloat = 6
 
-    /// The ring reshapes; a press on the performer inside it is a press on that
-    /// performer, so a selected form can be dragged from any of its members.
+    /// Separate reshape grips from performer move targets at every zoom level.
+    /// A leader joins each grip to the geometry point that it controls.
+    func formHandlePositions(_ geometry: FormGeometry) -> [CGPoint] {
+        geometry.handles.enumerated().map { index, anchor in
+            let direction: Point2
+            switch geometry {
+            case .circle(let center, _):
+                direction = index == 0 ? Point2(0, 1) : (anchor - center).normalized
+            case .line(let start, let end):
+                let normal = (end - start).perpendicular.normalized
+                direction = normal.length > 0 ? normal : Point2(0, 1)
+            case .arc(_, _, let bulge):
+                let t = index == 0 ? 0.0 : (index == 1 ? 1.0 : 0.5)
+                let tangent = geometry.point(at: min(1, t + 0.001)) - geometry.point(at: max(0, t - 0.001))
+                let normal = tangent.perpendicular.normalized * (bulge < 0 ? -1 : 1)
+                direction = normal.length > 0 ? normal : Point2(0, 1)
+            }
+            let p = view(anchor)
+            return CGPoint(x: p.x + CGFloat(direction.x) * 30, y: p.y + CGFloat(direction.y) * 30)
+        }
+    }
+
     private func hitHandle(at v: CGPoint) -> (CanvasForm, Int)? {
-        guard let state, state.editable else { return nil }
-        let dotUnder = hitDot(at: v)
+        // Performers always move. Only the separate square grips reshape.
+        guard let state, state.editable, hitDot(at: v) == nil else { return nil }
+        var best: (CanvasForm, Int, CGFloat)?
         for form in state.forms {
-            for (i, handle) in form.geometry.handles.enumerated() {
-                let p = view(handle)
-                let d = hypot(p.x - v.x, p.y - v.y)
-                guard d <= handleRadius + 2 else { continue }
-                if let dot = dotUnder, d <= dotRadius + 1, view(dot.point).distance(to: p) < 1 { continue }
-                return (form, i)
+            for (index, p) in formHandlePositions(form.geometry).enumerated() {
+                let distance = p.distance(to: v)
+                if distance <= handleRadius + 3, distance < (best?.2 ?? .infinity) {
+                    best = (form, index, distance)
+                }
             }
         }
-        return nil
+        return best.map { ($0.0, $0.1) }
     }
 
     /// A shown form whose outline passes under the pointer. Dragging the outline moves the whole form.
@@ -324,7 +343,7 @@ final class FieldCanvasView: NSView {
         }
     }
 
-    /// Shows what a press will do: reshape on a handle ring, move on a selected form.
+    /// Shows what a press will do: reshape on a square grip, move on a selected form.
     override func mouseMoved(with event: NSEvent) {
         guard case .none = drag, !spaceDown, let state, state.editable else { return }
         if state.draft != nil { return NSCursor.crosshair.set() }
@@ -399,7 +418,7 @@ final class FieldCanvasView: NSView {
             return
         }
         if let (form, index) = hitHandle(at: v) {
-            drag = .handle(form: form, index: index, geometry: form.geometry)
+            drag = .handle(form: form, index: index, start: world(v), geometry: form.geometry)
             return
         }
         // Path handles: drag a waypoint, double-click to delete it, or drag a leg's midpoint to curve it.
@@ -499,8 +518,9 @@ final class FieldCanvasView: NSView {
             drag = .box(start: start, current: v, additive: additive)
         case .form(let start, _, let startView):
             drag = .form(start: start, end: snapped(world(v), event: event), startView: startView)
-        case .handle(let form, let index, _):
-            drag = .handle(form: form, index: index, geometry: form.geometry.movingHandle(index, to: snapped(world(v), event: event)))
+        case .handle(let form, let index, let start, _):
+            let target = form.geometry.handles[index] + world(v) - start
+            drag = .handle(form: form, index: index, start: start, geometry: form.geometry.movingHandle(index, to: snapped(target, event: event)))
         case .moveNote(let id, let start, _):
             drag = .moveNote(id: id, start: start, delta: constrain(world(v) - start))
         case .waypoint(let path, let i, _):
@@ -555,7 +575,7 @@ final class FieldCanvasView: NSView {
             }
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
             delegate?.canvasCommitForm(geometry)
-        case .handle(let form, _, let geometry):
+        case .handle(let form, _, _, let geometry):
             if geometry != form.geometry {
                 delegate?.canvasCommitHandle(form.id, geometry: geometry)
             } else if event.clickCount > 1, let dot = hitDot(at: convert(event.locationInWindow, from: nil)) {
@@ -687,7 +707,7 @@ final class FieldCanvasView: NSView {
         var movingIDs = Set<PerformerID>()
         if case .moveDots(let ids, _, _, let delta, _) = drag { previewDelta = delta; movingIDs = Set(ids) }
         func shownGeometry(_ form: CanvasForm) -> FormGeometry {
-            if case .handle(let dragged, _, let preview) = drag, dragged.id == form.id { return preview }
+            if case .handle(let dragged, _, _, let preview) = drag, dragged.id == form.id { return preview }
             if previewDelta.length > 0, form.members.isSubset(of: movingIDs) { return form.geometry.translated(by: previewDelta) }
             return form.geometry
         }
@@ -698,7 +718,7 @@ final class FieldCanvasView: NSView {
             ctx.setLineWidth(1.5)
             ctx.addLines(between: shownGeometry(form).polyline().map(view))
             ctx.strokePath()
-            if state.editable, case .handle(let dragged, _, let preview) = drag, dragged.id == form.id {
+            if state.editable, case .handle(let dragged, _, _, let preview) = drag, dragged.id == form.id {
                 ctx.setFillColor(Tokens.fieldAccent.withAlphaComponent(0.5).cgColor)
                 for p in preview.distribute(form.memberCount) {
                     let v = view(p)
@@ -785,18 +805,23 @@ final class FieldCanvasView: NSView {
             }
         }
 
-        // Form handles: rings drawn above the dots so the performers under them stay visible.
+        // Reshape grips sit away from the performer dots; leaders show what they control.
         if state.editable {
-            let hr = handleRadius
             for form in state.forms {
-                for handle in shownGeometry(form).handles {
-                    let rect = CGRect(x: view(handle).x - hr, y: view(handle).y - hr, width: 2 * hr, height: 2 * hr)
-                    ctx.setStrokeColor(NSColor.white.cgColor)
-                    ctx.setLineWidth(3)
-                    ctx.strokeEllipse(in: rect)
+                let geometry = shownGeometry(form)
+                for (anchor, grip) in zip(geometry.handles, formHandlePositions(geometry)) {
+                    ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.7).cgColor)
+                    ctx.setLineWidth(1)
+                    ctx.move(to: view(anchor))
+                    ctx.addLine(to: grip)
+                    ctx.strokePath()
+                    let rect = CGRect(x: grip.x - handleRadius, y: grip.y - handleRadius,
+                                      width: 2 * handleRadius, height: 2 * handleRadius)
+                    ctx.setFillColor(NSColor.white.cgColor)
+                    ctx.fill(rect)
                     ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
                     ctx.setLineWidth(1.5)
-                    ctx.strokeEllipse(in: rect)
+                    ctx.stroke(rect)
                 }
             }
         }
