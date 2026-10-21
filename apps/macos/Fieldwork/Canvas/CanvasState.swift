@@ -85,6 +85,15 @@ struct CanvasPath: Equatable {
     var counts: Rational { path.totalCounts }
 }
 
+/// Draw Next Set on the canvas: the drawn shapes, the shape the next drag makes,
+/// and where the chosen performers would stand until they are routed.
+struct CanvasDraft: Equatable {
+    var shapes: [DrawnShape]
+    var tool: DrawTool
+    var preview: [Point2]
+    var routed: Bool
+}
+
 /// How the canvas draws the field. A per-user view preference, not show data.
 enum FieldStyle: String, CaseIterable, Identifiable {
     /// The dark editing surface with gray checkpoint lines.
@@ -150,11 +159,16 @@ struct CanvasState: Equatable {
     var fieldStyle: FieldStyle
     var alwaysShowLabels: Bool
     var labelPlacement: PerformerLabelPlacement
+    /// The previous set's performers, drawn faintly behind everything while drawing the next set.
+    var ghosts: [CanvasDot] = []
+    var draft: CanvasDraft?
+    /// What the Text tool spells.
+    var text = ""
 
     static func == (a: CanvasState, b: CanvasState) -> Bool {
         a.field == b.field && a.fieldStyle == b.fieldStyle && a.alwaysShowLabels == b.alwaysShowLabels && a.labelPlacement == b.labelPlacement && a.dots == b.dots && a.notes == b.notes && a.forms == b.forms && a.groups == b.groups && a.editable == b.editable && a.tool == b.tool
             && a.snapEnabled == b.snapEnabled && a.snapSteps == b.snapSteps && a.axisLock == b.axisLock && a.caption == b.caption
-            && a.paths == b.paths
+            && a.paths == b.paths && a.ghosts == b.ghosts && a.draft == b.draft && a.text == b.text
     }
 }
 
@@ -177,4 +191,7 @@ protocol FieldCanvasDelegate: AnyObject {
     func canvasInsertWaypoint(_ id: PerformerID, atCount count: Rational, at point: Point2)
     func canvasDeleteWaypoint(_ id: PerformerID, segment: Int)
     func canvasCommitCurve(_ id: PerformerID, segment: Int, sagitta: Double, snaps: Bool)
+    func canvasCommitText(from start: Point2, to end: Point2)
+    func canvasCommitDraftShape(_ shape: DrawnShape)
+    func canvasRemoveLastDraftShape()
 }

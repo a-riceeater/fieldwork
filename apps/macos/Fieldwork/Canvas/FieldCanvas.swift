@@ -63,6 +63,9 @@ struct FieldCanvas: NSViewRepresentable {
         func canvasCommitCurve(_ id: PerformerID, segment: Int, sagitta: Double, snaps: Bool) {
             model.commitCurveLeg(id, segment: segment, sagitta: sagitta, snaps: snaps)
         }
+        func canvasCommitText(from start: Point2, to end: Point2) { model.commitText(from: start, to: end) }
+        func canvasCommitDraftShape(_ shape: DrawnShape) { model.addDraftShape(shape) }
+        func canvasRemoveLastDraftShape() { model.removeLastDraftShape() }
     }
 }
 
@@ -124,6 +127,25 @@ extension EditorModel {
                 }
             }
         }
+        // Draw Next Set: the previous set shows faintly behind the drawn shapes, and the
+        // new set's performers (a copy of the previous set) stay hidden until routed.
+        var ghosts: [CanvasDot] = []
+        var canvasDraft: CanvasDraft?
+        // Arranging is not editable, but the drawing stays up while Auto Route works.
+        if readOnlyReason == nil, !isPlaying, !isBetweenSets, let draft, draft.setID == currentSetID {
+            if !draft.routed { dots = [] }
+            if draft.showsPreviousSet, let previous = show.previousSet(before: currentSetID) {
+                let formation = show.formation(previous.id)
+                for performer in show.performers {
+                    guard let p = formation[performer.id].position else { continue }
+                    let section = sections[performer.sectionID]
+                    ghosts.append(CanvasDot(id: performer.id, label: performer.label, point: p.point, colorIndex: section?.colorIndex ?? 0,
+                                            symbol: circlesOnly ? .circle : (performer.symbol ?? section?.symbol ?? .circle), selected: false))
+                }
+            }
+            canvasDraft = CanvasDraft(shapes: draft.shapes, tool: draft.tool, preview: (try? draftPreview.get()) ?? [], routed: draft.routed)
+            if let set = currentSet { caption = "Drawing set \(set.label) · \(draftMembers.count) performers" }
+        }
         var notes: [CanvasNote] = []
         if showsFieldNotes {
             let focused = focusedNote?.id
@@ -133,6 +155,7 @@ extension EditorModel {
             }
         }
         return CanvasState(field: show.field, dots: dots, notes: notes, forms: forms, groups: groups, paths: paths, editable: isEditable, tool: tool,
-                           snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption, fieldStyle: fieldStyle, alwaysShowLabels: alwaysShowLabels, labelPlacement: labelPlacement)
+                           snapEnabled: snapEnabled, snapSteps: snapSteps, axisLock: axisLock, caption: caption, fieldStyle: fieldStyle, alwaysShowLabels: alwaysShowLabels, labelPlacement: labelPlacement,
+                           ghosts: ghosts, draft: canvasDraft, text: shapeText)
     }
 }

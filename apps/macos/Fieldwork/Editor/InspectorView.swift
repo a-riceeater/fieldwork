@@ -451,7 +451,7 @@ struct GroupInspector: View {
                 ArrangeButtons(model: model)
             }
             .disabled(!model.isEditable)
-            Text("Shapes are placed in label order where the selection is (or at midfield). To draw one yourself, choose Line or Arc in the toolbar and drag on the field.")
+            Text("Shapes are placed in label order where the selection is (or at midfield). To draw one yourself, choose Line, Arc or Text in the toolbar and drag on the field.")
                 .font(.caption).foregroundStyle(Color.fwSecondary)
         }
     }

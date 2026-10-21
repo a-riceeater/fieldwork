@@ -39,6 +39,7 @@ struct ArrangeButtons: View {
             .help(shape.help)
             .accessibilityLabel("Arrange in \(shape.displayName)")
         }
+        SpellButton(model: model, showsTitle: showsTitles)
         SpacingMenu(model: model)
     }
 }
@@ -74,7 +75,7 @@ struct ArrangeBar: View {
     @ObservedObject var model: EditorModel
 
     var body: some View {
-        if model.isEditable, !model.selection.isEmpty {
+        if model.isEditable, !model.selection.isEmpty, model.draft == nil {
             HStack(spacing: Tokens.Space.s) {
                 Text("\(model.selection.count) selected")
                     .font(.system(size: 12, weight: .semibold))
@@ -101,7 +102,7 @@ struct UnplacedBanner: View {
 
     var body: some View {
         let count = model.unplacedCount
-        if model.isEditable, count > 0 {
+        if model.isEditable, count > 0, model.draft == nil {
             HStack(spacing: Tokens.Space.m) {
                 Image(systemName: "person.crop.circle.badge.questionmark")
                     .foregroundStyle(Color.fwWarning)

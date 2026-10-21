@@ -40,6 +40,7 @@ struct EditorWorkspace: View {
                     }
                     .overlay(alignment: .top) { UnplacedBanner(model: model) }
                     .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
+                    .overlay(alignment: .bottom) { DrawSetBar(model: model).padding(.horizontal, Tokens.Space.m) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     PaneDivider(title: "Inspector width", vertical: true, direction: -1,
                                 value: Binding(get: { fitted.inspector }, set: { sizes.inspector = $0 }),

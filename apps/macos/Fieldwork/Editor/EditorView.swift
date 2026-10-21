@@ -178,15 +178,23 @@ extension EditorView {
                 .disabled(!model.session.canRedo)
         }
         ToolbarItem(placement: .principal) {
-            Picker("Tool", selection: $model.tool) {
-                ForEach(EditorTool.allCases) { tool in
-                    Label(tool.title, systemImage: tool.symbol).tag(tool)
+            HStack(spacing: Tokens.Space.s) {
+                Picker("Tool", selection: $model.tool) {
+                    ForEach(EditorTool.allCases) { tool in
+                        Label(tool.title, systemImage: tool.symbol).tag(tool)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3), Text (Option-Command-4). Select performers, then drag on the field with Line, Arc or Text.")
+                .tourAnchor("toolbar.forms")
+                .accessibilityIdentifier("toolbar.forms")
+                if model.tool == .text {
+                    TextField("Text to spell", text: $model.shapeText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 140)
+                        .help("Select performers, type the text, then drag on the field along the bottom of the letters")
                 }
             }
-            .pickerStyle(.segmented)
-            .help("Select (Option-Command-1), Line (Option-Command-2), Arc (Option-Command-3). Select performers, then drag on the field with Line or Arc.")
-            .tourAnchor("toolbar.forms")
-            .accessibilityIdentifier("toolbar.forms")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Toggle(isOn: $model.snapEnabled) { Label("Snap", systemImage: "squareshape.split.3x3") }

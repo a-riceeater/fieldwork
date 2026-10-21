@@ -70,6 +70,8 @@ final class FieldCanvasView: NSView {
         case insertWaypoint(path: CanvasPath, count: Rational, point: Point2, moved: Bool)
         /// Bending leg `segment` by its midpoint handle; `sagitta` is the signed bulge in meters.
         case curve(path: CanvasPath, segment: Int, sagitta: Double)
+        /// Drawing a Draw Next Set shape from the press to the pointer.
+        case drawShape(start: Point2, end: Point2)
     }
 
     private var drag: Drag = .none
@@ -267,6 +269,31 @@ final class FieldCanvasView: NSView {
         return (p - piece.start.lerp(to: piece.end, 0.5)).dot(chord.perpendicular.normalized)
     }
 
+    /// The shape a Draw Next Set drag makes: lines, arcs and text run from the press
+    /// to the pointer, a block spans them as corners, and a circle is centered on the press.
+    static func drawnShape(_ tool: DrawTool, from start: Point2, to end: Point2, text: String) -> DrawnShape {
+        switch tool {
+        case .line: return .line(start: start, end: end)
+        case .arc: return .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25)
+        case .block: return .block(start, end)
+        case .circle: return .circle(center: start, radius: start.distance(to: end))
+        case .text: return .text(TextShape(text.trimmingCharacters(in: .whitespacesAndNewlines), start: start, end: end))
+        }
+    }
+
+    /// Strokes shape outlines; a one-point outline (the dot of "!") is a small filled dot.
+    private func strokeOutlines(_ outlines: [[Point2]], in ctx: CGContext) {
+        for outline in outlines {
+            if outline.count == 1 {
+                let c = view(outline[0])
+                ctx.fillEllipse(in: CGRect(x: c.x - 2, y: c.y - 2, width: 4, height: 4))
+            } else {
+                ctx.addLines(between: outline.map(view))
+            }
+        }
+        ctx.strokePath()
+    }
+
     /// Starts dragging every member of a form, snapping on its first handle (a member position).
     private func beginFormMove(_ form: CanvasForm, at v: CGPoint) {
         delegate?.canvasSelect(form.members, additive: false)
@@ -284,7 +311,9 @@ final class FieldCanvasView: NSView {
 
     /// Shows what a press will do: reshape on a handle ring, move on a selected form.
     override func mouseMoved(with event: NSEvent) {
-        guard case .none = drag, !spaceDown, let state, state.editable, state.tool == .select else { return }
+        guard case .none = drag, !spaceDown, let state, state.editable else { return }
+        if state.draft != nil { return NSCursor.crosshair.set() }
+        guard state.tool == .select else { return }
         let v = convert(event.locationInWindow, from: nil)
         if hitHandle(at: v) != nil || hitPathHandle(at: v) != nil {
             NSCursor.crosshair.set()
@@ -347,6 +376,13 @@ final class FieldCanvasView: NSView {
             NSCursor.closedHand.set()
             return
         }
+        if state.draft != nil {
+            guard state.editable else { return }
+            let p = snapped(world(v), event: event)
+            drag = .drawShape(start: p, end: p)
+            needsDisplay = true
+            return
+        }
         if let (form, index) = hitHandle(at: v) {
             drag = .handle(form: form, index: index, geometry: form.geometry)
             return
@@ -388,7 +424,7 @@ final class FieldCanvasView: NSView {
             return
         }
         switch state.tool {
-        case .line, .arc:
+        case .line, .arc, .text:
             guard state.editable else {
                 delegate?.canvasMessage("Select a set to edit it. The canvas is showing a moment between sets.")
                 return
@@ -459,6 +495,8 @@ final class FieldCanvasView: NSView {
         case .curve(let path, let i, _):
             curveSnaps = !event.modifierFlags.contains(.option)
             drag = .curve(path: path, segment: i, sagitta: sagitta(of: world(v), path: path, segment: i))
+        case .drawShape(let start, _):
+            drag = .drawShape(start: start, end: snapped(world(v), event: event))
         }
         needsDisplay = true
     }
@@ -492,8 +530,12 @@ final class FieldCanvasView: NSView {
                     let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
                     delegate?.canvasSelect([dot.id], additive: additive)
                 } else {
-                    delegate?.canvasMessage("Drag on the field to draw the \(state.tool == .arc ? "arc" : "line").")
+                    delegate?.canvasMessage("Drag on the field to draw the \(state.tool.title.lowercased()).")
                 }
+                return
+            }
+            if state.tool == .text {
+                delegate?.canvasCommitText(from: start, to: end)
                 return
             }
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
@@ -520,6 +562,13 @@ final class FieldCanvasView: NSView {
         case .curve(let path, let i, let sagitta):
             if abs(sagitta - path.path.pieces(from: path.start)[i].sagitta) > 1e-9 {
                 delegate?.canvasCommitCurve(path.id, segment: i, sagitta: sagitta, snaps: curveSnaps)
+            }
+        case .drawShape(let start, let end):
+            guard let draft = state.draft else { break }
+            if start.distance(to: end) > 0.25 {
+                delegate?.canvasCommitDraftShape(Self.drawnShape(draft.tool, from: start, to: end, text: state.text))
+            } else {
+                delegate?.canvasMessage("Drag on the field to draw a \(draft.tool.title.lowercased()).")
             }
         case .pan, .none:
             break
@@ -560,7 +609,13 @@ final class FieldCanvasView: NSView {
             if case .none = drag { delegate?.canvasClearSelection() } else { drag = .none; needsDisplay = true }
         case 51, 117:
             // Delete removes the focused note; performers are removed from the roster instead.
-            if let note = state?.notes.first(where: \.focused) { delegate?.canvasDeleteNote(note.id) } else { super.keyDown(with: event) }
+            if state?.draft != nil {
+                delegate?.canvasRemoveLastDraftShape()
+            } else if let note = state?.notes.first(where: \.focused) {
+                delegate?.canvasDeleteNote(note.id)
+            } else {
+                super.keyDown(with: event)
+            }
         case 49:
             if !event.isARepeat { spaceDown = true; spaceUsedForPan = false; NSCursor.openHand.set() }
         default:
@@ -588,6 +643,11 @@ final class FieldCanvasView: NSView {
         drawBackground(state, in: ctx)
         // Labels, selection rings and paths: white on dark fields, dark ink on paper.
         let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : NSColor.white
+
+        // The previous set, faint and unlabeled, behind everything while drawing the next set.
+        for ghost in state.ghosts {
+            drawSymbol(ghost.symbol, at: view(ghost.point), radius: dotRadius, color: Tokens.sectionColor(ghost.colorIndex).withAlphaComponent(0.3), in: ctx)
+        }
 
         // Incoming paths with a tick at each count and hold markers; flagged paths are dashed with the warning color.
         for path in state.paths { drawPath(path, ink: ink, ctx: ctx) }
@@ -629,6 +689,23 @@ final class FieldCanvasView: NSView {
                 for p in preview.distribute(form.memberCount) {
                     let v = view(p)
                     ctx.fillEllipse(in: CGRect(x: v.x - dotRadius, y: v.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2))
+                }
+            }
+        }
+
+        // Draw Next Set shapes, dashed, with rings where the chosen performers would stand.
+        if let draft = state.draft {
+            ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.85).cgColor)
+            ctx.setFillColor(Tokens.fieldAccent.withAlphaComponent(0.85).cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.setLineDash(phase: 0, lengths: [6, 4])
+            for shape in draft.shapes { strokeOutlines(shape.outlines, in: ctx) }
+            ctx.setLineDash(phase: 0, lengths: [])
+            if !draft.routed {
+                ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+                for p in draft.preview {
+                    let c = view(p)
+                    ctx.strokeEllipse(in: CGRect(x: c.x - dotRadius, y: c.y - dotRadius, width: 2 * dotRadius, height: 2 * dotRadius))
                 }
             }
         }
@@ -721,6 +798,26 @@ final class FieldCanvasView: NSView {
             ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
             ctx.setLineWidth(1)
             ctx.stroke(rect)
+        case .form(let start, let end, _) where state.tool == .text:
+            // Only the letters; dots are placed once the drag ends.
+            ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.5).cgColor)
+            ctx.setLineWidth(1)
+            ctx.strokeLineSegments(between: [view(start), view(end)])
+            ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+            ctx.setFillColor(Tokens.fieldAccent.cgColor)
+            ctx.setLineWidth(2)
+            strokeOutlines(Self.drawnShape(.text, from: start, to: end, text: state.text).outlines, in: ctx)
+        case .drawShape(let start, let end):
+            guard let draft = state.draft else { break }
+            if draft.tool == .text {
+                ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.5).cgColor)
+                ctx.setLineWidth(1)
+                ctx.strokeLineSegments(between: [view(start), view(end)])
+            }
+            ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+            ctx.setFillColor(Tokens.fieldAccent.cgColor)
+            ctx.setLineWidth(2)
+            strokeOutlines(Self.drawnShape(draft.tool, from: start, to: end, text: state.text).outlines, in: ctx)
         case .form(let start, let end, _):
             let geometry: FormGeometry = state.tool == .arc ? .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25) : .line(start: start, end: end)
             ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
@@ -1077,6 +1174,7 @@ final class FieldCanvasView: NSView {
         let notes = state.notes.isEmpty ? "" : " \(state.notes.count) note\(state.notes.count == 1 ? "" : "s")."
         let curved = state.paths.filter { path in path.segments.count > 1 || path.segments.contains { segment in if case .arc = segment { return true }; return false } }.count
         let paths = curved == 0 ? "" : " \(curved) shown path\(curved == 1 ? "" : "s") curve, hold or turn."
-        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected.\(notes)\(paths) Arrow keys nudge the selection.")
+        let draft = state.draft.map { " Drawing the next set: \($0.shapes.count) shape\($0.shapes.count == 1 ? "" : "s") drawn. Drag to draw a \($0.tool.title.lowercased()); Delete removes the last shape." } ?? ""
+        setAccessibilityValue("\(state.caption). \(state.dots.count) performers placed, \(selected) selected.\(notes)\(paths)\(draft) Arrow keys nudge the selection.")
     }
 }

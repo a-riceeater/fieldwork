@@ -9,13 +9,14 @@ import DrillExport
 import FieldworkTour
 
 enum EditorTool: String, CaseIterable, Identifiable {
-    case select, line, arc
+    case select, line, arc, text
     var id: String { rawValue }
     var title: String {
         switch self {
         case .select: return "Select"
         case .line: return "Line"
         case .arc: return "Arc"
+        case .text: return "Text"
         }
     }
     var symbol: String {
@@ -23,8 +24,38 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .select: return "cursorarrow"
         case .line: return "line.diagonal"
         case .arc: return "circle.bottomhalf.filled"
+        case .text: return "textformat"
         }
     }
+}
+
+/// The shapes Draw Next Set can draw on the field.
+enum DrawTool: String, CaseIterable, Identifiable {
+    case line, arc, block, circle, text
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+    var symbol: String {
+        switch self {
+        case .line: return "line.diagonal"
+        case .arc: return "rainbow"
+        case .block: return "square.grid.3x3"
+        case .circle: return "circle.dashed"
+        case .text: return "textformat"
+        }
+    }
+}
+
+/// A set being drawn as shapes before anyone stands in it. View state only:
+/// nothing is saved until Auto Route commits one undoable change.
+struct SetDraft: Equatable {
+    var setID: SetID
+    var shapes: [DrawnShape] = []
+    var tool: DrawTool = .line
+    /// Sections whose performers fill the shapes; everyone else holds their previous spot.
+    var sections: Set<SectionID>
+    var showsPreviousSet = true
+    /// Set once Auto Route has placed performers, so the canvas shows them.
+    var routed = false
 }
 
 enum AxisLock: String, CaseIterable, Identifiable {
@@ -69,8 +100,19 @@ final class EditorModel: ObservableObject {
     /// Text being typed into the focused note, drawn on the field before it commits.
     @Published var noteDraft: FieldNote?
     @Published var currentSetID: SetID {
-        didSet { if currentSetID != oldValue { cancelArrangement() } }
+        didSet {
+            guard currentSetID != oldValue else { return }
+            cancelArrangement()
+            // A draft belongs to its set; going elsewhere ends it.
+            if let draft, draft.setID != currentSetID { self.draft = nil }
+        }
     }
+    /// Draw Next Set in progress, if any.
+    @Published var draft: SetDraft? {
+        didSet { if draft?.shapes != oldValue?.shapes { cancelArrangement() } }
+    }
+    /// Text the Text tool and the Spell button put performers in.
+    @Published var shapeText = ""
     /// The set Align Set Here pins: the last set the user chose. Scrubbing changes the
     /// set shown on the field, but not this, so a set can be aligned anywhere in the music.
     @Published private(set) var alignSetID: SetID
@@ -145,6 +187,7 @@ final class EditorModel: ObservableObject {
     private var evaluatorCache: (revision: Int, evaluator: SceneEvaluator)?
     private var audioLoadGeneration = UUID()
     private var analysisCache: (revision: Int, issues: [DrillIssue])?
+    private var draftPreviewCache: (revision: Int, shapes: [DrawnShape], members: [PerformerID], result: Result<[Point2], DrillError>)?
 
     init(session: DocumentSession, assets: [String: Data], readOnlyReason: String? = nil, preferences: UserDefaults = .standard) {
         self.preferences = preferences
@@ -248,6 +291,9 @@ final class EditorModel: ObservableObject {
         if show.set(alignSetID) == nil { alignSetID = currentSetID }
         selection = selection.filter { show.performer($0) != nil }
         if let id = focusedNoteID, show.fieldNote(id) == nil { focusedNoteID = nil }
+        if let draft {
+            if show.set(draft.setID) == nil { self.draft = nil } else { self.draft?.sections = draft.sections.filter { show.section($0) != nil } }
+        }
         if case .batch(_, let list) = event.command, list.contains(where: { if case .setMovementAudio = $0 { return true }; return false }) {
             loadAudioForCurrentMovement()
         }
@@ -496,6 +542,34 @@ final class EditorModel: ObservableObject {
         tool = .select
     }
 
+    /// Spells the text box's text with the selection, centered where they stand.
+    func placeSelectionInText() {
+        guard isEditable else {
+            statusMessage = "Select a set to arrange performers."
+            return
+        }
+        let members = Array(selection), set = currentSetID, spacing = shapeSpacingSteps, text = shapeText
+        buildArrangement { try $0.makeQuickText(text, members: members, at: set, spacingSteps: spacing) }
+        tool = .select
+    }
+
+    /// The Text tool: spells the text along the dragged baseline with the selection.
+    func commitText(from start: Point2, to end: Point2) {
+        guard isEditable else { return }
+        guard !selection.isEmpty else {
+            report(DrillError("Select performers first, then drag on the field to spell the text."))
+            return
+        }
+        do {
+            let text = try TextShape.validated(shapeText)
+            let members = Array(selection), set = currentSetID, shape = TextShape(text, start: start, end: end)
+            buildArrangement { try $0.makeDrawnSet([.text(shape)], members: members, at: set, name: "Spell \(text)") }
+            tool = .select
+        } catch {
+            report(error)
+        }
+    }
+
     func placeUnplaced() {
         guard isEditable else {
             statusMessage = "Select a set to place performers."
@@ -547,6 +621,105 @@ final class EditorModel: ObservableObject {
         arrangementTask = nil
         arrangementGeneration = UUID()
         isArranging = false
+    }
+
+    // MARK: Draw Next Set
+
+    /// Adds a set after the current one and starts drawing its shapes. The set
+    /// copies the current formation, so anyone left out of the route stays put.
+    func drawNextSet(counts: Int = 16) {
+        guard isEditable else {
+            statusMessage = "Select a set to draw the next one after it."
+            return
+        }
+        let id = SetID()
+        perform { try self.show.makeCreateSet(after: self.currentSetID, counts: counts, newSetID: id) }
+        guard let set = show.set(id) else { return }
+        selectSet(id)
+        selection = []
+        focusedNoteID = nil
+        tool = .select
+        draft = SetDraft(setID: id, sections: Set(show.sections.map(\.id)))
+        statusMessage = "Draw the shapes for set \(set.label), then choose Auto Route."
+    }
+
+    /// Performers in the draft's chosen sections, in roster order.
+    var draftMembers: [PerformerID] {
+        guard let draft else { return [] }
+        return show.performers.filter { draft.sections.contains($0.sectionID) }.map(\.id)
+    }
+
+    func addDraftShape(_ shape: DrawnShape) {
+        guard draft != nil else { return }
+        do {
+            var shape = shape
+            if case .text(var text) = shape {
+                text.text = try TextShape.validated(text.text)
+                shape = .text(text)
+            }
+            try shape.validate()
+            draft?.shapes.append(shape)
+        } catch {
+            report(error)
+        }
+    }
+
+    func removeLastDraftShape() {
+        guard draft?.shapes.isEmpty == false else { return }
+        draft?.shapes.removeLast()
+    }
+
+    func clearDraftShapes() { draft?.shapes = [] }
+
+    func toggleDraftSection(_ id: SectionID) {
+        guard let draft else { return }
+        if draft.sections.contains(id) { self.draft?.sections.remove(id) } else { self.draft?.sections.insert(id) }
+    }
+
+    /// Where the chosen performers would stand, or why the shapes cannot hold them.
+    var draftPreview: Result<[Point2], DrillError> {
+        guard let draft, !draft.shapes.isEmpty else { return .success([]) }
+        let members = draftMembers
+        if let cached = draftPreviewCache, cached.revision == session.revision, cached.shapes == draft.shapes, cached.members == members {
+            return cached.result
+        }
+        let result: Result<[Point2], DrillError>
+        do {
+            result = .success(try show.drawnTargets(draft.shapes, count: members.count).flatMap { $0 })
+        } catch let error as DrillError {
+            result = .failure(error)
+        } catch {
+            result = .failure(DrillError("\(error)"))
+        }
+        draftPreviewCache = (session.revision, draft.shapes, members, result)
+        return result
+    }
+
+    /// Fills the drawn shapes with the chosen sections using the usual shortest-move
+    /// assignment, as one undoable change. Everyone else stands where they were.
+    func autoRouteDraft() {
+        guard let draft, draft.setID == currentSetID else { return }
+        guard !draft.shapes.isEmpty else {
+            report(DrillError("Draw at least one shape first."))
+            return
+        }
+        if case .failure(let error) = draftPreview {
+            report(error)
+            return
+        }
+        let members = draftMembers, shapes = draft.shapes, set = draft.setID
+        buildArrangement({ try $0.makeDrawnSet(shapes, members: members, at: set, holdOthers: true) }) { [weak self] in
+            guard let self else { return }
+            self.draft?.routed = true
+            let plural = shapes.count == 1 ? "" : "s"
+            self.statusMessage = "Routed \(members.count) performers into \(shapes.count) shape\(plural). Change the shapes and route again, or choose Done."
+        }
+    }
+
+    func finishDraft() {
+        guard draft != nil else { return }
+        draft = nil
+        statusMessage = nil
     }
 
     func commitHandle(_ formID: FormID, geometry: FormGeometry) {

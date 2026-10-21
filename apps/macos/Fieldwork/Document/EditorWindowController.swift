@@ -34,6 +34,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
 
     @MainActor @objc func addSet16(_ sender: Any?) { model.addSet(counts: 16) }
     @MainActor @objc func addSet8(_ sender: Any?) { model.addSet(counts: 8) }
+    @MainActor @objc func drawNextSet(_ sender: Any?) { model.drawNextSet(counts: 16) }
     @MainActor @objc func deleteSet(_ sender: Any?) { model.deleteCurrentSet() }
     @MainActor @objc func splitMoveAtPlayhead(_ sender: Any?) { model.splitMoveAtPlayhead() }
     @MainActor @objc func previousSet(_ sender: Any?) { model.stepSet(-1) }
@@ -51,6 +52,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
     @MainActor @objc func toolSelect(_ sender: Any?) { model.tool = .select }
     @MainActor @objc func toolLine(_ sender: Any?) { model.tool = .line }
     @MainActor @objc func toolArc(_ sender: Any?) { model.tool = .arc }
+    @MainActor @objc func toolText(_ sender: Any?) { model.tool = .text }
     @MainActor @objc func toggleSnap(_ sender: Any?) { model.snapEnabled.toggle() }
     @MainActor @objc func fitField(_ sender: Any?) { model.requestCanvas(.fitField) }
     @MainActor @objc func fitSelection(_ sender: Any?) { model.requestCanvas(.fitSelection) }
@@ -114,6 +116,8 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(toolSelect(_:)): menuItem.state = model.tool == .select ? .on : .off; return true
         case #selector(toolLine(_:)): menuItem.state = model.tool == .line ? .on : .off; return true
         case #selector(toolArc(_:)): menuItem.state = model.tool == .arc ? .on : .off; return true
+        case #selector(toolText(_:)): menuItem.state = model.tool == .text ? .on : .off; return true
+        case #selector(drawNextSet(_:)): return model.isEditable
         case #selector(deleteSet(_:)):
             return model.show.previousSet(before: model.currentSetID) != nil && model.isEditable
         case #selector(splitMoveAtPlayhead(_:)):

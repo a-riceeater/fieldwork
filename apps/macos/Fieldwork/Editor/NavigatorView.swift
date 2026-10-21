@@ -51,6 +51,17 @@ struct NavigatorView: View {
                 .help("Add a set after the current one, copying its formation")
                 .tourAnchor("navigator.addSet")
                 .accessibilityIdentifier("navigator.addSet")
+                Menu {
+                    ForEach([4, 8, 12, 16, 24, 32], id: \.self) { counts in
+                        Button("\(counts) counts") { model.drawNextSet(counts: counts) }
+                    }
+                } label: {
+                    Label("Draw", systemImage: "pencil.and.outline")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Draw Next Set: add a set after the current one, draw its shapes over the previous set, then let Auto Route choose who goes where")
+                .disabled(!model.isEditable)
                 Spacer()
                 Button { model.deleteCurrentSet() } label: { Image(systemName: "minus") }
                     .buttonStyle(.borderless)
