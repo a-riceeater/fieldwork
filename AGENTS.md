@@ -3,7 +3,7 @@
 
 ## Git rules
 
-- Commit often: roughly every hundred lines changed, the way you would save a file.
+- Commit very often!!: roughly every hundred lines changed, the way you would save a file.
 - Every commit message is one sentence, written as a Conventional Commit with a scope
   and no body, for example `feat(lang): add Polish language`.
 - Follow the Conventional Commits standard: a lowercase type (`feat`, `fix`, `docs`,
