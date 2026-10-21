@@ -1,5 +1,35 @@
 # Progress log
 
+## 2026-10-21: Draw the next set as shapes, and spell text with performers
+
+Draw Next Set adds a set after the current one (a copy, as Add Set makes) and
+switches the canvas to drawing: the previous set shows faintly behind the field
+(toggleable), the copied performers stay hidden, and every drag draws a line,
+arc, block, circle or text shape without selecting anyone. A bar over the canvas
+picks the shape, the sections that fill the shapes and Auto Route. Routing spreads
+the chosen performers over all shapes at one common spacing and matches them with
+the existing `proximityOrder` (squared-distance matching plus collision swaps); it
+is not a new assignment. Performers outside the chosen sections are put back at
+their previous-set spot, so leaving out guard and percussion keeps them still, and
+routing again replaces the earlier route. Lines and arcs become forms with
+handles; blocks, circles and text are plain positions. Drafts are view state; the
+set and each route are ordinary undoable commands.
+
+Text uses a single-stroke font (A-Z, 0-9, `. , ' ! ? - + / & #`). It is laid along
+a dragged baseline, so the letters stand on it and grow to fill it. Exactly one
+dot per performer is spread along the strokes: the widest spacing that needs no
+more dots than performers, with joints and crossings counted once, then the
+largest gaps filled. The Text tool in the toolbar spells along a drag; the Text
+button beside the quick shapes centers the text on the selection and sizes it
+from the shape spacing. Text is not a retained form, because that would need a
+new form kind in the file format; reshaping means undo and redraw.
+
+Validation: DrillCore suite passed on Windows (72 tests, 8 new: glyph coverage,
+dots on strokes without stacking, baseline orientation, common spacing across
+mixed shapes, block grids, routing holds and undo, short marches, quick text).
+The macOS changes (canvas tools, draw bar, Text tool, menus) were written on
+Windows and have not been compiled or run.
+
 ## 2026-10-20: Scale performer labels with zoomed-out dots
 
 Performer labels now shrink by the same factor as small dots, including their

@@ -109,6 +109,13 @@ generated project. The generated project remains ignored by git.
     passes stay visible as warnings.
     The Mac editor calculates arrangements in the background with progress and Cancel,
     and discards pending results when the selection, set or document changes.
+  - Text spelled with performers: single-stroke capitals, digits and a little
+    punctuation laid along a baseline, with exactly one dot per performer spread
+    evenly along the strokes and shared joints counted once.
+  - Drawn shapes for a set before anyone is chosen (lines, arcs, blocks, circles
+    and text). The chosen performers are spread over every shape at one common
+    spacing and matched with the same assignment as above; everyone else can hold
+    their previous-set spot. Lines and arcs become forms; the rest are positions.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
   - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.
@@ -143,6 +150,8 @@ generated project. The generated project remains ignored by git.
 **Written but not yet compiled on a Mac:**
 
 - Path drawing on the field with count ticks and hold markers (selection, or View › Show All Paths), waypoint and curve handles, and a path inspector with hold phases, even pace, straighten and per-segment step sizes.
+- Draw Next Set (Drill › Draw Next Set, or Draw in the Sets panel): adds a set, shows the previous set faintly behind the field, draws line, arc, block, circle and text shapes without selecting anyone, then Auto Route fills them with the chosen sections while the others hold.
+- Text tool (Option-Command-4) and a Text button beside the quick shapes that spell typed text with the selection.
 
 **Not implemented yet:**
 
