@@ -88,18 +88,6 @@ final class FieldCanvasView: NSView {
     private var curveDragIndex: Int?
     private var curveToolActive: Bool { state?.draft.map { $0.tool == .curve } ?? (state?.tool == .curve) }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        for area in trackingAreas { removeTrackingArea(area) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        guard curveToolActive, !curvePoints.isEmpty, state?.editable == true else { return }
-        curveHover = snapped(world(convert(event.locationInWindow, from: nil)), event: event)
-        needsDisplay = true
-    }
-
     override func mouseExited(with event: NSEvent) {
         curveHover = nil
         needsDisplay = true
@@ -409,13 +397,18 @@ final class FieldCanvasView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if trackingAreas.isEmpty {
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self))
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
         }
     }
 
     /// Shows what a press will do: reshape on a square grip, move on a selected form.
     override func mouseMoved(with event: NSEvent) {
         guard case .none = drag, !spaceDown, let state, state.editable else { return }
+        if curveToolActive {
+            curveHover = curvePoints.isEmpty ? nil : snapped(world(convert(event.locationInWindow, from: nil)), event: event)
+            needsDisplay = true
+            return NSCursor.crosshair.set()
+        }
         if state.draft != nil { return NSCursor.crosshair.set() }
         guard state.tool == .select else { return }
         let v = convert(event.locationInWindow, from: nil)

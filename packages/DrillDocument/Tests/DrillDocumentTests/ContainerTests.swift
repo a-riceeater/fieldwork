@@ -214,7 +214,7 @@ final class ContainerTests: XCTestCase {
         ALTER TABLE arrival_set DROP COLUMN rehearsal_mark;
         ALTER TABLE arrival_set DROP COLUMN measure_marker;
         """)
-        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note; DROP TABLE path_segment;")
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note; DROP TABLE path_segment; DROP TABLE form_point;")
         try db.setUserVersion(1)
         try ShowDatabase.migrate(db)
         XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
@@ -236,7 +236,7 @@ final class ContainerTests: XCTestCase {
         // A schema 2 database has no performer symbols; everyone follows their section.
         let base = try SampleShow.make()
         let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
-        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note; DROP TABLE path_segment;")
+        try db.execute("ALTER TABLE performer DROP COLUMN symbol; DROP TABLE field_note; DROP TABLE path_segment; DROP TABLE form_point;")
         try db.setUserVersion(2)
         try ShowDatabase.migrate(db)
         XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
@@ -254,7 +254,7 @@ final class ContainerTests: XCTestCase {
 
         let base = try SampleShow.make()
         let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
-        try db.execute("DROP TABLE field_note; DROP TABLE path_segment;")
+        try db.execute("DROP TABLE field_note; DROP TABLE path_segment; DROP TABLE form_point;")
         try db.setUserVersion(3)
         try ShowDatabase.migrate(db)
         XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)

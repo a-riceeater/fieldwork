@@ -67,7 +67,7 @@ final class PathDocumentTests: XCTestCase {
     func testSchema4FilesMigrateWithNoPaths() throws {
         let base = try SampleShow.make()
         let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(base, writer: "test"))
-        try db.execute("DROP TABLE path_segment")
+        try db.execute("DROP TABLE path_segment; DROP TABLE form_point")
         try db.setUserVersion(4)
         try ShowDatabase.migrate(db)
         XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)

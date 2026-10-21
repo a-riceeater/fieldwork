@@ -2,7 +2,7 @@
 
 This document explains, field by field, what is inside a `.fieldwork` show file and how a reader or writer must treat it. It is a companion to the normative summary in [`spec/fieldwork-format.md`](../spec/fieldwork-format.md). Where they differ, the code in `packages/DrillDocument` is authoritative, and both documents should be fixed.
 
-Covers: container format version **1.0**, database schema **6**.
+Covers: container format version **1.0**, database schema **7**.
 
 Sources: `DocumentFormat.swift`, `ZipArchive.swift`, `ShowDatabase.swift`, `DocumentFile.swift` and `RecoveryJournal.swift` in `packages/DrillDocument/Sources/DrillDocument`, the model and validation in `packages/DrillCore`, and the timing model in `packages/DrillTiming`.
 
@@ -158,7 +158,7 @@ Audio is never modified or trimmed. Alignment is expressed through sample-frame 
 
 ### Versioning
 
-`PRAGMA user_version` holds the **schema version** (currently `6`). It is independent of the container format version. Schema changes happen inside format 1.0 and are handled by migration (see §8).
+`PRAGMA user_version` holds the **schema version** (currently `7`). It is independent of the container format version. Schema changes happen inside format 1.0 and are handled by migration (see §8).
 
 ### Units and conventions
 
@@ -208,9 +208,9 @@ erDiagram
 
 `meta` and `show` stand alone. Every table except `meta` and `show` is linked to the rest by foreign keys.
 
-### 6.2 Full schema (version 6)
+### 6.2 Full schema (version 7)
 
-This is exactly the schema a current writer creates: schema 1, followed by the changes for schemas 2, 3, 4, 5 and 6.
+This is exactly the schema a current writer creates: schema 1, followed by the changes for schemas 2, 3, 4, 5, 6 and 7.
 
 ```sql
 -- Schema 1
@@ -281,6 +281,21 @@ DROP TABLE form_member;
 DROP TABLE form;
 ALTER TABLE form_v6 RENAME TO form;
 ALTER TABLE form_member_v6 RENAME TO form_member;
+
+-- Schema 7
+CREATE TABLE form_v7 (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('line','arc','circle','curve')), x0 REAL NOT NULL, y0 REAL NOT NULL,
+    x1 REAL NOT NULL, y1 REAL NOT NULL, bulge REAL NOT NULL);
+INSERT INTO form_v7 SELECT * FROM form;
+CREATE TABLE form_member_v7 (form_id TEXT NOT NULL REFERENCES form_v7(id), ordinal INTEGER NOT NULL,
+    performer_id TEXT NOT NULL REFERENCES performer(id), PRIMARY KEY (form_id, ordinal));
+INSERT INTO form_member_v7 SELECT * FROM form_member;
+DROP TABLE form_member;
+DROP TABLE form;
+ALTER TABLE form_v7 RENAME TO form;
+ALTER TABLE form_member_v7 RENAME TO form_member;
+CREATE TABLE form_point (form_id TEXT NOT NULL REFERENCES form(id), ordinal INTEGER NOT NULL,
+    x REAL NOT NULL, y REAL NOT NULL, PRIMARY KEY (form_id, ordinal));
 PRAGMA user_version = 6;
 ```
 
@@ -544,7 +559,7 @@ The **authoritative** position of each performer at each set.
 - Fieldwork never invents `(0, 0)` for missing data. New performers start unresolved.
 - All placed values must be finite numbers.
 
-#### `form` and `form_member`
+#### `form`, `form_member` and `form_point`
 
 A form keeps the **control geometry** and **assignment order** of a shape, so it stays editable as a shape. Performer positions are still stored in `placement`, and `placement` wins on read. Forms do not regenerate positions when a file is loaded.
 
@@ -553,7 +568,7 @@ A form keeps the **control geometry** and **assignment order** of a shape, so it
 | `id` | TEXT UUID | |
 | `set_id` | TEXT → `arrival_set.id` | A form belongs to one set. |
 | `ordinal` | INTEGER | Show-wide order. |
-| `kind` | TEXT | `line`, `arc` or `circle`. |
+| `kind` | TEXT | `line`, `arc`, `circle` or `curve`. |
 | `x0`, `y0` | REAL m | Start point; center for circles. |
 | `x1`, `y1` | REAL m | End point; center plus radius along +x for circles. |
 | `bulge` | REAL m | For `circle`, the positive radius. For `arc`, the signed **sagitta** (the distance from the chord's midpoint to the arc). A positive value bulges to the **left** of the start→end direction. `0` for lines. |
@@ -565,6 +580,8 @@ A form keeps the **control geometry** and **assignment order** of a shape, so it
 | `performer_id` | TEXT → `performer.id` | No duplicates within a form. A performer is in **at most one form per set**. |
 
 Members are distributed at equal **arc length** along the form, with both endpoints included for lines and arcs. A single member sits at the midpoint of a line or arc. Circles exclude the repeated closing endpoint. "Reverse order" reverses the ordinals.
+
+Curve forms (schema 7) use `kind = 'curve'`. Their first and last shaping points are stored in `x0/y0` and `x1/y1`; `bulge` is zero. All points, including both endpoints, are stored in `form_point(form_id, ordinal, x, y)` in curve order. At least two finite points and a nonzero curve length are required. A centripetal Catmull–Rom spline passes through the points, with reflected endpoint neighbors. Performers are distributed at equal arc-length intervals along the sampled spline, including both endpoints. Moving a shaping point redistributes the form without changing membership.
 
 Circle forms (schema 6) use `kind = 'circle'`, center in `x0/y0`, radius in `bulge`, and `x1/y1 = (x0 + radius, y0)`. Members are evenly spaced around the full circle starting toward the audience, without duplicating the closing point. The straight-line neighbor interval is `2 × radius × sin(π / member_count)`; editing the interval resizes the circle while preserving membership and center.
 
@@ -649,9 +666,9 @@ When opening a file:
 1. The reader loads `show.sqlite` into **memory**.
 2. If `user_version` is **greater** than the reader's schema, it refuses: "schema N is newer than this version supports". The file is not changed.
 3. If it is lower, the reader applies each step `v → v+1` in its own transaction on the in-memory copy, then reads the result. The archive on disk is **never touched**.
-4. The next save writes a fresh schema 6 database.
+4. The next save writes a fresh schema 7 database.
 
-Fieldwork itself always writes schema 6, with or without paths. Other writers (such as a converter) may write schema 4 when they have no paths; readers open both. `spec/fixtures/paths.fieldwork` is a schema 5 file that uses every segment kind. A converter that writes paths follows [`spec/converter-paths.md`](../spec/converter-paths.md), which has a runnable reference in `spec/examples/paths_reference.py`.
+Fieldwork itself always writes schema 7, with or without paths. Other writers (such as a converter) may write schema 4 when they have no paths; readers open both. `spec/fixtures/paths.fieldwork` is a schema 5 file that uses every segment kind. A converter that writes paths follows [`spec/converter-paths.md`](../spec/converter-paths.md), which has a runnable reference in `spec/examples/paths_reference.py`.
 
 `examples/first-light.fieldwork` is currently a schema 1 file. It has no `counting_mode`, `rehearsal_mark`, `measure_marker`, `symbol` or `field_note`, and it opens through this migration path.
 
@@ -674,7 +691,7 @@ Format-level (manifest) changes and schema-level changes are separate. Adding a 
 ### Encode (`DocumentCodec.encode`)
 
 1. Validate the show.
-2. Build a fresh schema 6 database in memory, insert all rows (paths in canonical form), run `foreign_key_check` and serialize.
+2. Build a fresh schema 7 database in memory, insert all rows (paths in canonical form), run `foreign_key_check` and serialize.
 3. Collect referenced assets and confirm their hashes.
 4. Append extension members, sorted by path.
 5. Write the manifest, including the hash of every member, then the ZIP with the manifest first.
