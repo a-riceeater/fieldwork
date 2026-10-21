@@ -446,6 +446,12 @@ struct GroupInspector: View {
                 Label("\(model.selection.count - points.count) without a position", systemImage: "questionmark.circle").foregroundStyle(Color.fwWarning)
             }
             SymbolRow(model: model, ids: Array(model.selection))
+            if !model.show.forms(on: model.currentSetID).contains(where: { !model.selection.isDisjoint(with: $0.members) }),
+               let circle = model.show.recoverCircle(members: Array(model.selection), at: model.currentSetID) {
+                Button("Edit Circle") { model.perform(.applyForm(circle)) }
+                    .disabled(!model.isEditable)
+                    .help("Restore diameter, spacing and resize handles for this circle")
+            }
             Text("Arrange").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.fwSecondary)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: Tokens.Space.xs) {
                 ArrangeButtons(model: model)

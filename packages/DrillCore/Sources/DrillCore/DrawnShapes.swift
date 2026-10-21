@@ -149,6 +149,31 @@ public enum DrawnShape: Hashable, Codable, Sendable {
 }
 
 extension Show {
+    /// Recovers an evenly spaced circle saved as plain dots by older versions.
+    /// Only accept the original circle layout, so adopting it leaves positions intact.
+    public func recoverCircle(members ids: [PerformerID], at setID: SetID) -> Form? {
+        let ids = Array(Set(ids))
+        guard ids.count >= 3 else { return nil }
+        let formation = formation(setID)
+        let points = ids.compactMap { formation[$0].position?.point }
+        guard points.count == ids.count else { return nil }
+        let center = points.reduce(.zero, +) / Double(points.count)
+        let radius = points.reduce(0) { $0 + $1.distance(to: center) } / Double(points.count)
+        guard radius.isFinite, radius > 1e-6 else { return nil }
+        func angle(_ id: PerformerID) -> Double {
+            let p = formation[id].position!.point - center
+            let angle = atan2(p.y, p.x) + .pi / 2
+            return angle < -1e-8 ? angle + 2 * .pi : angle
+        }
+        let members = ids.sorted { angle($0) < angle($1) }
+        let geometry = FormGeometry.circle(center: center, radius: radius)
+        let targets = geometry.distribute(members.count)
+        guard zip(members, targets).allSatisfy({ id, target in
+            formation[id].position!.point.distance(to: target) < 1e-5
+        }) else { return nil }
+        return Form(setID: setID, geometry: geometry, members: members)
+    }
+
     /// Spreads `count` dots over the shapes at one common spacing: the widest
     /// spacing that needs no more than `count`, with any remainder going to the
     /// shapes whose dots are farthest apart. Returns each shape's dots in order.

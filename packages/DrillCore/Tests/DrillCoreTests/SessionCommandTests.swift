@@ -160,7 +160,7 @@ final class SessionCommandTests: XCTestCase {
             XCTAssertEqual(session.undoName, "Place in \(shape.displayName)")
             XCTAssertGreaterThan(minimumGap(), spacing * 0.95, "\(shape) keeps neighbors apart")
             let retained = session.show.forms(on: preset).contains { Set($0.members) == Set(ids) }
-            XCTAssertEqual(retained, shape == .line || shape == .arc, "\(shape) form retention")
+            XCTAssertEqual(retained, shape != .block, "\(shape) form retention")
         }
         // Lines are centered where the performers already were.
         try session.perform(try session.show.makeTranslate(ids, at: preset, by: Point2(5, 3)))

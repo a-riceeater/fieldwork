@@ -68,6 +68,11 @@ extension Show {
             try validatePaths(t, from: from, counts: end - begin, performerIDs: performerIDs)
         }
         for form in forms {
+            if case .circle(let center, let radius) = form.geometry {
+                guard center.x.isFinite, center.y.isFinite, radius.isFinite, radius > 0 else {
+                    throw DrillError("Circles must have a finite center and a positive radius.")
+                }
+            }
             guard setIDs.contains(form.setID) else { throw DrillError("A form references a missing set.") }
             guard Set(form.members).count == form.members.count, form.members.allSatisfy(performerIDs.contains) else {
                 throw DrillError("A form has invalid membership.")

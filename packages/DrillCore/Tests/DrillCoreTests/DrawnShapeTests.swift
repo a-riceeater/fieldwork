@@ -12,6 +12,57 @@ final class DrawnShapeTests: XCTestCase {
         return session
     }
 
+    func testRoutedCircleRetainsGeometryResizesAndUndoes() throws {
+        let session = try session()
+        let set = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        let center = Point2(3, -2)
+        let shape = DrawnShape.circle(center: center, radius: 7)
+        let before = session.show
+        try session.perform(try session.show.makeDrawnSet([shape], members: ids, at: set))
+        let routed = session.show
+        let form = try XCTUnwrap(routed.forms.first)
+        XCTAssertEqual(form.geometry, .circle(center: center, radius: 7))
+        XCTAssertEqual(Set(form.members), Set(ids))
+        let spacing = 3 * routed.field.stepSize
+        let radius = FormGeometry.circleRadius(spacing: spacing, count: ids.count)
+        try session.perform(.updateFormGeometry(form.id, .circle(center: center, radius: radius)))
+        let points = form.members.map { session.show.formation(set)[$0].position!.point }
+        for i in points.indices {
+            XCTAssertEqual(points[i].distance(to: points[(i + 1) % points.count]), spacing, accuracy: 1e-9)
+        }
+        XCTAssertEqual(session.show.forms[0].members, form.members)
+        try session.undo()
+        XCTAssertEqual(session.show, routed)
+        try session.undo()
+        XCTAssertEqual(session.show, before)
+    }
+
+    func testCircleHandlesAndRecoveryOfLegacyDots() throws {
+        let session = try session()
+        let set = session.show.sets[0].id
+        let ids = session.show.performers.map(\.id)
+        let geometry = FormGeometry.circle(center: Point2(3, 4), radius: 5)
+        XCTAssertEqual(geometry.movingHandle(1, to: Point2(13, 4)), .circle(center: Point2(3, 4), radius: 10))
+        XCTAssertEqual(geometry.movingHandle(0, to: .zero), .circle(center: .zero, radius: 5))
+        XCTAssertEqual(geometry.translated(by: Point2(1, 2)), .circle(center: Point2(4, 6), radius: 5))
+        XCTAssertEqual(Set(geometry.distribute(ids.count)).count, ids.count)
+        let positions = Dictionary(uniqueKeysWithValues: zip(ids, geometry.distribute(ids.count)).map {
+            ($0, Placement.placed(Position(x: $1.x, y: $1.y)))
+        })
+        try session.perform(.setPlacements(set, positions))
+        let form = try XCTUnwrap(session.show.recoverCircle(members: ids, at: set))
+        let before = session.show.formation(set)
+        try session.perform(.applyForm(form))
+        for id in ids {
+            XCTAssertLessThan(session.show.formation(set)[id].position!.point.distance(to: before[id].position!.point), 1e-9)
+        }
+        try session.perform(.detachForm(form.id))
+        try session.perform(try session.show.makeTranslate([ids[0]], at: set, by: Point2(1, 0)))
+        XCTAssertNil(session.show.recoverCircle(members: ids, at: set))
+        XCTAssertThrowsError(try session.perform(.applyForm(Form(setID: set, geometry: .circle(center: .zero, radius: 0), members: ids))))
+    }
+
     private func distance(_ p: Point2, toStrokes strokes: [[Point2]]) -> Double {
         // A one-point stroke (the dot of "!") is a segment from the point to itself.
         strokes.flatMap { s in s.count == 1 ? [(s[0], s[0])] : zip(s, s.dropFirst()).map { ($0, $1) } }.map { a, b in
