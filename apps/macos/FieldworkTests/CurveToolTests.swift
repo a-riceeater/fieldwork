@@ -22,6 +22,9 @@ final class CurveToolTests: XCTestCase {
             window.contentView = view
             view.delegate = coordinator
             view.state = model.canvasState()
+            view.layoutSubtreeIfNeeded()
+            XCTAssertFalse(view.curveControls.isHidden)
+            XCTAssertEqual(view.curveControls.frame.maxY, view.bounds.maxY - 40, accuracy: 1)
             let before = model.show
             func mouse(_ type: NSEvent.EventType, _ point: Point2) throws -> NSEvent {
                 let v = view.transform.toView(point, in: view.bounds)
@@ -43,6 +46,7 @@ final class CurveToolTests: XCTestCase {
             try click(Point2(-4, 6))
             try click(Point2(4, -6))
             XCTAssertEqual(view.curvePoints.count, 4)
+            XCTAssertEqual(view.curveControls.rootView.pointCount, 4)
             XCTAssertEqual(try XCTUnwrap(view.curvePoints.first).x, -12, accuracy: 1e-8)
             XCTAssertEqual(try XCTUnwrap(view.curvePoints.last).x, 12, accuracy: 1e-8)
             XCTAssertEqual(model.show, before, "Preview must not change the document")
@@ -59,8 +63,12 @@ final class CurveToolTests: XCTestCase {
             // Render both the outline and performer preview before committing.
             let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
             view.cacheDisplay(in: view.bounds, to: bitmap)
+            let attachment = XCTAttachment(image: NSImage(cgImage: try XCTUnwrap(bitmap.cgImage), size: view.bounds.size))
+            attachment.name = drawing ? "Drawing curve controls" : "Editing curve controls"
+            attachment.lifetime = .keepAlways
+            add(attachment)
             let expected = FormGeometry.curve(points: view.curvePoints)
-            try key(36)
+            if drawing { view.curveControls.rootView.finish() } else { try key(36) }
             XCTAssertTrue(view.curvePoints.isEmpty)
             let deadline = Date(timeIntervalSinceNow: 3)
             while model.isArranging, Date() < deadline { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01)) }
@@ -81,12 +89,13 @@ final class CurveToolTests: XCTestCase {
             if !drawing { model.tool = .curve }
             view.state = model.canvasState()
             try click(Point2(-10, 0))
-            try key(53)
+            if drawing { view.curveControls.rootView.cancel() } else { try key(53) }
             XCTAssertTrue(view.curvePoints.isEmpty)
             try click(Point2(-10, 0))
             if drawing { model.draft?.tool = .line } else { model.tool = .select }
             view.state = model.canvasState()
             XCTAssertTrue(view.curvePoints.isEmpty)
+            XCTAssertTrue(view.curveControls.isHidden)
         }
     }
 }

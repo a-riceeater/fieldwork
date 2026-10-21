@@ -25,7 +25,7 @@ struct CurveControls: View {
                     .disabled(pointCount == 0)
                     .help("Discard this curve (Escape)")
                 Button("Finish Curve", action: finish)
-                    .fwPrimaryButton()
+                    .buttonStyle(.borderedProminent)
                     .disabled(pointCount < 2)
                     .help("Keep this curve and stop adding points (Return)")
                     .accessibilityIdentifier("curve.finish")
@@ -37,7 +37,9 @@ struct CurveControls: View {
         }
         .padding(Tokens.Space.m)
         .frame(maxWidth: .infinity)
-        .floatingGlass()
+        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Tokens.Radius.cluster))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.cluster).strokeBorder(.secondary.opacity(0.2)))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Curve controls")
     }

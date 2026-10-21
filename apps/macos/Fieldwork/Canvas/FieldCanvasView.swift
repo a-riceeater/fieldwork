@@ -92,6 +92,7 @@ final class FieldCanvasView: NSView {
     private var curveDragIndex: Int?
     private var curveToolActive: Bool { state?.draft.map { $0.tool == .curve } ?? (state?.tool == .curve) }
 
+    private var curveControlsWidth: NSLayoutConstraint?
     private(set) lazy var curveControls = NSHostingView(rootView: CurveControls(pointCount: 0, finish: {}, cancel: {}))
 
     private func updateCurveControls() {
@@ -156,13 +157,12 @@ final class FieldCanvasView: NSView {
         curveControls.translatesAutoresizingMaskIntoConstraints = false
         curveControls.isHidden = true
         addSubview(curveControls)
-        let preferredWidth = curveControls.widthAnchor.constraint(equalTo: widthAnchor, constant: -24)
-        preferredWidth.priority = .defaultHigh
+        let width = curveControls.widthAnchor.constraint(equalToConstant: max(0, min(640, frameRect.width - 24)))
+        curveControlsWidth = width
         NSLayoutConstraint.activate([
             curveControls.topAnchor.constraint(equalTo: topAnchor, constant: 40),
             curveControls.centerXAnchor.constraint(equalTo: centerXAnchor),
-            curveControls.widthAnchor.constraint(lessThanOrEqualToConstant: 640),
-            preferredWidth
+            width
         ])
     }
 
@@ -175,6 +175,8 @@ final class FieldCanvasView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         let resized = newSize != frame.size
         super.setFrameSize(newSize)
+        // Size the overlay from the viewport, without constraining the viewport to the overlay.
+        curveControlsWidth?.constant = max(0, min(640, newSize.width - 24))
         if resized, let state,
            followsFieldFit || transform.scale < CanvasTransform.fit(state.field.bounds, in: bounds).scale {
             fit(.fitField)
