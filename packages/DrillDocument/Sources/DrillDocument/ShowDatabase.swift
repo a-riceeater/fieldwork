@@ -6,7 +6,7 @@ import DrillCore
 /// meters, angles degrees, times seconds or sample frames, rationals stored as
 /// numerator/denominator integer pairs.
 enum ShowDatabase {
-    static let currentSchemaVersion = 6
+    static let currentSchemaVersion = 7
 
     static let schemaV1 = """
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -88,13 +88,31 @@ enum ShowDatabase {
     ALTER TABLE form_member_v6 RENAME TO form_member;
     """
 
+    /// Schema 7: retained splines and their ordered shaping points.
+    static let schemaV7Changes = """
+    CREATE TABLE form_v7 (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('line','arc','circle','curve')), x0 REAL NOT NULL, y0 REAL NOT NULL,
+        x1 REAL NOT NULL, y1 REAL NOT NULL, bulge REAL NOT NULL);
+    INSERT INTO form_v7 SELECT * FROM form;
+    CREATE TABLE form_member_v7 (form_id TEXT NOT NULL REFERENCES form_v7(id), ordinal INTEGER NOT NULL,
+        performer_id TEXT NOT NULL REFERENCES performer(id), PRIMARY KEY (form_id, ordinal));
+    INSERT INTO form_member_v7 SELECT * FROM form_member;
+    DROP TABLE form_member;
+    DROP TABLE form;
+    ALTER TABLE form_v7 RENAME TO form;
+    ALTER TABLE form_member_v7 RENAME TO form_member;
+    CREATE TABLE form_point (form_id TEXT NOT NULL REFERENCES form(id), ordinal INTEGER NOT NULL,
+        x REAL NOT NULL, y REAL NOT NULL, PRIMARY KEY (form_id, ordinal));
+    """
+
     /// Ordered upgrade steps: `migrations[v]` upgrades schema v to v + 1.
     typealias Migration = @Sendable (SQLiteDatabase) throws -> Void
     static let migrations: [Int: Migration] = [1: { db in try db.execute(schemaV2Changes) },
                                                2: { db in try db.execute(schemaV3Changes) },
                                                3: { db in try db.execute(schemaV4Changes) },
                                                4: { db in try db.execute(schemaV5Changes) },
-                                               5: { db in try db.execute(schemaV6Changes) }]
+                                               5: { db in try db.execute(schemaV6Changes) },
+                                               6: { db in try db.execute(schemaV7Changes) }]
 
     /// Upgrades an in-memory copy. The original archive bytes are never touched.
     static func migrate(_ db: SQLiteDatabase, to target: Int = currentSchemaVersion, using steps: [Int: Migration] = migrations) throws {
@@ -197,13 +215,20 @@ enum ShowDatabase {
             }
             let form = try db.prepare("INSERT INTO form VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
             let member = try db.prepare("INSERT INTO form_member VALUES (?, ?, ?)")
+            let point = try db.prepare("INSERT INTO form_point VALUES (?, ?, ?, ?)")
             for (i, fm) in show.forms.enumerated() {
                 let (start, end) = fm.geometry.endpoints
                 var kind = "line", bulge = 0.0
                 if case .arc(_, _, let b) = fm.geometry { kind = "arc"; bulge = b }
                 if case .circle(_, let r) = fm.geometry { kind = "circle"; bulge = r }
+                if case .curve = fm.geometry { kind = "curve" }
                 try form.run([.text(fm.id.description), .text(fm.setID.description), .int(i), .text(kind), .double(start.x), .double(start.y),
                               .double(end.x), .double(end.y), .double(bulge)])
+                if case .curve(let points) = fm.geometry {
+                    for (j, p) in points.enumerated() {
+                        try point.run([.text(fm.id.description), .int(j), .double(p.x), .double(p.y)])
+                    }
+                }
                 for (j, m) in fm.members.enumerated() { try member.run([.text(fm.id.description), .int(j), .text(m.description)]) }
             }
             let note = try db.prepare("INSERT INTO field_note VALUES (?, ?, ?, ?, ?, ?)")
@@ -378,10 +403,16 @@ enum ShowDatabase {
         var forms: [Form] = []
         let form = try db.prepare("SELECT id, set_id, kind, x0, y0, x1, y1, bulge FROM form ORDER BY ordinal")
         let member = try db.prepare("SELECT performer_id FROM form_member WHERE form_id = ? ORDER BY ordinal")
+        let point = try db.prepare("SELECT x, y FROM form_point WHERE form_id = ? ORDER BY ordinal")
         while try form.step() {
             let start = Point2(form.double(3), form.double(4)), end = Point2(form.double(5), form.double(6))
             let geometry: FormGeometry
             switch form.text(2) {
+            case "curve":
+                try point.bind([.text(form.text(0))])
+                var points: [Point2] = []
+                while try point.step() { points.append(Point2(point.double(0), point.double(1))) }
+                geometry = .curve(points: points)
             case "circle": geometry = .circle(center: start, radius: form.double(7))
             case "arc": geometry = .arc(start: start, end: end, bulge: form.double(7))
             default: geometry = .line(start: start, end: end)
