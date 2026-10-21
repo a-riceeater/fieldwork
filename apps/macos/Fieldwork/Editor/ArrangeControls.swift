@@ -69,7 +69,7 @@ struct SpacingMenu: View {
         .accessibilityLabel("Shape spacing")
     }
 
-    private var selectedCircle: Form? {
+    private var selectedCircle: DrillCore.Form? {
         model.show.forms(on: model.currentSetID).first {
             if case .circle = $0.geometry { return Set($0.members) == model.selection }
             return false

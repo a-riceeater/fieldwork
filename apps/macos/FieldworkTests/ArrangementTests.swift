@@ -10,7 +10,7 @@ final class ArrangementTests: XCTestCase {
         let ids = model.show.performers.map(\.id)
         model.perform(try model.show.makeDrawnSet([.circle(center: Point2(3, 4), radius: 5)], members: ids, at: set))
         let original = model.show
-        let form = try XCTUnwrap(model.show.forms.first)
+        let form = try XCTUnwrap(model.show.forms(on: set).first)
         model.spaceCircle(form.id, spacingSteps: 3)
         let spaced = try XCTUnwrap(model.show.form(form.id))
         XCTAssertEqual(spaced.geometry.neighborSpacing(count: ids.count) / model.show.field.stepSize, 3, accuracy: 1e-9)

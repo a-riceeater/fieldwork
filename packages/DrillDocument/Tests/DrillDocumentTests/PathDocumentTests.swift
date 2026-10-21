@@ -53,7 +53,7 @@ final class PathDocumentTests: XCTestCase {
     func testRowsAreWrittenInArrivalRosterAndSegmentOrder() throws {
         let session = try makePathShow()
         let db = try SQLiteDatabase(bytes: try ShowDatabase.encode(session.show, writer: "test"))
-        XCTAssertEqual(db.userVersion, 5)
+        XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
         let rows = try db.prepare("SELECT performer_id, ordinal, kind FROM path_segment ORDER BY rowid")
         var order: [(String, Int64, String)] = []
         while try rows.step() { order.append((rows.text(0), rows.int64(1), rows.text(2))) }
@@ -70,7 +70,7 @@ final class PathDocumentTests: XCTestCase {
         try db.execute("DROP TABLE path_segment")
         try db.setUserVersion(4)
         try ShowDatabase.migrate(db)
-        XCTAssertEqual(db.userVersion, 5)
+        XCTAssertEqual(db.userVersion, ShowDatabase.currentSchemaVersion)
         let migrated = try ShowDatabase.read(db)
         XCTAssertEqual(migrated, base)
         XCTAssertEqual(migrated.pathCount, 0)

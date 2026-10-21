@@ -13,7 +13,7 @@ final class ContainerTests: XCTestCase {
         let data = try DocumentCodec.encode(ShowDocument(show: session.show))
         let reopened = try DocumentCodec.decode(data)
         XCTAssertEqual(reopened.show, session.show)
-        let form = try XCTUnwrap(reopened.show.forms.first)
+        let form = try XCTUnwrap(reopened.show.forms(on: set).first)
         XCTAssertEqual(form.geometry, .circle(center: Point2(4, 2), radius: 9))
         XCTAssertEqual(Set(form.members), Set(members))
     }
