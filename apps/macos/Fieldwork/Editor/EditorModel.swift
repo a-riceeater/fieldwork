@@ -773,7 +773,7 @@ final class EditorModel: ObservableObject {
     func deferDraftExit(_ action: @escaping () -> Void) -> Bool {
         guard let draft else { return false }
         if draft.hasPendingChanges || isArranging {
-            if pendingDraftExit == nil { pendingDraftExit = action }
+            pendingDraftExit = action
             showsDraftExitConfirmation = true
             return true
         }

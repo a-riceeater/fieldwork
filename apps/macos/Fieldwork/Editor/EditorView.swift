@@ -43,9 +43,6 @@ struct EditorView: View {
         } message: {
             Text("Your drawing has changes that haven't been applied with Auto Route. Leaving discards those changes. Performers already placed by Auto Route will stay where they are.")
         }
-        .onChange(of: model.showsDraftExitConfirmation) { _, showing in
-            if !showing { model.cancelDraftExit() }
-        }
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
         }
