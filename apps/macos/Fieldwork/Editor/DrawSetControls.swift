@@ -75,7 +75,7 @@ struct DrawSetBar: View {
         if let problem, !draft.shapes.isEmpty {
             Text(problem).foregroundStyle(Color.fwWarning)
         } else if draft.shapes.isEmpty {
-            Text(draft.tool == .curve ? "Click the start and end, then add shaping points between them. Return to finish; Escape to cancel." : "Drag on the field to draw the shapes for \(label). \(members) performers will fill them.")
+            Text(draft.tool == .curve ? "Click the start and end, then add shaping points between them. Choose Finish Curve above the field (or press Return)." : "Drag on the field to draw the shapes for \(label). \(members) performers will fill them.")
                 .foregroundStyle(Color.fwSecondary)
         } else {
             let others = model.show.performers.count - members
