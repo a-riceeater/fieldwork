@@ -15,6 +15,12 @@ final class FieldCanvasView: NSView {
     var state: CanvasState? {
         didSet {
             guard state != oldValue else { return }
+            if oldValue?.tool != state?.tool || oldValue?.draft?.tool != state?.draft?.tool
+                || oldValue?.caption != state?.caption || state?.editable != true {
+                curvePoints = []
+                curveHover = nil
+                curveDragIndex = nil
+            }
             if followsFieldFit, oldValue?.field != state?.field { fit(.fitField) }
             needsDisplay = true
             updateAccessibility()
@@ -75,6 +81,58 @@ final class FieldCanvasView: NSView {
     }
 
     private var drag: Drag = .none
+    private(set) var curvePoints: [Point2] = []
+    private var curveHover: Point2?
+    private var curveDragIndex: Int?
+    private var curveToolActive: Bool { state?.draft.map { $0.tool == .curve } ?? (state?.tool == .curve) }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard curveToolActive, !curvePoints.isEmpty, state?.editable == true else { return }
+        curveHover = snapped(world(convert(event.locationInWindow, from: nil)), event: event)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        curveHover = nil
+        needsDisplay = true
+    }
+
+    private func finishCurve() {
+        guard curvePoints.count >= 2 else {
+            delegate?.canvasMessage("Place the start and end of the curve first.")
+            return
+        }
+        let shape = DrawnShape.curve(points: curvePoints)
+        do { try shape.validate() } catch {
+            delegate?.canvasMessage(error.localizedDescription)
+            return
+        }
+        if state?.draft != nil { delegate?.canvasCommitDraftShape(shape) }
+        else { delegate?.canvasCommitForm(.curve(points: curvePoints)) }
+        curvePoints = []
+        curveHover = nil
+        curveDragIndex = nil
+        needsDisplay = true
+    }
+
+    /// Insert into the nearest span, keeping the first and last points as endpoints.
+    static func curveInsertionIndex(_ point: Point2, in points: [Point2]) -> Int {
+        guard points.count >= 2 else { return points.count }
+        return (0..<(points.count - 1)).min { a, b in
+            func distance(_ i: Int) -> Double {
+                let start = points[i], delta = points[i + 1] - start
+                let t = delta.dot(delta) > 0 ? min(1, max(0, (point - start).dot(delta) / delta.dot(delta))) : 0
+                return point.distance(to: start + delta * t)
+            }
+            return distance(a) < distance(b)
+        }! + 1
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -171,6 +229,11 @@ final class FieldCanvasView: NSView {
             switch geometry {
             case .circle(let center, _):
                 direction = index == 0 ? Point2(0, 1) : (anchor - center).normalized
+            case .curve:
+                let points = geometry.handles
+                let before = points[max(0, index - 1)], after = points[min(points.count - 1, index + 1)]
+                let normal = (after - before).perpendicular.normalized
+                direction = normal.length > 0 ? normal : Point2(0, 1)
             case .line(let start, let end):
                 let normal = (end - start).perpendicular.normalized
                 direction = normal.length > 0 ? normal : Point2(0, 1)
@@ -310,6 +373,7 @@ final class FieldCanvasView: NSView {
     /// to the pointer, a block spans them as corners, and a circle is centered on the press.
     static func drawnShape(_ tool: DrawTool, from start: Point2, to end: Point2, text: String) -> DrawnShape {
         switch tool {
+        case .curve: return .curve(points: [start, end])
         case .line: return .line(start: start, end: end)
         case .arc: return .arc(start: start, end: end, bulge: start.distance(to: end) * 0.25)
         case .block: return .block(start, end)
@@ -413,6 +477,26 @@ final class FieldCanvasView: NSView {
             NSCursor.closedHand.set()
             return
         }
+        if curveToolActive {
+            guard state.editable else { return }
+            if state.draft == nil, !state.dots.contains(where: \.selected) {
+                delegate?.canvasMessage("Select performers before drawing a curve.")
+                return
+            }
+            let point = snapped(world(v), event: event)
+            if let index = curvePoints.indices.min(by: { view(curvePoints[$0]).distance(to: v) < view(curvePoints[$1]).distance(to: v) }),
+               view(curvePoints[index]).distance(to: v) <= 9 {
+                curveDragIndex = index
+            } else if event.clickCount < 2 {
+                let index = Self.curveInsertionIndex(point, in: curvePoints)
+                curvePoints.insert(point, at: index)
+                curveDragIndex = index
+            }
+            curveHover = nil
+            if event.clickCount > 1 { finishCurve() }
+            needsDisplay = true
+            return
+        }
         if state.draft != nil {
             guard state.editable else { return }
             let p = snapped(world(v), event: event)
@@ -461,7 +545,7 @@ final class FieldCanvasView: NSView {
             return
         }
         switch state.tool {
-        case .line, .arc, .text:
+        case .line, .arc, .text, .curve:
             guard state.editable else {
                 delegate?.canvasMessage("Select a set to edit it. The canvas is showing a moment between sets.")
                 return
@@ -507,6 +591,11 @@ final class FieldCanvasView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         let v = convert(event.locationInWindow, from: nil)
+        if let index = curveDragIndex, curvePoints.indices.contains(index) {
+            curvePoints[index] = snapped(world(v), event: event)
+            needsDisplay = true
+            return
+        }
         switch drag {
         case .none:
             return
@@ -540,6 +629,7 @@ final class FieldCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        curveDragIndex = nil
         defer {
             drag = .none
             NSCursor.arrow.set()
@@ -636,6 +726,20 @@ final class FieldCanvasView: NSView {
         let fine = event.modifierFlags.contains(.option)
         let coarse = event.modifierFlags.contains(.shift)
         let amount = fine ? 0.25 : (coarse ? 4 : 1)
+        if curveToolActive, !curvePoints.isEmpty {
+            switch event.keyCode {
+            case 36, 76: finishCurve(); return
+            case 53:
+                curvePoints = []; curveHover = nil; curveDragIndex = nil
+                needsDisplay = true
+                return
+            case 51, 117:
+                curvePoints.removeLast(); curveHover = nil; curveDragIndex = nil
+                needsDisplay = true
+                return
+            default: break
+            }
+        }
         switch event.keyCode {
         case 123: delegate?.canvasNudge(dx: -amount, dy: 0)
         case 124: delegate?.canvasNudge(dx: amount, dy: 0)
@@ -880,6 +984,29 @@ final class FieldCanvasView: NSView {
             drawCaption("Δ \(String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), steps)) steps", at: CGPoint(x: 12, y: 32))
         default:
             break
+        }
+        if curveToolActive {
+            var points = curvePoints
+            if let hover = curveHover, !points.isEmpty {
+                points.insert(hover, at: Self.curveInsertionIndex(hover, in: points))
+            }
+            ctx.setStrokeColor(Tokens.fieldAccent.cgColor)
+            ctx.setFillColor(Tokens.fieldAccent.cgColor)
+            ctx.setLineWidth(2)
+            let geometry = FormGeometry.curve(points: points)
+            strokeOutlines([geometry.polyline()], in: ctx)
+            let count = state.draft == nil ? state.dots.filter(\.selected).count : state.draft?.preview.count ?? 0
+            for point in geometry.distribute(count) where points.count >= 2 {
+                let p = view(point)
+                ctx.strokeEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r))
+            }
+            for (index, point) in curvePoints.enumerated() {
+                let p = view(point)
+                ctx.fillEllipse(in: CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10))
+                drawCaption(index == 0 ? "Start" : (index == curvePoints.count - 1 ? "End" : "\(index)"), at: CGPoint(x: p.x + 9, y: p.y + 9))
+            }
+            let instruction = curvePoints.isEmpty ? "Click to place the start" : (curvePoints.count == 1 ? "Click to place the end" : "Click between points to shape · Drag points to adjust · Return to finish · Delete to remove last · Esc to cancel")
+            drawCaption(instruction, at: CGPoint(x: 12, y: 56))
         }
         drawCaption(state.caption, at: CGPoint(x: 12, y: bounds.maxY - 24))
     }

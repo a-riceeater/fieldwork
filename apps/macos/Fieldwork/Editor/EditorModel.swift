@@ -9,12 +9,13 @@ import DrillExport
 import FieldworkTour
 
 enum EditorTool: String, CaseIterable, Identifiable {
-    case select, line, arc, text
+    case select, line, arc, text, curve
     var id: String { rawValue }
     var title: String {
         switch self {
         case .select: return "Select"
         case .line: return "Line"
+        case .curve: return "Curve"
         case .arc: return "Arc"
         case .text: return "Text"
         }
@@ -23,6 +24,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
         switch self {
         case .select: return "cursorarrow"
         case .line: return "line.diagonal"
+        case .curve: return "point.topleft.down.to.point.bottomright.curvepath"
         case .arc: return "circle.bottomhalf.filled"
         case .text: return "textformat"
         }
@@ -31,12 +33,13 @@ enum EditorTool: String, CaseIterable, Identifiable {
 
 /// The shapes Draw Next Set can draw on the field.
 enum DrawTool: String, CaseIterable, Identifiable {
-    case line, arc, block, circle, text
+    case line, arc, block, circle, text, curve
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
     var symbol: String {
         switch self {
         case .line: return "line.diagonal"
+        case .curve: return "point.topleft.down.to.point.bottomright.curvepath"
         case .arc: return "rainbow"
         case .block: return "square.grid.3x3"
         case .circle: return "circle.dashed"
