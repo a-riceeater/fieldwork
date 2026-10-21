@@ -125,9 +125,9 @@ final class FieldCanvasView: NSView {
 
     // MARK: Geometry helpers
 
-    // Small position markers leave daylight between tightly spaced performers.
-    // Keep their field-relative size through midrange zooms; cap only close-ups.
-    private var dotRadius: CGFloat { min(9, 0.15 * transform.scale) }
+    // Keep overview dots visible without enlarging the midrange markers that
+    // leave daylight between tightly spaced performers. Cap only close-ups.
+    private var dotRadius: CGFloat { min(9, max(2.5, 0.15 * transform.scale)) }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
     private func world(_ v: CGPoint) -> Point2 { transform.toWorld(v, in: bounds) }
