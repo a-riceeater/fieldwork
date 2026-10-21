@@ -125,8 +125,9 @@ final class FieldCanvasView: NSView {
 
     // MARK: Geometry helpers
 
-    // A 0.3-meter radius shrinks with the field; only close-up views cap its size.
-    private var dotRadius: CGFloat { min(9, 0.3 * transform.scale) }
+    // Small position markers leave daylight between tightly spaced performers.
+    // Keep their field-relative size through midrange zooms; cap only close-ups.
+    private var dotRadius: CGFloat { min(9, 0.15 * transform.scale) }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
     private func world(_ v: CGPoint) -> Point2 { transform.toWorld(v, in: bounds) }
@@ -713,8 +714,9 @@ final class FieldCanvasView: NSView {
         // Dots. On grass and paper a soft dark halo keeps light section colors readable.
         let r = dotRadius
         let showLabels = state.alwaysShowLabels || transform.scale >= 10
-        // Cache text at its close-up size, then shrink it with small dots when drawing.
-        let labelScale = min(1, r / 3.5)
+        // Labels shrink with the field through midrange zooms too, so they do not
+        // turn a closely spaced form into a solid band of overlapping text.
+        let labelScale = min(1, transform.scale / 30)
         let fontSize: CGFloat = state.alwaysShowLabels ? 8 : max(8, min(11, transform.scale * 0.6))
         let paper = state.fieldStyle == .paper
         let backingScale = window?.backingScaleFactor ?? 2
@@ -736,7 +738,7 @@ final class FieldCanvasView: NSView {
             if state.fieldStyle != .dark {
                 ctx.saveGState()
                 let blur: CGFloat = state.fieldStyle == .paper ? 1.5 : 3
-                ctx.setShadow(offset: .zero, blur: blur * min(1, r / 3.5), color: NSColor.black.withAlphaComponent(0.7).cgColor)
+                ctx.setShadow(offset: .zero, blur: blur * r / 9, color: NSColor.black.withAlphaComponent(0.7).cgColor)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
                 ctx.restoreGState()
             } else {

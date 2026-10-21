@@ -87,6 +87,57 @@ final class EditorLayoutTests: XCTestCase {
     }
 
     @MainActor
+    func testTightPerformerIntervalsRemainVisiblySeparateAtMidrangeZooms() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        var state = model.canvasState()
+        state.fieldStyle = .dark
+        state.forms = []
+        state.paths = []
+        state.notes = []
+        var dot = try XCTUnwrap(state.dots.first)
+        dot.symbol = .circle
+        dot.selected = false
+        dot.label = ""
+        state.dots = []
+        canvas.state = state
+
+        func render() throws -> NSBitmapImageRep {
+            let bitmap = try XCTUnwrap(canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds))
+            canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
+            return bitmap
+        }
+        for minimumScale: CGFloat in [15, 25, 40] {
+            while canvas.transform.scale < minimumScale { canvas.fit(.zoomIn) }
+            // Half-meter intervals in lines, diagonals and a curved formation.
+            for points in [
+                [Point2(-0.25, 0), Point2(0.25, 0)],
+                [Point2(-0.15, -0.2), Point2(0.15, 0.2)],
+                (0..<12).map { Point2(cos(Double($0) * .pi / 6), sin(Double($0) * .pi / 6)) }
+            ] {
+                state.dots = []
+                canvas.state = state
+                let empty = try render()
+                state.dots = points.map { point in
+                    var performer = dot
+                    performer.id = PerformerID()
+                    performer.point = point
+                    return performer
+                }
+                canvas.state = state
+                let placed = try render()
+                // Empty labels isolate the markers from text placement.
+                let a = points[0], b = points[1]
+                let midpoint = canvas.transform.toView(Point2((a.x + b.x) / 2, (a.y + b.y) / 2), in: canvas.bounds)
+                let x = Int(midpoint.x * CGFloat(placed.pixelsWide) / canvas.bounds.width)
+                let y = placed.pixelsHigh - 1 - Int(midpoint.y * CGFloat(placed.pixelsHigh) / canvas.bounds.height)
+                let gap = try XCTUnwrap(placed.colorAt(x: x, y: y))
+                XCTAssertEqual(gap, empty.colorAt(x: x, y: y), "An interval must show field between dot centers at scale \(canvas.transform.scale)")
+            }
+        }
+    }
+
+    @MainActor
     func testFrontLabelInkStaysOnePointFromDotAtEveryZoom() throws {
         for scale: CGFloat in [1, 2] {
             for label in ["T1", "bc12", "g9"] {
