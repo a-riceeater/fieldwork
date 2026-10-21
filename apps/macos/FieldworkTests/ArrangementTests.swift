@@ -4,6 +4,31 @@ import DrillCore
 
 final class ArrangementTests: XCTestCase {
     @MainActor
+    func testCircleDiameterAndSpacingStayLinkedAndUndoable() throws {
+        let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
+        let set = model.currentSetID
+        let ids = model.show.performers.map(\.id)
+        model.perform(try model.show.makeDrawnSet([.circle(center: Point2(3, 4), radius: 5)], members: ids, at: set))
+        let original = model.show
+        let form = try XCTUnwrap(model.show.forms.first)
+        model.spaceCircle(form.id, spacingSteps: 3)
+        let spaced = try XCTUnwrap(model.show.form(form.id))
+        XCTAssertEqual(spaced.geometry.neighborSpacing(count: ids.count) / model.show.field.stepSize, 3, accuracy: 1e-9)
+        XCTAssertEqual(spaced.members, form.members)
+        model.resizeCircle(form.id, diameterSteps: 20)
+        guard case .circle(let center, let radius) = model.show.form(form.id)?.geometry else { return XCTFail("Expected circle") }
+        XCTAssertEqual(center, Point2(3, 4))
+        XCTAssertEqual(radius / model.show.field.stepSize, 10, accuracy: 1e-9)
+        let resized = model.show
+        model.spaceCircle(form.id, spacingSteps: 0)
+        model.resizeCircle(form.id, diameterSteps: -.infinity)
+        XCTAssertEqual(model.show, resized)
+        model.undo()
+        model.undo()
+        XCTAssertEqual(model.show, original)
+    }
+
+    @MainActor
     private func waitUntil(_ condition: () -> Bool) {
         let deadline = Date(timeIntervalSinceNow: 3)
         while !condition(), Date() < deadline {

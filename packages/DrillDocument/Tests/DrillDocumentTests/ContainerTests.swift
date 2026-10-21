@@ -5,6 +5,41 @@ import DrillMedia
 @testable import DrillDocument
 
 final class ContainerTests: XCTestCase {
+    func testCircleGeometryAndMembershipSurviveSaveAndReopen() throws {
+        let session = try DocumentSession(show: SampleShow.make())
+        let set = session.show.sets[0].id
+        let members = session.show.performers.map(\.id)
+        try session.perform(try session.show.makeDrawnSet([.circle(center: Point2(4, 2), radius: 9)], members: members, at: set))
+        let data = try DocumentCodec.encode(ShowDocument(show: session.show))
+        let reopened = try DocumentCodec.decode(data)
+        XCTAssertEqual(reopened.show, session.show)
+        let form = try XCTUnwrap(reopened.show.forms.first)
+        XCTAssertEqual(form.geometry, .circle(center: Point2(4, 2), radius: 9))
+        XCTAssertEqual(Set(form.members), Set(members))
+    }
+
+    func testSchemaFiveFormsMigrateWithoutLosingMembers() throws {
+        let original = try SampleShow.make()
+        let db = try SQLiteDatabase(bytes: ShowDatabase.encode(original, writer: "test"))
+        try db.execute("""
+        CREATE TABLE old_form (id TEXT PRIMARY KEY, set_id TEXT NOT NULL REFERENCES arrival_set(id), ordinal INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('line','arc')), x0 REAL NOT NULL, y0 REAL NOT NULL,
+            x1 REAL NOT NULL, y1 REAL NOT NULL, bulge REAL NOT NULL);
+        INSERT INTO old_form SELECT * FROM form;
+        CREATE TABLE old_members (form_id TEXT NOT NULL REFERENCES old_form(id), ordinal INTEGER NOT NULL,
+            performer_id TEXT NOT NULL REFERENCES performer(id), PRIMARY KEY (form_id, ordinal));
+        INSERT INTO old_members SELECT * FROM form_member;
+        DROP TABLE form_member;
+        DROP TABLE form;
+        ALTER TABLE old_form RENAME TO form;
+        ALTER TABLE old_members RENAME TO form_member;
+        """)
+        try db.setUserVersion(5)
+        try ShowDatabase.migrate(db)
+        XCTAssertEqual(try ShowDatabase.read(db), original)
+        XCTAssertEqual(try db.scalarInt("SELECT COUNT(*) FROM pragma_foreign_key_check"), 0)
+    }
+
     func testHashVectors() {
         XCTAssertEqual(SHA256.hex(Data()), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
         XCTAssertEqual(SHA256.hex(Data("abc".utf8)), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")

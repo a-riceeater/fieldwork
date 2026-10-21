@@ -12,7 +12,7 @@ the existing `proximityOrder` (squared-distance matching plus collision swaps); 
 is not a new assignment. Performers outside the chosen sections are put back at
 their previous-set spot, so leaving out guard and percussion keeps them still, and
 routing again replaces the earlier route. Lines and arcs become forms with
-handles; blocks, circles and text are plain positions. Drafts are view state; the
+handles, as do circles with linked diameter and neighbor spacing; blocks and text are plain positions. Drafts are view state; the
 set and each route are ordinary undoable commands.
 
 Text uses a single-stroke font (A-Z, 0-9, `. , ' ! ? - + / & #`). It is laid along

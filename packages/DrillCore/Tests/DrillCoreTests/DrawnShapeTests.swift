@@ -32,9 +32,9 @@ final class DrawnShapeTests: XCTestCase {
             XCTAssertEqual(points[i].distance(to: points[(i + 1) % points.count]), spacing, accuracy: 1e-9)
         }
         XCTAssertEqual(session.show.forms[0].members, form.members)
-        try session.undo()
+        session.undo()
         XCTAssertEqual(session.show, routed)
-        try session.undo()
+        session.undo()
         XCTAssertEqual(session.show, before)
     }
 

@@ -115,7 +115,8 @@ generated project. The generated project remains ignored by git.
   - Drawn shapes for a set before anyone is chosen (lines, arcs, blocks, circles
     and text). The chosen performers are spread over every shape at one common
     spacing and matched with the same assignment as above; everyone else can hold
-    their previous-set spot. Lines and arcs become forms; the rest are positions.
+    their previous-set spot. Lines, arcs and circles become editable forms; blocks and text are positions.
+    Circles retain resize handles and linked diameter/neighbor-spacing controls; changing either updates the other.
   - Reverse assignment order, detach, exact coordinates and nudge.
   - Undo/redo per command, including compound commands.
   - Per-performer paths of holds, straight legs and circular arcs with exact rational counts. Start late, arrive early, waypoints, curved legs, even pace and straighten are commands, and every existing edit (moving a set, splitting or deleting a set, changing move counts, removing performers) keeps paths valid.
@@ -123,7 +124,7 @@ generated project. The generated project remains ignored by git.
   - Scene evaluation driven by audio time; performers follow their path or move straight.
   - Warnings for stride (per path segment), zero-count jumps, close passes (exact on straight pieces, sampled and marked on arcs), field bounds (including arc bulges) and missing positions.
 - Documents:
-  - `.fieldwork` save and reopen preserves every M1 feature and paths (schema 5 `path_segment`, required capability `drill.paths.v1`).
+  - `.fieldwork` save and reopen preserves every M1 feature, editable circles and paths (schema 6 `path_segment`, required capability `drill.paths.v1`).
   - Verified writes and atomic replace that keeps the previous version.
   - Refuses newer formats, preserves unknown extensions, migrates on a copy.
   - Recovery journal replays only complete entries.
