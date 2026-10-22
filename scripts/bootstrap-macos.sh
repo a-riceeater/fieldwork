@@ -1,5 +1,6 @@
 #!/bin/sh
-# Installs the pinned XcodeGen into ./.tools and generates the Xcode project.
+# Installs the pinned XcodeGen into ./.tools, builds the bundled 3du-converter
+# from the pinned submodule and generates the Xcode project.
 # The generated apps/macos/Fieldwork.xcodeproj is ignored by git.
 set -eu
 XCODEGEN_VERSION="2.46.0"
@@ -17,6 +18,14 @@ if [ ! -x "$bin" ]; then
     mv "$tools/xcodegen-unpacked/xcodegen/"* "$tools/xcodegen-$XCODEGEN_VERSION/"
     rm -rf "$tools/xcodegen-unpacked" "$tools/xcodegen.zip"
 fi
+
+# The project embeds build/converter/3du-converter, so it must exist before
+# generation. Xcode rebuilds it on every build (see project.yml).
+if [ ! -f "$root/vendor/3du-converter/Cargo.toml" ]; then
+    echo "Initializing the vendor/3du-converter submodule"
+    git -C "$root" submodule update --init --recursive
+fi
+sh "$root/scripts/build-converter.sh" --native
 
 "$bin" generate --spec "$root/apps/macos/project.yml"
 echo "Open apps/macos/Fieldwork.xcodeproj, or build unsigned with:"

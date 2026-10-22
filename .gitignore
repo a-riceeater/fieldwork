@@ -18,5 +18,24 @@ apps/windows/**/obj/
 /out/
 .DS_Store
 
+# Bundled converter build (scripts/build-converter.sh): staged binary, build
+# info, Cargo artifacts and synthetic fixtures
+/build/
+
+# Private drill data. Real drills belong to real ensembles; never commit them.
+# The public .fieldwork fixtures in examples/ and spec/fixtures/ stay tracked.
+*.[3][dD][uU]
+*.[3][dD][uU][dD][bB]
+*.[dD][oO][tT][sS]
+*.[dD][oO][tT][sS]-journal
+*.[oO][mM]
+*.[oO][mM][zZ]
+*.[fF][iI][eE][lL][dD][wW][oO][rR][kK][sS]
+*.[mM][uU][sS][iI][cC][xX][mM][lL]
+*.[fF][iI][eE][lL][dD][wW][oO][rR][kK]
+!/examples/*.fieldwork
+!/spec/fixtures/*.fieldwork
+*.partial
+
 # Pinned tools downloaded by scripts
 /.tools/

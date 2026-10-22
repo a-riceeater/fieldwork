@@ -21,4 +21,15 @@ final class DocumentTypeTests: XCTestCase {
         document.fileType = type
         XCTAssertEqual(document.fileNameExtension(forType: type, saveOperation: .saveAsOperation), "fieldwork")
     }
+
+    /// `.3du` drills are offered by File > Open (and imported), but never saved as `.3du`.
+    @MainActor
+    func testDrillTypeOpensButIsNotWritable() throws {
+        let type = try XCTUnwrap(UTType(filenameExtension: "3du")?.identifier)
+        XCTAssertTrue(DrillImport.isImported(type))
+        XCTAssertFalse(DrillImport.isImported(try XCTUnwrap(NSDocumentController.shared.defaultType)))
+        XCTAssertTrue(NSDocumentController.shared.documentClass(forType: type) == FieldworkDocument.self)
+        XCTAssertTrue(FieldworkDocument.readableTypes.contains(type))
+        XCTAssertFalse(FieldworkDocument.writableTypes.contains(type))
+    }
 }

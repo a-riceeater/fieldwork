@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func main() {
         let app = NSApplication.shared
+        // The first document controller becomes the shared one; it sends .3du drills to the import dialog.
+        _ = FieldworkDocumentController()
         let delegate = AppDelegate()
         retained = delegate
         app.delegate = delegate

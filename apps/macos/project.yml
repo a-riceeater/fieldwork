@@ -31,6 +31,28 @@ targets:
         excludes:
           - "Info.plist"
           - "Fieldwork.entitlements"
+      # The 3du-converter CLI, staged by scripts/build-converter.sh (run by the
+      # build phase below and by scripts/bootstrap-macos.sh), is embedded in
+      # Contents/MacOS. Code Sign On Copy re-signs it with the app's identity and
+      # keeps the sandbox-inheritance entitlements the script gave it.
+      - path: ../../build/converter/3du-converter
+        type: file
+        buildPhase:
+          copyFiles:
+            destination: executables
+        attributes: [CodeSignOnCopy]
+      - path: ../../build/converter/3du-converter-build.json
+        type: file
+        buildPhase: resources
+    preBuildScripts:
+      - name: Build 3du-converter
+        script: exec /bin/sh "$SRCROOT/../../scripts/build-converter.sh" --xcode
+        # Cargo decides what is out of date, so the phase always runs (about a
+        # second when nothing changed) and declares only its outputs.
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/../../build/converter/3du-converter
+          - $(SRCROOT)/../../build/converter/3du-converter-build.json
     dependencies:
       - package: DrillTiming
         product: DrillTiming
@@ -44,6 +66,8 @@ targets:
         product: DrillMedia
       - package: DrillDocument
         product: DrillExport
+      - package: DrillDocument
+        product: DrillConvert
       - sdk: AVFoundation.framework
       - sdk: PDFKit.framework
     settings:
@@ -54,6 +78,9 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Cargo reads the converter source, ~/.cargo and ~/.rustup, which a
+        # sandboxed script phase may not.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
   FieldworkTests:
     type: bundle.unit-test
     platform: macOS

@@ -1,0 +1,3 @@
+[submodule "vendor/3du-converter"]
+	path = vendor/3du-converter
+	url = git@github.com:a-riceeater/3du-converter.git

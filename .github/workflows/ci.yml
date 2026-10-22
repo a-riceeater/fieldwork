@@ -11,6 +11,12 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Without an ssh-key, checkout fetches the git@github.com: submodule over HTTPS.
+          submodules: recursive
+      - name: Build the converter and its synthetic fixture
+        shell: bash
+        run: sh scripts/build-converter.sh --native --fixtures
       - uses: compnerd/gha-setup-swift@v0.3.0
         with:
           branch: swift-6.4-release
@@ -20,13 +26,27 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Portable tests, DLL and C# interop smoke test
         shell: pwsh
+        env:
+          FIELDWORK_REQUIRE_CONVERTER: "1"
         run: ./scripts/test-portable.ps1
 
   macos:
     runs-on: macos-15
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/build/converter/target
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Rust targets for the universal converter
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Converter tests
+        run: cargo test --manifest-path vendor/3du-converter/Cargo.toml --workspace --locked
+      - name: Build the universal converter and its synthetic fixture
+        run: sh scripts/build-converter.sh --universal --fixtures
       - name: Portable tests
+        env:
+          FIELDWORK_REQUIRE_CONVERTER: "1"
         run: ./scripts/test-portable.sh
       - name: Generate Xcode project
         run: ./scripts/bootstrap-macos.sh
@@ -34,3 +54,13 @@ jobs:
         run: >
           xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork
           -configuration Debug CODE_SIGNING_ALLOWED=NO test
+      - name: Release build embeds a universal converter
+        run: |
+          xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Release -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+          app=build/DerivedData/Build/Products/Release/Fieldwork.app
+          archs="$(lipo -archs "$app/Contents/MacOS/3du-converter")"
+          echo "3du-converter architectures: $archs"
+          case " $archs " in *" arm64 "*) ;; *) exit 1 ;; esac
+          case " $archs " in *" x86_64 "*) ;; *) exit 1 ;; esac
+          "$app/Contents/MacOS/3du-converter" --version
+          cat "$app/Contents/Resources/3du-converter-build.json"

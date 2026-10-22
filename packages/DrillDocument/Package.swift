@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "DrillDocument", targets: ["DrillDocument"]),
         .library(name: "DrillMedia", targets: ["DrillMedia"]),
         .library(name: "DrillExport", targets: ["DrillExport"]),
+        .library(name: "DrillConvert", targets: ["DrillConvert"]),
     ],
     dependencies: [
         .package(path: "../DrillTiming"),
@@ -35,6 +36,12 @@ let package = Package(
             .product(name: "DrillTiming", package: "DrillTiming"),
             .product(name: "DrillCore", package: "DrillCore"),
         ]),
+        // Runs the bundled 3du-converter executable; no dependency on the document model.
+        .target(name: "DrillConvert"),
         .testTarget(name: "DrillDocumentTests", dependencies: ["DrillDocument", "DrillMedia", "DrillExport"]),
+        .testTarget(name: "DrillConvertTests", dependencies: [
+            "DrillConvert", "DrillDocument",
+            .product(name: "DrillCore", package: "DrillCore"),
+        ]),
     ]
 )

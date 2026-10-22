@@ -28,6 +28,11 @@ final class FieldworkDocument: NSDocument {
     var startTourOnOpen = false
     var recoveredMessage: String?
     var audioToImport: URL?
+    /// Shown in the banner once the editor exists, for example the converter's
+    /// notes after a drill import. Safe to set before or after opening finishes.
+    var openingNotice: String? {
+        didSet { MainActor.assumeIsolated { showOpeningNotice() } }
+    }
 
     /// A show read off the main thread, waiting for its editor window.
     private var opened: (document: ShowDocument, journal: RecoveryJournal?, journalError: String?)?
@@ -108,8 +113,16 @@ final class FieldworkDocument: NSDocument {
             return
         }
         if let reason = opened.journalError { model?.statusMessage = "Crash recovery is unavailable: \(reason)" }
+        showOpeningNotice()
         makeEditorWindow()
         showWindows()
+    }
+
+    @MainActor
+    private func showOpeningNotice() {
+        guard let model, let notice = openingNotice else { return }
+        openingNotice = nil
+        model.recoveredBanner = notice
     }
 
     // MARK: Reading and writing

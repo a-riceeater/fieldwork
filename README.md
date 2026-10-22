@@ -12,10 +12,11 @@ An open-source, native marching drill editor. You define performers and fields, 
 |---|---|
 | `packages/DrillTiming` | Musical timeline, march-count pulses, audio anchors and the invertible fitted time map |
 | `packages/DrillCore` | Show model (meters), field presets, roster, sets, forms, semantic commands with atomic undo, scene evaluation, analysis, onboarding tour state |
-| `packages/DrillDocument` | `.fieldwork` container (ZIP + manifest + SQLite), atomic file save, recovery journal (`DrillDocument`); WAV decoding and waveform peaks (`DrillMedia`); coordinate PDF (`DrillExport`); vendored SQLite |
+| `packages/DrillDocument` | `.fieldwork` container (ZIP + manifest + SQLite), atomic file save, recovery journal (`DrillDocument`); WAV decoding and waveform peaks (`DrillMedia`); coordinate PDF (`DrillExport`); running the bundled `.3du` converter (`DrillConvert`); vendored SQLite |
 | `packages/DrillBridge` | `FieldworkCore` DLL with a versioned C ABI (`include/fieldwork_core.h`) and the `fwtool` CLI |
 | `apps/macos` | SwiftUI/AppKit/AVFoundation Mac app (XcodeGen spec, sources, tests). **Unsigned Debug build verified.** |
 | `apps/windows/BridgeSmoke` | C# console app that drives the core through the C ABI |
+| `vendor/3du-converter` | Git submodule: the Rust `.3du` converter, pinned to one commit and bundled in the app ([docs/converter.md](docs/converter.md)) |
 | `spec/` | Format specification and golden fixtures |
 | `examples/` | Original demo show (`first-light.fieldwork`, with a generated click track) |
 | `design/tokens.json` | Shared design tokens for the Mac and Windows frontends |
@@ -58,7 +59,8 @@ swift run -c release fwtool pdf in.fieldwork out.pdf
 macOS app (unsigned Debug build verified with Xcode 26.6):
 
 ```sh
-./scripts/bootstrap-macos.sh          # downloads pinned XcodeGen, generates the project
+git submodule update --init --recursive   # once after cloning: the pinned 3du-converter
+./scripts/bootstrap-macos.sh          # downloads pinned XcodeGen, builds the converter, generates the project
 xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Debug CODE_SIGNING_ALLOWED=NO build
 ```
 
@@ -66,6 +68,12 @@ For performance testing and everyday use, build with `-configuration Release` in
 of `Debug`. Debug intentionally keeps Swift optimization disabled for debugging.
 Playback diagnosis, the 350-performer target and the opt-in full-editor benchmark
 are documented in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+The app embeds the `.3du` converter, built from `vendor/3du-converter` by
+`scripts/build-converter.sh` on every Xcode build. This needs Rust 1.75 or newer
+([rustup](https://rustup.rs)), plus `rustup target add aarch64-apple-darwin x86_64-apple-darwin`
+for Release builds. Building, signing, updating the pin and debugging conversions are
+described in [docs/converter.md](docs/converter.md).
 
 No signing identity is committed. Personal settings go in `apps/macos/Config/Local.xcconfig`, which git ignores (see the `.template`).
 

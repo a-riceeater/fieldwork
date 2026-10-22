@@ -7,8 +7,9 @@ Fieldwork's own code is licensed under the Apache License 2.0 (see `LICENSE`).
 | Component | Location | License |
 |---|---|---|
 | SQLite 3.46.1 amalgamation | `packages/DrillDocument/Sources/CSQLite/` | Public domain ([sqlite.org/copyright.html](https://www.sqlite.org/copyright.html)) |
+| 3du-converter (Git submodule, built into `Contents/MacOS/3du-converter`) | `vendor/3du-converter/` | MIT or Apache-2.0. Its binary also contains SQLite (public domain, through `rusqlite`) and the MIT/Apache-2.0 Rust crates in its `Cargo.lock`. |
 
-There is no other third-party source code in the repository. In particular:
+There is no other third-party source code in the repository. The converter's source is not copied here; the submodule only points at its repository. In particular:
 
 - No OpenMarch (AGPL-3.0 / GPL-3.0) or Pyware code has been copied, translated or adapted. Future `.dots` interoperability will be written independently from documented behavior and real fixtures.
 - The ZIP, SHA-256, CRC-32, WAV and PDF implementations are original code.
