@@ -8,6 +8,12 @@ struct ImportReportSheet: View {
     let report: ImportReport
     @Environment(\.dismiss) private var dismiss
     @State private var showsTechnical = false
+    @State private var realign = RealignState.idle
+
+    private enum RealignState: Equatable {
+        case idle, running, done
+        case failed(String)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -105,7 +111,7 @@ struct ImportReportSheet: View {
                 VStack(spacing: 0) {
                     ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
                         if index > 0 { Divider().padding(.leading, 44) }
-                        NoteRow(note: note)
+                        NoteRow(note: note) { realignControls(for: note) }
                     }
                 }
                 .fwGroup()
@@ -137,6 +143,62 @@ struct ImportReportSheet: View {
         }
     }
 
+    /// For the unconfident alignment note: use the converter's guess, rewriting
+    /// the count track and click check with it.
+    @ViewBuilder
+    private func realignControls(for note: ImportNote) -> some View {
+        if let offset = note.suggestedOffset, let text = note.suggestedOffsetText, let realignment = report.realignment {
+            let files = realignment.clickCheck == nil ? "the count track" : "the count track and click check"
+            switch realign {
+            case .idle:
+                VStack(alignment: .leading, spacing: 6) {
+                    Button { apply(offset, with: realignment) } label: { Label("Use This Timing", systemImage: "checkmark") }
+                        .controlSize(.small)
+                        .fwPrimaryButton()
+                    Text("Rewrites \(files) with the music starting at \(text).")
+                        .font(.system(size: 11)).foregroundStyle(Color.fwSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
+            case .running:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Lining up \(files)…").font(.system(size: 11)).foregroundStyle(Color.fwSecondary)
+                }
+                .padding(.top, 4)
+            case .done:
+                Label("Done. \(files.prefix(1).uppercased() + files.dropFirst()) now start\(realignment.clickCheck == nil ? "s" : "") the music at \(text). Listen to the click check to confirm.",
+                      systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.fwAccent)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            case .failed(let message):
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(message).font(.system(size: 11)).foregroundStyle(Color.fwError)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                    Button("Try Again") { apply(offset, with: realignment) }
+                        .controlSize(.small)
+                        .fwSecondaryButton()
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private func apply(_ offset: Double, with realignment: ImportReport.Realignment) {
+        realign = .running
+        Task { @MainActor in
+            do {
+                try await realignment.apply(offset: offset)
+                realign = .done
+            } catch {
+                realign = .failed(DrillImport.explain(error))
+            }
+        }
+    }
+
     private func groupTitle(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 12, weight: .semibold))
@@ -146,8 +208,9 @@ struct ImportReportSheet: View {
     }
 }
 
-private struct NoteRow: View {
+private struct NoteRow<Accessory: View>: View {
     let note: ImportNote
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
         HStack(alignment: .top, spacing: Tokens.Space.m) {
@@ -168,13 +231,14 @@ private struct NoteRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Color.fwSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .help(note.technical)
+                accessory
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 10)
         .padding(.horizontal, Tokens.Space.m)
-        .accessibilityElement(children: .combine)
-        .help(note.technical)
+        .accessibilityElement(children: .contain)
     }
 
     private var tint: Color { note.kind == .info ? Color.fwAccent : Color.fwWarning }

@@ -9,15 +9,37 @@ struct ImportReport: Identifiable {
         var name: String
     }
 
+    /// What is needed to rewrite the count track and click check with another
+    /// audio offset, such as the converter's own unconfident guess.
+    struct Realignment {
+        var source: URL
+        var options: ConverterOptions
+        var musicXML: URL
+        var clickCheck: URL?
+
+        /// Converts the count track again with count 0 at `offset` seconds into
+        /// the recording and replaces the saved count track and click check.
+        @MainActor
+        func apply(offset: Double) async throws {
+            var options = self.options
+            options.audioOffset = offset
+            let score = try await ThreeDUConverterService().convert(source, to: .musicxml, options: options)
+            try DrillImportModel.write(score.data, to: musicXML)
+            if let clickCheck, let wav = score.clickCheck { try DrillImportModel.write(wav, to: clickCheck) }
+        }
+    }
+
     let id = UUID()
     var sourceName: String
     var savedFiles: [SavedFile]
     var notes: [ImportNote]
+    var realignment: Realignment?
 
-    init(sourceName: String, savedFiles: [SavedFile] = [], diagnostics: [ConverterDiagnostic]) {
+    init(sourceName: String, savedFiles: [SavedFile] = [], diagnostics: [ConverterDiagnostic], realignment: Realignment? = nil) {
         self.sourceName = sourceName
         self.savedFiles = savedFiles
         notes = diagnostics.map(ImportNote.init)
+        self.realignment = realignment
     }
 
     /// Notes about something lost, guessed or worth listening to, most serious first.
@@ -49,6 +71,10 @@ struct ImportNote: Identifiable, Hashable {
     var detail: String
     var systemImage: String
     var technical: String
+    /// The converter's best-guess audio offset, when it was not confident enough to use it.
+    var suggestedOffset: Double?
+    /// The same offset in words, such as "0.53 seconds".
+    var suggestedOffsetText: String?
 
     init(_ diagnostic: ConverterDiagnostic) {
         code = diagnostic.code
@@ -67,6 +93,8 @@ struct ImportNote: Identifiable, Hashable {
             var detail = "Fieldwork couldn't confidently match the drill to the recording, so count 0 starts at the very beginning of the audio."
             if let offset = text.capture(#"best offset ([+-]?[0-9.]+) s"#).flatMap(Double.init), abs(offset) >= 0.001 {
                 detail += " Its best guess was that the music starts \(Translation.seconds(abs(offset))) \(offset > 0 ? "later" : "earlier")."
+                suggestedOffset = offset
+                suggestedOffsetText = Translation.seconds(offset)
             }
             self.detail = detail + " Listen to the click check before relying on the timing."
         case "beat_tracking_not_confident":

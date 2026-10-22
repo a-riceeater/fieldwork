@@ -150,7 +150,12 @@ final class DrillImportModel: ObservableObject {
                 }
                 progress = nil
                 let warnings = show.warnings + (score?.warnings ?? [])
-                finished?(showDestination, ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings))
+                // With a recording, the count track can be aligned again from the report.
+                let realignment = musicXML.flatMap { url in
+                    options.audio == nil ? nil : ImportReport.Realignment(source: source, options: options, musicXML: url, clickCheck: click)
+                }
+                finished?(showDestination, ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings,
+                                                        realignment: realignment))
             } catch ConverterError.cancelled {
                 progress = nil
             } catch {
@@ -165,7 +170,7 @@ final class DrillImportModel: ObservableObject {
         task = nil
     }
 
-    private static func write(_ data: Data, to url: URL) throws {
+    static func write(_ data: Data, to url: URL) throws {
         do { try data.write(to: url, options: .atomic) } catch {
             throw NSError(domain: "org.fieldwork", code: 20, userInfo: [
                 NSLocalizedDescriptionKey: "“\(url.lastPathComponent)” could not be saved: \(error.localizedDescription)",
