@@ -37,29 +37,82 @@ struct InspectorView: View {
             }
             .padding(Tokens.Space.m)
         }
-        .background(VisualEffectBackground(material: .sidebar))
+        .fwPanel()
     }
 }
 
+/// A titled group of inspector rows on a soft, borderless surface. Buttons
+/// inside take the glass style unless they choose their own.
 struct InspectorSection<Content: View>: View {
     var title: String
+    var systemImage: String? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.fwSecondary)
-                .padding(.leading, Tokens.Space.xs)
-            VStack(alignment: .leading, spacing: Tokens.Space.s) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s) {
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.fwAccent)
+                        .frame(width: 16)
+                }
+                Text(title).font(.system(size: 13, weight: .semibold))
+            }
+            .padding(.leading, Tokens.Space.xs)
+            .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 10) {
                 content
             }
+            .font(.system(size: 12))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Tokens.Space.m)
-            .fwCard()
+            .fwGroup()
+            .fwSecondaryButton()
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
+    }
+}
+
+/// Label on the leading edge, its control on the trailing edge.
+struct InspectorRow<Content: View>: View {
+    var label: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(spacing: Tokens.Space.s) {
+            Text(label).lineLimit(1)
+            Spacer(minLength: Tokens.Space.s)
+            content
+        }
+        .font(.system(size: 12))
+    }
+}
+
+/// A read-only fact with a small leading symbol, such as an arrival count.
+struct InspectorFact: View {
+    var text: String
+    var systemImage: String
+
+    var body: some View {
+        Label {
+            Text(text).monospacedDigit()
+        } icon: {
+            Image(systemName: systemImage)
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color.fwSecondary)
+    }
+}
+
+/// A button label that fills the inspector's width.
+struct WideLabel: View {
+    var title: String
+    var systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage).frame(maxWidth: .infinity)
     }
 }
 
@@ -73,12 +126,13 @@ struct NumberField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        LabeledContent(label) {
+        InspectorRow(label: label) {
             TextField(label, text: $text)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
-                .frame(width: 96)
                 .focused($focused)
+                .fwField(focused: focused)
+                .frame(width: 96)
                 .onSubmit(apply)
                 .onChange(of: focused) { _, isFocused in if !isFocused { apply() } }
                 .onAppear { text = TimeFormat.decimal(value, places: places) }
@@ -104,38 +158,47 @@ struct SetInspector: View {
     @State private var marker = ""
     @FocusState private var focusedMarker: MarkerField?
 
-    private enum MarkerField { case mark, measures }
+    private enum MarkerField { case label, mark, measures }
 
     var body: some View {
-        InspectorSection(title: "Set") {
+        InspectorSection(title: "Set", systemImage: "flag") {
             if let set = model.currentSet {
-                LabeledContent("Label") {
-                    TextField("Label", text: $label).frame(width: 96).onSubmit { model.renameCurrentSet(label) }
+                InspectorRow(label: "Label") {
+                    TextField("Label", text: $label)
+                        .focused($focusedMarker, equals: .label)
+                        .onSubmit { model.renameCurrentSet(label) }
+                        .fwField(focused: focusedMarker == .label)
+                        .frame(width: 96)
                 }
                 .onAppear { label = set.label }
                 .onChange(of: set.label) { _, newValue in label = newValue }
-                LabeledContent("Rehearsal mark") {
+                InspectorRow(label: "Rehearsal mark") {
                     TextField("None", text: $mark)
-                        .frame(width: 96)
                         .focused($focusedMarker, equals: .mark)
                         .onSubmit(saveMarkers)
+                        .fwField(focused: focusedMarker == .mark)
+                        .frame(width: 96)
                         .help("Rehearsal letter that starts at this set, such as A, B or CC")
                 }
-                LabeledContent("Measures") {
+                InspectorRow(label: "Measures") {
                     TextField(measurePlaceholder(set), text: $marker)
-                        .frame(width: 96)
                         .focused($focusedMarker, equals: .measures)
                         .onSubmit(saveMarkers)
+                        .fwField(focused: focusedMarker == .measures)
+                        .frame(width: 96)
                         .help(model.show.countingMode == .counts
                               ? "Measure numbers for this set, such as 222-223. Only a label; it never moves the set."
                               : "Leave empty to show the measure from the timeline, or type your own label")
                 }
                 .onAppear { mark = set.rehearsalMark; marker = set.measureMarker }
                 .onChange(of: set) { _, newValue in mark = newValue.rehearsalMark; marker = newValue.measureMarker }
-                .onChange(of: focusedMarker) { _, newValue in if newValue == nil { saveMarkers() } }
+                .onChange(of: focusedMarker) { oldValue, _ in
+                    // Leaving the mark or measures field saves; the label saves on Return as before.
+                    if oldValue == .mark || oldValue == .measures { saveMarkers() }
+                }
                 if let count = model.show.cumulativeCount(of: set, map: model.map) {
-                    Text("Arrives on count \(TimeFormat.decimal(count.doubleValue, places: count.isInteger ? 0 : 2))")
-                        .font(.caption).monospacedDigit().foregroundStyle(Color.fwSecondary)
+                    InspectorFact(text: "Arrives on count \(TimeFormat.decimal(count.doubleValue, places: count.isInteger ? 0 : 2))",
+                                  systemImage: "flag.checkered")
                 }
                 if model.show.previousSet(before: set.id) != nil {
                     let counts = (try? model.show.moveCounts(into: set.id, map: model.map)) ?? .zero
@@ -145,17 +208,17 @@ struct SetInspector: View {
                         SplitMoveControl(model: model, setID: set.id, total: Int(counts.numerator))
                     }
                 } else {
-                    Text("Preset · count 0").foregroundStyle(Color.fwSecondary)
+                    InspectorFact(text: "Preset · count 0", systemImage: "figure.stand")
                 }
                 let unresolved = model.show.performers.filter { model.show.formation(set.id)[$0.id] == .unresolved }.count
                 if unresolved > 0 {
                     Label("\(unresolved) without a position", systemImage: "questionmark.circle")
                         .foregroundStyle(Color.fwWarning)
-                    Button("Place All on the Field") { model.placeUnplaced() }
+                    Button { model.placeUnplaced() } label: { WideLabel(title: "Place All on the Field", systemImage: "square.grid.3x3") }
                         .disabled(!model.isEditable)
                         .help("Put everyone without a position into blocks by section")
                 }
-                Button { model.addNote() } label: { Label("Add Note", systemImage: "note.text.badge.plus") }
+                Button { model.addNote() } label: { WideLabel(title: "Add Note", systemImage: "note.text.badge.plus") }
                     .disabled(!model.isEditable)
                     .help("Add a text box on the field at this set. Click it on the field to edit it here.")
             }
@@ -183,13 +246,13 @@ struct NoteInspector: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        InspectorSection(title: "Note") {
+        InspectorSection(title: "Note", systemImage: "note.text") {
             TextEditor(text: $text)
                 .font(.system(size: 13))
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 96)
                 .padding(4)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.field, style: .continuous).fill(Color.primary.opacity(0.07)))
                 .focused($focused)
                 .disabled(!model.isEditable)
                 .accessibilityLabel("Note text")
@@ -205,6 +268,7 @@ struct NoteInspector: View {
                     save()
                     model.focusedNoteID = nil
                 }
+                .fwPrimaryButton()
                 Spacer()
                 Button("Delete Note", role: .destructive) { model.deleteNote(note.id) }
                     .disabled(!model.isEditable)
@@ -277,7 +341,7 @@ struct TimingInspector: View {
 
     var body: some View {
         let timing = model.movement.timing
-        InspectorSection(title: model.show.countingMode == .counts ? "Tempo" : "Music and counts") {
+        InspectorSection(title: model.show.countingMode == .counts ? "Tempo" : "Music and counts", systemImage: "metronome") {
             if model.show.countingMode == .counts, let map = model.map {
                 Text("\(TimeFormat.decimal(map.totalPulses.doubleValue, places: 0)) counts · \(timing.anchors.count) audio pin\(timing.anchors.count == 1 ? "" : "s")")
                     .font(.caption).foregroundStyle(Color.fwSecondary)
@@ -288,12 +352,12 @@ struct TimingInspector: View {
             if model.show.countingMode == .counts {
                 NumberField(label: "Tempo (BPM)", value: tempoBPM, places: 1) { tempoBPM = $0 }
                 if model.setsInMovement.count == 1 && timing.anchors.isEmpty, let first = timing.measures.first {
-                    Button("Set Tempo") {
+                    Button {
                         model.configureTimeline(numerator: first.meter.numerator, denominator: first.meter.denominator, bpm: tempoBPM,
                                                 pulse: first.pulseUnit, measures: timing.measures.count)
-                    }
+                    } label: { WideLabel(title: "Set Tempo", systemImage: "metronome") }
                 } else {
-                    Button("Set Tempo for This Move") { model.setTempoForCurrentMove(bpm: tempoBPM) }
+                    Button { model.setTempoForCurrentMove(bpm: tempoBPM) } label: { WideLabel(title: "Set Tempo for This Move", systemImage: "metronome") }
                         .disabled(model.show.previousSet(before: model.currentSetID) == nil)
                 }
                 Text("Counts only: sets are pages of counts and meters are ignored. With music, pin each page with Align Set Here instead of changing tempo.")
@@ -310,27 +374,29 @@ struct TimingInspector: View {
                 }
                 NumberField(label: "Tempo (BPM)", value: bpm, places: 1) { bpm = $0 }
                 Stepper("\(measures) measures", value: $measures, in: 1...999)
-                Button("Set Meter and Tempo") {
+                Button {
                     let unit: Rational? = pulse == 1 ? NoteValue.dottedQuarter : (pulse == 2 ? NoteValue.eighth : nil)
                     model.configureTimeline(numerator: numerator, denominator: denominator, bpm: bpm, pulse: unit, measures: measures)
-                }
+                } label: { WideLabel(title: "Set Meter and Tempo", systemImage: "metronome") }
                 Text("Meter and count pulse are set before sets or pins exist.").font(.caption).foregroundStyle(Color.fwSecondary)
             } else {
                 Stepper("From m\(tempoFrom)", value: $tempoFrom, in: 0...max(1, timing.measures.count))
                 Stepper("To m\(tempoTo)", value: $tempoTo, in: tempoFrom...max(tempoFrom, timing.measures.count))
                 NumberField(label: "Tempo (BPM)", value: tempoBPM, places: 1) { tempoBPM = $0 }
-                Button("Change Tempo") { model.setTempo(firstMeasure: tempoFrom, lastMeasure: tempoTo, bpm: tempoBPM) }
+                Button { model.setTempo(firstMeasure: tempoFrom, lastMeasure: tempoTo, bpm: tempoBPM) } label: {
+                    WideLabel(title: "Change Tempo", systemImage: "metronome")
+                }
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("When tempo changes").font(.caption).foregroundStyle(Color.fwSecondary)
-                Picker("When tempo changes", selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) })) {
-                    Text("Preserve audio pins").tag(FitMode.preserveAudioPins)
-                    Text("Preserve notated tempo").tag(FitMode.preserveNotatedTempo)
+                Text("When tempo changes, preserve").font(.caption).foregroundStyle(Color.fwSecondary)
+                Picker("When tempo changes, preserve", selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) })) {
+                    Text("Audio pins").tag(FitMode.preserveAudioPins)
+                    Text("Notated tempo").tag(FitMode.preserveNotatedTempo)
                 }
                 .labelsHidden()
-                .pickerStyle(.radioGroup)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: .infinity)
+                .help("Audio pins: pinned downbeats stay on their samples. Notated tempo: the written tempo stays and later pins may need review.")
             }
         }
         .onAppear {
@@ -373,12 +439,25 @@ struct IssuesInspector: View {
             }
             Text("Warnings are design aids, not safety guarantees.").font(.caption2).foregroundStyle(Color.fwSecondary)
         } label: {
-            Label("Warnings (\(issues.count))", systemImage: "exclamationmark.triangle")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.fwSecondary)
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(issues.isEmpty ? Color.fwSecondary : Color.fwWarning)
+                    .frame(width: 16)
+                Text("Warnings").font(.system(size: 13, weight: .semibold))
+                Spacer(minLength: 0)
+                Text(issues.count.formatted())
+                    .font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(issues.isEmpty ? Color.fwSecondary : Color.fwWarning)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill((issues.isEmpty ? Color.primary : Color.fwWarning).opacity(0.14)))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Warnings (\(issues.count))")
         }
         .padding(Tokens.Space.m)
-        .fwCard()
+        .fwGroup()
         .accessibilityIdentifier("inspector.warnings")
     }
 
@@ -402,7 +481,7 @@ struct PerformerInspector: View {
             let placement = model.show.formation(model.currentSetID)[id]
             let describer = CoordinateDescriber(field: model.show.field)
             let section = model.show.section(performer.sectionID)
-            InspectorSection(title: "Performer \(performer.label)") {
+            InspectorSection(title: "Performer \(performer.label)", systemImage: "person") {
                 Text(section?.name ?? "").foregroundStyle(Color.fwSecondary)
                 SymbolRow(model: model, ids: [id])
                 if let p = placement.position {
@@ -435,7 +514,7 @@ struct GroupInspector: View {
     var body: some View {
         let formation = model.show.formation(model.currentSetID)
         let points = model.selection.compactMap { formation[$0].position?.point }
-        InspectorSection(title: "\(model.selection.count) performers") {
+        InspectorSection(title: "\(model.selection.count) performers", systemImage: "person.3") {
             if !points.isEmpty {
                 let bounds = Rect2(points: points)
                 let step = model.show.field.stepSize
@@ -494,7 +573,7 @@ struct FormInspector: View {
     var body: some View {
         let forms = model.show.forms(on: model.currentSetID).filter { !model.selection.isDisjoint(with: $0.members) }
         if !forms.isEmpty {
-            InspectorSection(title: "Form") {
+            InspectorSection(title: "Form", systemImage: "point.topleft.down.to.point.bottomright.curvepath") {
                 ForEach(forms) { form in
                     VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                         Text("\(form.geometry.kindName) · \(form.members.count) performers · \(TimeFormat.decimal(form.geometry.length / model.show.field.stepSize, places: 1)) steps long")
@@ -546,7 +625,7 @@ struct PathInspector: View {
             let ids = Array(model.selection)
             let curved = ids.filter { move.transition.paths[$0] != nil }.count
             let total = move.counts
-            InspectorSection(title: "Move into Set \(set.label)") {
+            InspectorSection(title: "Move into Set \(set.label)", systemImage: "arrow.triangle.turn.up.right.diamond") {
                 Text("\(formatted(total)) counts · \(curved == 0 ? "straight" : "\(curved) of \(ids.count) on a path")")
                     .font(.caption).monospacedDigit().foregroundStyle(Color.fwSecondary)
                 if ids.count == 1, let info = try? model.show.pathSegmentInfo(into: set.id, performer: ids[0]), !info.isEmpty {
