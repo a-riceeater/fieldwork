@@ -19,7 +19,7 @@ struct NavigatorView: View {
             .padding(Tokens.Space.s)
             if tab == 0 { setsList } else { rosterList }
         }
-        .background(VisualEffectBackground(material: .sidebar))
+        .fwPanel()
     }
 
     private var setsList: some View {
@@ -38,7 +38,7 @@ struct NavigatorView: View {
                 }
             }
             .listStyle(.sidebar)
-            HStack {
+            HStack(spacing: Tokens.Space.xs) {
                 Menu {
                     ForEach([4, 8, 12, 16, 24, 32], id: \.self) { counts in
                         Button("\(counts) counts") { model.addSet(counts: counts) }
@@ -46,7 +46,8 @@ struct NavigatorView: View {
                 } label: {
                     Label("Add Set", systemImage: "plus")
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.button)
+                .fwSecondaryButton()
                 .fixedSize()
                 .help("Add a set after the current one, copying its formation")
                 .tourAnchor("navigator.addSet")
@@ -58,26 +59,40 @@ struct NavigatorView: View {
                 } label: {
                     Label("Draw", systemImage: "pencil.and.outline")
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.button)
+                .fwSecondaryButton()
                 .fixedSize()
                 .help("Draw Next Set: add a set after the current one, draw its shapes over the previous set, then let Auto Route choose who goes where")
                 .disabled(!model.isEditable)
-                Spacer()
-                Button { model.deleteCurrentSet() } label: { Image(systemName: "minus") }
-                    .buttonStyle(.borderless)
+                Spacer(minLength: 0)
+                Button { model.deleteCurrentSet() } label: { Image(systemName: "trash") }
+                    .fwSecondaryButton()
                     .help("Delete the current set")
                     .accessibilityLabel("Delete set")
                     .disabled(model.show.previousSet(before: model.currentSetID) == nil)
             }
+            .controlSize(.small)
+            .labelStyle(.titleAndIcon)
             .padding(Tokens.Space.s)
+            .glassGroup(spacing: Tokens.Space.xs)
         }
     }
 
     private var rosterList: some View {
         VStack(spacing: 0) {
-            TextField("Search performers", text: $search)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, Tokens.Space.s)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Color.fwSecondary)
+                TextField("Search performers", text: $search)
+                if !search.isEmpty {
+                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Color.fwSecondary) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                }
+            }
+            .font(.system(size: 12))
+            .fwField()
+            .clipShape(Capsule())
+            .padding(.horizontal, Tokens.Space.s)
             // Native list selection: click selects one, Command-click adds or removes, Shift-click selects a range.
             List(selection: $model.selection) {
                 ForEach(model.show.sections) { section in
@@ -119,7 +134,8 @@ struct NavigatorView: View {
             .listStyle(.sidebar)
             HStack {
                 Button { model.showAddSection = true } label: { Label("Add Section", systemImage: "person.badge.plus") }
-                    .buttonStyle(.borderless)
+                    .fwSecondaryButton()
+                    .controlSize(.small)
                     .tourAnchor("roster.add")
                     .accessibilityIdentifier("roster.add")
                 Spacer()
@@ -145,22 +161,26 @@ struct SetRow: View {
                 Text("Set \(set.label)").font(.system(size: 13, weight: .semibold))
                 if !set.rehearsalMark.isEmpty {
                     Text(set.rehearsalMark)
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 5)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 6)
                         .padding(.vertical, 1)
-                        .foregroundStyle(Color.white)
-                        .background(Capsule().fill(Color.fwAccent))
+                        .foregroundStyle(Color.fwAccent)
+                        .background(Capsule().fill(Color.fwAccent.opacity(0.18)))
                         .accessibilityLabel("Rehearsal mark \(set.rehearsalMark)")
                 }
-                Spacer()
-                if !set.notes.isEmpty { Image(systemName: "note.text").foregroundStyle(Color.fwSecondary).accessibilityLabel("Has notes") }
+                if !set.notes.isEmpty {
+                    Image(systemName: "note.text").font(.system(size: 10)).foregroundStyle(Color.fwSecondary).accessibilityLabel("Has notes")
+                }
+                Spacer(minLength: 4)
+                if let time { Text(time).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Color.fwSecondary) }
             }
             Text(detail)
                 .font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(Color.fwSecondary)
-            if let time { Text(time).font(.system(size: 11)).monospacedDigit().foregroundStyle(Color.fwSecondary) }
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
     }
 
