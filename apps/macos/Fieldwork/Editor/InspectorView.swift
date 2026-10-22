@@ -393,13 +393,10 @@ struct TimingInspector: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("When tempo changes, preserve").font(.caption).foregroundStyle(Color.fwSecondary)
-                Picker("When tempo changes, preserve", selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) })) {
-                    Text("Audio pins").tag(FitMode.preserveAudioPins)
-                    Text("Notated tempo").tag(FitMode.preserveNotatedTempo)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: .infinity)
+                CapsuleTabs(title: "When tempo changes, preserve",
+                            selection: Binding(get: { timing.fitMode }, set: { model.setFitMode($0) }),
+                            tabs: [CapsuleTab(value: FitMode.preserveAudioPins, title: "Audio pins"),
+                                   CapsuleTab(value: FitMode.preserveNotatedTempo, title: "Notated tempo")])
                 .help("Audio pins: pinned downbeats stay on their samples. Notated tempo: the written tempo stays and later pins may need review.")
             }
         }
