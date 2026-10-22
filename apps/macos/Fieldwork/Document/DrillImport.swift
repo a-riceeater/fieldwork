@@ -26,14 +26,6 @@ enum DrillImport {
         }
         return "\(reason)\n\nConverter: \(ConverterLocator.buildInfo()?.summary ?? "build information missing")"
     }
-
-    /// The banner over the newly converted show.
-    static func notice(source: URL, warnings: [ConverterDiagnostic], extras: [String]) -> String {
-        var text = "Converted from “\(source.lastPathComponent)”. The original drill was not changed."
-        if !extras.isEmpty { text += " " + extras.joined(separator: " ") }
-        if !warnings.isEmpty { text += " Notes: " + warnings.map(\.message).joined(separator: "; ") }
-        return text
-    }
 }
 
 /// Sends `.3du` drills to the import dialog. Every route that opens a file
@@ -48,17 +40,17 @@ final class FieldworkDocumentController: NSDocumentController {
             return super.openDocument(withContentsOf: url, display: displayDocument, completionHandler: completionHandler)
         }
         noteNewRecentDocumentURL(url)
-        DrillImportWindowController.present(source: url) { [weak self] show, notice in
-            self?.openConverted(show, notice: notice)
+        DrillImportWindowController.present(source: url) { [weak self] show, report in
+            self?.openConverted(show, report: report)
         }
         // No document yet; the dialog opens the converted show if the user converts.
         completionHandler(nil, false, nil)
     }
 
-    private func openConverted(_ url: URL, notice: String) {
+    private func openConverted(_ url: URL, report: ImportReport) {
         super.openDocument(withContentsOf: url, display: true) { document, _, error in
             if let error { NSApp.presentError(error) }
-            (document as? FieldworkDocument)?.openingNotice = notice
+            (document as? FieldworkDocument)?.importReport = report
         }
     }
 }

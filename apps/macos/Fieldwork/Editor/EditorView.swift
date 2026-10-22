@@ -37,6 +37,7 @@ struct EditorView: View {
         .sheet(isPresented: $model.showExport) { ExportSheet(model: model) }
         .sheet(isPresented: $model.showAddSection) { AddSectionSheet(model: model) }
         .sheet(isPresented: $model.showProjectSettings) { ProjectSettingsSheet(model: model) }
+        .sheet(item: $model.importReport) { ImportReportSheet(report: $0) }
         .confirmationDialog("Leave Draw Next Set?", isPresented: $model.showsDraftExitConfirmation, titleVisibility: .visible) {
             Button("Discard Drawing and Leave", role: .destructive) { model.confirmDraftExit() }
             Button("Keep Drawing", role: .cancel) { model.cancelDraftExit() }

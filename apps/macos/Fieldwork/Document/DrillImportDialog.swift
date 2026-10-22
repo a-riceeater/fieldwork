@@ -34,8 +34,8 @@ final class DrillImportModel: ObservableObject {
     @Published var error: String?
 
     private var task: Task<Void, Never>?
-    /// Called with the saved show and the banner text for it.
-    var finished: ((URL, String) -> Void)?
+    /// Called with the saved show and the report shown over it.
+    var finished: ((URL, ImportReport) -> Void)?
 
     init(source: URL) {
         self.source = source
@@ -138,19 +138,19 @@ final class DrillImportModel: ObservableObject {
                     score = try await service.convert(source, to: .musicxml, options: options)
                 }
                 progress = "Saving…"
-                var saved: [String] = []
+                var saved: [ImportReport.SavedFile] = []
                 try Self.write(show.data, to: showDestination)
                 if let musicXML, let score {
                     try Self.write(score.data, to: musicXML)
-                    saved.append("Saved the count track as “\(musicXML.lastPathComponent)”.")
+                    saved.append(.init(role: "Count track", name: musicXML.lastPathComponent))
                 }
                 if let click, let wav = score?.clickCheck {
                     try Self.write(wav, to: click)
-                    saved.append("Saved the click check as “\(click.lastPathComponent)”.")
+                    saved.append(.init(role: "Click check", name: click.lastPathComponent))
                 }
                 progress = nil
                 let warnings = show.warnings + (score?.warnings ?? [])
-                finished?(showDestination, DrillImport.notice(source: source, warnings: warnings, extras: saved))
+                finished?(showDestination, ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings))
             } catch ConverterError.cancelled {
                 progress = nil
             } catch {
@@ -304,15 +304,15 @@ final class DrillImportWindowController: NSWindowController, NSWindowDelegate {
     private let model: DrillImportModel
 
     @MainActor
-    static func present(source: URL, finished: @escaping (URL, String) -> Void) {
+    static func present(source: URL, finished: @escaping (URL, ImportReport) -> Void) {
         if let existing = open[source] {
             existing.window?.makeKeyAndOrderFront(nil)
             return
         }
         let controller = DrillImportWindowController(source: source)
-        controller.model.finished = { [weak controller] show, notice in
+        controller.model.finished = { [weak controller] show, report in
             controller?.close()
-            finished(show, notice)
+            finished(show, report)
         }
         open[source] = controller
         controller.showWindow(nil)

@@ -28,9 +28,9 @@ final class FieldworkDocument: NSDocument {
     var startTourOnOpen = false
     var recoveredMessage: String?
     var audioToImport: URL?
-    /// Shown in the banner once the editor exists, for example the converter's
-    /// notes after a drill import. Safe to set before or after opening finishes.
-    var openingNotice: String? {
+    /// The converter's notes after a drill import, shown in a sheet once the
+    /// editor exists. Safe to set before or after opening finishes.
+    var importReport: ImportReport? {
         didSet { MainActor.assumeIsolated { showOpeningNotice() } }
     }
 
@@ -120,9 +120,9 @@ final class FieldworkDocument: NSDocument {
 
     @MainActor
     private func showOpeningNotice() {
-        guard let model, let notice = openingNotice else { return }
-        openingNotice = nil
-        model.recoveredBanner = notice
+        guard let model, let report = importReport else { return }
+        importReport = nil
+        model.importReport = report
     }
 
     // MARK: Reading and writing

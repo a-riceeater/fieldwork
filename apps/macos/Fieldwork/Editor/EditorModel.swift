@@ -188,6 +188,8 @@ final class EditorModel: ObservableObject {
     @Published private(set) var audioStatus = "No audio"
     @Published var readOnlyReason: String?
     @Published var recoveredBanner: String?
+    /// The converter's notes for a just-imported drill, shown once as a sheet.
+    @Published var importReport: ImportReport?
 
     /// One-shot view request for the canvas (fit/zoom), identified by a token.
     @Published private(set) var canvasRequest: (command: CanvasViewCommand, token: UUID)?

@@ -75,11 +75,34 @@ final class DrillImportTests: XCTestCase {
         XCTAssertTrue(options.followAudio && options.clickCheck)
     }
 
-    func testNoticeListsSavedFilesAndWarnings() {
-        let notice = DrillImport.notice(source: drill, warnings: [ConverterDiagnostic(severity: "warning", code: "alignment_not_confident", message: "alignment is not confident")],
-                                        extras: ["Saved the count track as “show.musicxml”."])
-        XCTAssertTrue(notice.hasPrefix("Converted from “show.3du”."))
-        XCTAssertTrue(notice.contains("show.musicxml"))
-        XCTAssertTrue(notice.hasSuffix("Notes: alignment is not confident"))
+    func testReportListsSavedFilesAndRetellsWarnings() {
+        let diagnostics = [
+            ConverterDiagnostic(severity: "warning", code: "alignment_not_confident",
+                                message: "automatic alignment is not confident (best offset +0.527 s); count 0 is placed at the start of the audio. Check with --click-check, then pass --audio-offset or --follow-audio"),
+            ConverterDiagnostic(severity: "warning", code: "measure_numbers_filled",
+                                message: "measure(s) 228 were missing from every set and were inferred so the counts divide evenly"),
+            ConverterDiagnostic(severity: "warning", code: "bar_lines_estimated",
+                                message: "measures 254-259, 260-262 do not divide evenly into their counts; bar lines inside them are estimated"),
+            ConverterDiagnostic(severity: "lossy", code: "set_beyond_timeline", message: "2 set(s) start after the last stored count and were dropped"),
+            ConverterDiagnostic(severity: "info", code: "notes_moved_to_next_set", message: "1 text note(s) between sets were attached to the next set"),
+            ConverterDiagnostic(severity: "warning", code: "something_new", message: "a future warning"),
+        ]
+        let report = ImportReport(sourceName: drill.lastPathComponent,
+                                  savedFiles: [.init(role: "Count track", name: "show.musicxml")], diagnostics: diagnostics)
+        XCTAssertEqual(report.sourceName, "show.3du")
+        XCTAssertEqual(report.savedFiles.map(\.name), ["show.musicxml"])
+
+        let notes = Dictionary(uniqueKeysWithValues: report.notes.map { ($0.code, $0) })
+        XCTAssertTrue(notes["alignment_not_confident"]!.detail.contains("seconds later"))
+        XCTAssertFalse(notes["alignment_not_confident"]!.detail.contains("--"), "no command-line advice")
+        XCTAssertTrue(notes["measure_numbers_filled"]!.detail.hasPrefix("Measure 228 wasn't"))
+        XCTAssertTrue(notes["bar_lines_estimated"]!.detail.hasPrefix("Measures 254–259 and 260–262 don't"))
+        XCTAssertEqual(notes["set_beyond_timeline"]!.detail, "2 sets start after the drill's last count, so they couldn't be imported.")
+        XCTAssertTrue(notes["notes_moved_to_next_set"]!.detail.hasPrefix("1 text note sat"))
+        XCTAssertEqual(notes["something_new"]!.detail, "A future warning.")
+        XCTAssertTrue(report.technicalText.contains("[measure_numbers_filled] measure(s) 228"))
+
+        XCTAssertEqual(report.needsAttention.first?.code, "set_beyond_timeline", "lost work comes first")
+        XCTAssertEqual(report.forYourInformation.map(\.code), ["notes_moved_to_next_set"])
     }
 }
