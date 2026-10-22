@@ -93,7 +93,7 @@ struct TimelinePanel: View {
                 Toggle("Whole Counts Only", isOn: $model.wholeCountsOnly)
                 Text("Hide fractional counts and snap to the nearest count when pausing.")
             } label: {
-                Text(Self.rates.first { $0.value == model.playbackRate }?.title ?? "1×")
+                Text(Self.rates.first(where: { $0.value == model.playbackRate })?.title ?? "1×")
                     .font(.system(size: 12, weight: .semibold)).monospacedDigit()
             }
             .menuStyle(.borderlessButton)
