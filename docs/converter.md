@@ -13,6 +13,106 @@ in a new Fieldwork release.
         Fieldwork release           ──▶ users (Sparkle on the website, the Mac App Store)
 ```
 
+## First run on a Mac
+
+The converter integration was written and tested on Windows. The converter, its build script
+and `ThreeDUConverterService` passed there, but **the Mac side has never been built or run**:
+the Xcode build phases, the embedded binary, signing, the sandbox and the Import Drill dialog.
+Work through this list once, in order, on a Mac with Xcode 16 or newer, then record the results
+in [PROGRESS.md](PROGRESS.md). Use only the synthetic drill below, never a real one.
+
+### 1. Set up
+
+```sh
+git submodule update --init --recursive        # if Fieldwork was cloned without --recurse-submodules
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+./scripts/bootstrap-macos.sh
+sh scripts/build-converter.sh --fixtures       # writes build/converter/fixtures/synthetic.3du
+```
+
+Install Rust from [rustup.rs](https://rustup.rs) first if `rustup` is missing. Bootstrap should
+print `Staged …/build/converter/3du-converter (arm64, …)` before XcodeGen generates the project.
+
+### 2. Run the tests
+
+```sh
+FIELDWORK_REQUIRE_CONVERTER=1 ./scripts/test-portable.sh
+xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Debug \
+  -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO test
+```
+
+- [ ] The portable suites pass, including `DrillConvertTests` with nothing skipped.
+- [ ] The app builds. `DrillImport.swift` and `DrillImportDialog.swift` have never been compiled,
+      so expect small compile fixes there first.
+- [ ] `DocumentTypeTests`, `DrillImportTests` and `BundledConverterTests` pass.
+
+### 3. Check the bundle
+
+```sh
+xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Release \
+  -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+app=build/DerivedData/Build/Products/Release/Fieldwork.app
+lipo -archs "$app/Contents/MacOS/3du-converter"      # arm64 x86_64
+vtool -show-build "$app/Contents/MacOS/3du-converter" | grep minos   # 14.0
+"$app/Contents/MacOS/3du-converter" --version          # 3du-converter 0.1.0
+cat "$app/Contents/Resources/3du-converter-build.json" # sourceCommit is the pinned commit
+```
+
+- [ ] The converter sits in `Contents/MacOS`, not `Contents/Resources`, and has both architectures.
+
+### 4. Try the import dialog
+
+Build Debug **without** `CODE_SIGNING_ALLOWED=NO`. Xcode then signs ad hoc, which is enough to
+run the app sandboxed, as users get it:
+
+```sh
+xcodebuild -project apps/macos/Fieldwork.xcodeproj -scheme Fieldwork -configuration Debug \
+  -derivedDataPath build/DerivedData build
+open build/DerivedData/Build/Products/Debug/Fieldwork.app
+say -o /tmp/count.wav --data-format=LEI16@44100 "one two three four five six seven eight"   # a throwaway recording
+```
+
+In another Terminal window, watch for sandbox denials while you test:
+
+```sh
+log stream --style compact --predicate 'sender == "Sandbox" AND eventMessage CONTAINS "3du-converter"'
+```
+
+Then, with File ▸ Open › `build/converter/fixtures/synthetic.3du`:
+
+- [ ] The Import Drill dialog appears, and nothing is converted yet.
+- [ ] Convert stays disabled with *Choose where to save the show.* until a show location is chosen.
+- [ ] Convert with the defaults: the dialog closes, the saved show opens, and its banner starts
+      with *Converted from “synthetic.3du”*.
+- [ ] Mirror side to side and front to back: the performers come out mirrored and stay on the field.
+- [ ] MusicXML without a recording: the `.musicxml` file is saved and opens in MuseScore or similar.
+- [ ] MusicXML with `/tmp/count.wav`, *Follow the recording beat by beat* and a click check:
+      all three files are saved, and the banner names the extra two (an alignment warning is
+      fine for this recording).
+- [ ] Save over an existing file: the save panel asks before replacing it.
+- [ ] Choose a show that is open in Fieldwork as the destination: the dialog says to close it first.
+- [ ] Rename any text file to `broken.3du` and open it: the dialog stays open and shows
+      *This file is not a .3du drill that Fieldwork can import*, with the converter version.
+- [ ] Open Recent lists `synthetic.3du` and opens the dialog again; so does dropping the file on
+      the Dock icon.
+- [ ] The log stream shows no denials, and `~/Library/Containers/<bundle id>/Data/tmp/Fieldwork-Conversions/`
+      is empty afterwards.
+
+### 5. Signing for distribution
+
+With a team in `apps/macos/Config/Local.xcconfig` (see its template), archive in Xcode, export
+for Developer ID, and run the commands in [Validating a build](#validating-a-build).
+
+- [ ] The converter keeps exactly `app-sandbox` and `inherit`, the hardened runtime flag and the
+      app's team.
+- [ ] The exported app notarizes and passes `spctl`.
+
+### 6. Afterwards
+
+- [ ] Add a dated entry to [PROGRESS.md](PROGRESS.md) with the commands run and their results,
+      like the existing ones.
+- [ ] Check that the macOS job in `.github/workflows/ci.yml` passes on GitHub. It has never run.
+
 ## The submodule
 
 `vendor/3du-converter` is a submodule with the SSH remote

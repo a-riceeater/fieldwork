@@ -1,5 +1,46 @@
 # Progress log
 
+## 2026-10-21: Import `.3du` drills with the bundled 3du-converter
+
+Environment: Windows 11 Home (10.0.26200), Swift 6.4 (`swift-6.4-RELEASE`), Rust 1.98.0. **No Mac
+was available**, so the macOS part was written but not compiled or run. The steps to verify it
+are the [first-run checklist](converter.md#first-run-on-a-mac).
+
+### Completed behavior
+
+- **Dependency:** `vendor/3du-converter` is a Git submodule pinned to `4288310`, which includes
+  the converter's fix for mirrored drills (`--flip-x`, `--flip-y`).
+- **Build:** `scripts/build-converter.sh` builds the CLI from the pinned source (`--locked`), for
+  this machine or universal with `lipo`, stages it in `build/converter/` with a build-info file,
+  and pre-signs it for the sandbox on macOS. `scripts/update-converter.sh` moves the pin on
+  purpose and runs the tests.
+- **App (not compiled):** an XcodeGen build phase and a Copy Files phase embed the converter in
+  `Contents/MacOS`. `.3du` is an importable type. Opening one shows the Import Drill dialog
+  (show location, approximations, page map, mirroring, steps per unit, and an optional MusicXML
+  count track with a recording, offset, beat following and click check). The converted show is
+  saved where the user chooses and then opens.
+- **Service:** `ThreeDUConverterService` in the portable `DrillConvert` library runs the
+  converter with `Process` on copies in a temporary folder, parses its JSON result, and supports
+  cancellation.
+
+### Commands actually run
+
+| Command | Result |
+|---|---|
+| `cargo test --workspace --locked` (pinned converter) | All converter tests pass |
+| `sh scripts/build-converter.sh --fixtures` | Native `3du-converter.exe` and the synthetic fixture; a no-change rebuild takes about 1.4 s |
+| `FIELDWORK_REQUIRE_CONVERTER=1 sh scripts/test-portable.sh` | DrillTiming, DrillCore, DrillDocument and DrillBridge pass; `DrillConvertTests` 12 of 12 against the real converter |
+| `sh scripts/update-converter.sh 4288310` | Converter tests, build and integration tests pass |
+
+The script's macOS paths (architecture choice, universal builds, signing mode, refusing an
+unpinned or modified source for archives) were exercised on Windows with stand-in tools only.
+
+### Not done
+
+- **The Mac side has not been built or run:** the XcodeGen phases, the embedded binary, the import
+  dialog, signing, the sandbox and the three new app test files.
+- The macOS CI job has never run on GitHub.
+
 ## 2026-10-21: Draw the next set as shapes, and spell text with performers
 
 Draw Next Set adds a set after the current one (a copy, as Add Set makes) and

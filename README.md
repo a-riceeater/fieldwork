@@ -73,7 +73,9 @@ The app embeds the `.3du` converter, built from `vendor/3du-converter` by
 `scripts/build-converter.sh` on every Xcode build. This needs Rust 1.75 or newer
 ([rustup](https://rustup.rs)), plus `rustup target add aarch64-apple-darwin x86_64-apple-darwin`
 for Release builds. Building, signing, updating the pin and debugging conversions are
-described in [docs/converter.md](docs/converter.md).
+described in [docs/converter.md](docs/converter.md). The converter integration has not yet been
+built on a Mac; the first time, follow its
+[first-run checklist](docs/converter.md#first-run-on-a-mac).
 
 No signing identity is committed. Personal settings go in `apps/macos/Config/Local.xcconfig`, which git ignores (see the `.template`).
 
