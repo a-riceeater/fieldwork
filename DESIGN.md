@@ -53,7 +53,7 @@ Reference window: 1440 × 960 pt; minimum usable 1024 × 720. The image in `webs
 | Area | Starting size | Contents |
 |---|---|---|
 | Title/toolbar | 54 pt | Document name, undo/redo, tool controls, view mode, export |
-| Navigator | 190 pt, resizable | Movements, sets with counts, roster sections, search/filter |
+| Navigator | 220 pt, resizable | Movements, sets with counts, roster sections, search/filter |
 | Canvas | Flexible center | Field, dots, selection, forms, trajectories and annotations |
 | Inspector | 260 pt, resizable | Context-sensitive values and operations |
 | Timeline | 180 pt, resizable | Transport, rulers, waveform, timing lanes and set transitions |

@@ -6,7 +6,7 @@ import DrillCore
 final class EditorLayoutTests: XCTestCase {
     func testPaneDefaultsAndNarrowWindowKeepSpaceForField() {
         let defaults = EditorPaneSizes()
-        XCTAssertEqual(defaults.navigator, 190)
+        XCTAssertEqual(defaults.navigator, 220)
         XCTAssertEqual(defaults.inspector, 260)
         XCTAssertEqual(defaults.timeline, 180)
         let narrow = EditorPaneSizes(navigator: 320, inspector: 360, timeline: 420).fitted(to: CGSize(width: 1024, height: 650))
@@ -25,12 +25,12 @@ final class EditorLayoutTests: XCTestCase {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         let canvas = try XCTUnwrap(descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? FieldCanvasView }.first)
-        XCTAssertEqual(canvas.bounds.width, 1440 - 190 - 260 - 8, accuracy: 2)
+        XCTAssertEqual(canvas.bounds.width, 1440 - 220 - 260 - 8, accuracy: 2)
         XCTAssertGreaterThan(canvas.bounds.height, 650)
         XCTAssertEqual(canvas.transform, CanvasTransform.fit(model.show.field.bounds, in: canvas.bounds))
         model.snapEnabled.toggle()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-        XCTAssertEqual(canvas.bounds.width, 1440 - 190 - 260 - 8, accuracy: 2)
+        XCTAssertEqual(canvas.bounds.width, 1440 - 220 - 260 - 8, accuracy: 2)
     }
 
     @MainActor

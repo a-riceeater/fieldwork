@@ -77,15 +77,20 @@ private struct PaneDivider: View {
             .frame(maxWidth: vertical ? nil : .infinity, maxHeight: vertical ? .infinity : nil)
             .animation(.easeOut(duration: 0.15), value: hovering)
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0)
+            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { gesture in
                     if dragStart == nil { dragStart = value }
                     let delta = vertical ? gesture.translation.width : gesture.translation.height
                     set((dragStart ?? value) + direction * delta)
                 }
-                .onEnded { _ in dragStart = nil })
+                .onEnded { _ in
+                    dragStart = nil
+                    if !hovering { NSCursor.arrow.set() }
+                })
             .onHover { inside in
                 hovering = inside
+                // Mid-drag the pointer can outrun the thin strip; keep the resize cursor until release.
+                guard dragStart == nil else { return }
                 (inside ? (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown) : NSCursor.arrow).set()
             }
             .help("Drag to resize")
