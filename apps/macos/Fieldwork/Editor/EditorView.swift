@@ -111,6 +111,11 @@ struct StatusBar: View {
                     .accessibilityAddTraits(.updatesFrequently)
             }
             Spacer()
+            if model.hasAudio {
+                Label(model.audioStatus, systemImage: "waveform")
+                    .lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(Color.fwSecondary)
+            }
             if !issues.isEmpty {
                 Label("\(issues.count) warning\(issues.count == 1 ? "" : "s")", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(Color.fwWarning)

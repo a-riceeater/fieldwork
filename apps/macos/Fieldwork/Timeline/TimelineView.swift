@@ -73,7 +73,13 @@ final class TimelineCanvasView: NSView {
     private var draggingAnchor: (id: AnchorID, time: Double)?
     private var scrubbing = false
 
-    private let secondsLane: CGFloat = 18, measuresLane: CGFloat = 18, anchorsLane: CGFloat = 20, setsLane: CGFloat = 28
+    static let secondsLane: CGFloat = 18, measuresLane: CGFloat = 18, anchorsLane: CGFloat = 18, setsLane: CGFloat = 26
+    /// Height of the lanes above and below the waveform, for overlays placed on it.
+    static let aboveWaveform = secondsLane + measuresLane, belowWaveform = anchorsLane + setsLane
+    private var secondsLane: CGFloat { Self.secondsLane }
+    private var measuresLane: CGFloat { Self.measuresLane }
+    private var anchorsLane: CGFloat { Self.anchorsLane }
+    private var setsLane: CGFloat { Self.setsLane }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -283,7 +289,7 @@ final class TimelineCanvasView: NSView {
             let px = x(t)
             ctx.setStrokeColor(secondary.withAlphaComponent(0.5).cgColor)
             ctx.strokeLineSegments(between: [CGPoint(x: px, y: secondsLane - 6), CGPoint(x: px, y: secondsLane)])
-            NSAttributedString(string: TimeFormat.clock(t), attributes: [.font: mono, .foregroundColor: secondary]).draw(at: CGPoint(x: px + 3, y: 2))
+            NSAttributedString(string: Self.rulerTime(t, step: stepSeconds), attributes: [.font: mono, .foregroundColor: secondary]).draw(at: CGPoint(x: px + 3, y: 2))
             t += stepSeconds
         }
 
@@ -295,16 +301,17 @@ final class TimelineCanvasView: NSView {
                 ctx.strokeLineSegments(between: [CGPoint(x: x(b), y: secondsLane + measuresLane - 4), CGPoint(x: x(b), y: secondsLane + measuresLane)])
             }
         }
-        var lastLabelX: CGFloat = -100
+        var labelEnd: CGFloat = -.infinity
         for m in state.measures where x(m.time) >= -40 && x(m.time) <= bounds.width {
             let px = x(m.time)
             ctx.setStrokeColor(secondary.withAlphaComponent(0.7).cgColor)
             ctx.strokeLineSegments(between: [CGPoint(x: px, y: secondsLane), CGPoint(x: px, y: secondsLane + measuresLane)])
             ctx.setStrokeColor(Tokens.grid.withAlphaComponent(0.25).cgColor)
             ctx.strokeLineSegments(between: [CGPoint(x: px, y: waveformRect.minY), CGPoint(x: px, y: waveformRect.maxY)])
-            if px - lastLabelX > 28 {
-                NSAttributedString(string: m.label, attributes: [.font: monoBold, .foregroundColor: Tokens.textPrimary]).draw(at: CGPoint(x: px + 3, y: secondsLane + 2))
-                lastLabelX = px
+            let label = NSAttributedString(string: m.label, attributes: [.font: monoBold, .foregroundColor: Tokens.textPrimary])
+            if px + 3 > labelEnd + 8 {
+                label.draw(at: CGPoint(x: px + 3, y: secondsLane + 2))
+                labelEnd = px + 3 + label.size().width
             }
         }
 
@@ -325,9 +332,9 @@ final class TimelineCanvasView: NSView {
                     ctx.strokeLineSegments(between: [CGPoint(x: px, y: mid - CGFloat(c.max) * half), CGPoint(x: px, y: mid - CGFloat(c.min) * half)])
                 }
             }
-        } else {
-            let text = state.peaksFrameCount == 0 ? "No audio · counts only. Import WAV or MP3 to align music." : "Decoding waveform…"
-            NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondary])
+        } else if state.peaksFrameCount != 0 {
+            // Without audio the panel overlays its own empty state on this lane.
+            NSAttributedString(string: "Decoding waveform…", attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondary])
                 .draw(at: CGPoint(x: 12, y: waveformRect.midY - 8))
         }
 
@@ -344,29 +351,77 @@ final class TimelineCanvasView: NSView {
             NSAttributedString(string: anchor.label, attributes: [.font: mono, .foregroundColor: Tokens.accent]).draw(at: CGPoint(x: px + 7, y: anchorsRect.minY + 3))
         }
 
-        // Set arrivals and the move bars into them.
-        var previousX: CGFloat?
-        for set in state.sets {
-            let px = x(set.time)
-            if let previousX {
-                let bar = CGRect(x: previousX + 2, y: setsRect.minY + 8, width: max(0, px - previousX - 4), height: 8)
-                (set.selected ? Tokens.accent.withAlphaComponent(0.35) : secondary.withAlphaComponent(0.2)).setFill()
-                NSBezierPath(roundedRect: bar, xRadius: 4, yRadius: 4).fill()
+        // Set arrivals and the move bars into them. Markers shrink when sets are
+        // close together, and labels that would collide are left out (the
+        // selected set's label always shows), so dense shows stay readable.
+        let setXs = state.sets.map { x($0.time) }
+        let midY = setsRect.minY + 10
+        for (i, set) in state.sets.enumerated() {
+            let px = setXs[i]
+            guard i > 0 else { continue }
+            let previousX = setXs[i - 1]
+            guard px >= 0, previousX <= bounds.width, px - previousX > 6 else { continue }
+            let bar = CGRect(x: previousX + 3, y: midY - 2, width: px - previousX - 6, height: 4)
+            (set.selected ? Tokens.accent.withAlphaComponent(0.45) : secondary.withAlphaComponent(0.22)).setFill()
+            NSBezierPath(roundedRect: bar, xRadius: 2, yRadius: 2).fill()
+        }
+        for (i, set) in state.sets.enumerated() where setXs[i] >= -8 && setXs[i] <= bounds.width + 8 {
+            let px = setXs[i]
+            let gap = min(i > 0 ? px - setXs[i - 1] : .infinity, i + 1 < setXs.count ? setXs[i + 1] - px : .infinity)
+            let half: CGFloat = set.selected ? 6 : (gap >= 16 ? 5 : (gap >= 8 ? 3.5 : 0))
+            let color = set.selected ? Tokens.accent : Tokens.textPrimary
+            if half > 0 {
+                let diamond = NSBezierPath()
+                diamond.move(to: CGPoint(x: px, y: midY - half))
+                diamond.line(to: CGPoint(x: px + half, y: midY))
+                diamond.line(to: CGPoint(x: px, y: midY + half))
+                diamond.line(to: CGPoint(x: px - half, y: midY))
+                diamond.close()
+                color.setFill()
+                diamond.fill()
+            } else {
+                color.withAlphaComponent(0.6).setStroke()
+                let tick = NSBezierPath()
+                tick.move(to: CGPoint(x: px, y: midY - 4))
+                tick.line(to: CGPoint(x: px, y: midY + 4))
+                tick.lineWidth = 1
+                tick.stroke()
             }
-            let diamond = NSBezierPath()
-            diamond.move(to: CGPoint(x: px, y: setsRect.minY + 4))
-            diamond.line(to: CGPoint(x: px + 6, y: setsRect.minY + 12))
-            diamond.line(to: CGPoint(x: px, y: setsRect.minY + 20))
-            diamond.line(to: CGPoint(x: px - 6, y: setsRect.minY + 12))
-            diamond.close()
-            (set.selected ? Tokens.accent : Tokens.textPrimary).setFill()
-            diamond.fill()
-            NSAttributedString(string: set.label, attributes: [.font: monoBold, .foregroundColor: set.selected ? Tokens.accent : Tokens.textPrimary])
-                .draw(at: CGPoint(x: px + 8, y: setsRect.minY + 6))
-            previousX = px
+        }
+        var taken: [ClosedRange<CGFloat>] = []
+        func label(_ index: Int) -> (NSAttributedString, CGRect) {
+            let set = state.sets[index]
+            let text = NSAttributedString(string: set.label, attributes: [
+                .font: set.selected ? monoBold : mono,
+                .foregroundColor: set.selected ? Tokens.accent : Tokens.textPrimary.withAlphaComponent(0.85),
+            ])
+            let size = text.size()
+            return (text, CGRect(x: setXs[index] + 8, y: midY - size.height / 2, width: size.width, height: size.height))
+        }
+        if let selected = state.sets.firstIndex(where: \.selected) {
+            let (text, rect) = label(selected)
+            Tokens.surface.setFill()
+            NSBezierPath(roundedRect: rect.insetBy(dx: -3, dy: 0), xRadius: 3, yRadius: 3).fill()
+            text.draw(at: rect.origin)
+            taken.append(rect.minX - 6...rect.maxX + 6)
+        }
+        for i in state.sets.indices where !state.sets[i].selected && setXs[i] >= -40 && setXs[i] <= bounds.width {
+            let (text, rect) = label(i)
+            // A label must end before the next marker and clear every label already drawn.
+            let nextX = i + 1 < setXs.count ? setXs[i + 1] : .infinity
+            guard rect.maxX + 4 < nextX, !taken.contains(where: { $0.overlaps(rect.minX - 6...rect.maxX + 6) }) else { continue }
+            text.draw(at: rect.origin)
+            taken.append(rect.minX...rect.maxX)
         }
 
         // The playhead is composited separately, without rerasterizing these lanes.
+    }
+
+    /// Ruler labels as short as the step allows: "1:30" rather than "01:30.000".
+    static func rulerTime(_ t: Double, step: Double) -> String {
+        guard step >= 1 else { return TimeFormat.clock(t) }
+        let whole = Int(abs(t).rounded())
+        return "\(t < 0 ? "-" : "")\(whole / 60):\(String(format: "%02d", whole % 60))"
     }
 }
 

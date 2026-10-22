@@ -19,9 +19,16 @@ struct TimelinePanel: View {
                 alignment
             }
             .padding(.horizontal, Tokens.Space.s)
-            .padding(.vertical, Tokens.Space.s)
+            .padding(.vertical, 6)
             .glassGroup()
             TimelineLanes(model: model)
+                .overlay(alignment: .leading) {
+                    if !model.hasAudio {
+                        noAudio
+                            .padding(.top, TimelineCanvasView.aboveWaveform)
+                            .padding(.bottom, TimelineCanvasView.belowWaveform)
+                    }
+                }
                 .overlay {
                     if dropTargeted { RoundedRectangle(cornerRadius: 8).strokeBorder(Color.fwAccent, lineWidth: 2) }
                 }
@@ -33,27 +40,28 @@ struct TimelinePanel: View {
                     return true
                 }
                 .tourAnchor("timeline.importAudio")
-            HStack {
-                Text(model.audioStatus).font(.system(size: 11)).foregroundStyle(Color.fwSecondary)
-                Spacer()
-                if !model.hasAudio {
-                    Button { importAudio() } label: { Label("Import Audio…", systemImage: "waveform.badge.plus") }
-                        .fwPrimaryButton()
-                        .accessibilityIdentifier("timeline.importAudio")
-                    Button("Continue Without Music") { model.countsOnly() }
-                        .fwSecondaryButton()
-                        .help("Continue without music; playback follows the tempo map")
-                } else {
-                    Button { importAudio() } label: { Label("Replace Audio…", systemImage: "waveform") }
-                        .fwSecondaryButton()
-                        .help("Existing pins stay attached to their sample positions; review them after replacing")
-                }
-            }
-            .controlSize(.small)
-            .padding(.horizontal, Tokens.Space.m)
-            .padding(.vertical, Tokens.Space.xs)
         }
         .fwPanel(material: false)
+    }
+
+    /// Sits on the empty waveform lane: what's missing and the two ways forward.
+    private var noAudio: some View {
+        HStack(spacing: Tokens.Space.s) {
+            Image(systemName: "waveform").foregroundStyle(Color.fwSecondary)
+            Text(model.audioStatus == "No audio" ? "No music yet. Counts follow the tempo." : model.audioStatus)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.fwSecondary)
+                .lineLimit(1)
+            Button { importAudio() } label: { Label("Import Audio…", systemImage: "waveform.badge.plus") }
+                .fwPrimaryButton()
+                .accessibilityIdentifier("timeline.importAudio")
+            Button("Continue Without Music") { model.countsOnly() }
+                .fwSecondaryButton()
+                .help("Continue without music; playback follows the tempo map")
+        }
+        .controlSize(.small)
+        .padding(.horizontal, Tokens.Space.m)
+        .frame(maxHeight: .infinity)
     }
 
     private struct Rate: Hashable { var value: Double; var title: String }
@@ -65,10 +73,10 @@ struct TimelinePanel: View {
                 .help("Previous set").accessibilityLabel("Previous set")
             Button { model.togglePlay() } label: {
                 Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .contentTransition(.symbolEffect(.replace))
                     .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 24, height: 24)
                     .background(Circle().fill(Color.fwAccent))
                     .contentShape(Circle())
             }
@@ -92,6 +100,11 @@ struct TimelinePanel: View {
                 Divider()
                 Toggle("Whole Counts Only", isOn: $model.wholeCountsOnly)
                 Text("Hide fractional counts and snap to the nearest count when pausing.")
+                if model.hasAudio {
+                    Divider()
+                    Button("Replace Audio…") { importAudio() }
+                    Text("Pins stay on their sample positions; review them after replacing.")
+                }
             } label: {
                 Text(Self.rates.first(where: { $0.value == model.playbackRate })?.title ?? "1×")
                     .font(.system(size: 12, weight: .semibold)).monospacedDigit()
@@ -111,8 +124,8 @@ struct TimelinePanel: View {
     private var alignment: some View {
         HStack(spacing: Tokens.Space.s) {
             HStack(spacing: Tokens.Space.xs) {
-                MusicalPositionField(prefix: "m", name: "Measure", value: $alignMeasure, range: 0...999)
-                MusicalPositionField(prefix: "b", name: "Beat", value: $alignBeat, range: 1...16)
+                MusicalPositionField(name: "Measure", value: $alignMeasure, range: 0...999)
+                MusicalPositionField(name: "Beat", value: $alignBeat, range: 1...16)
             }
             Button { model.alignHere(measure: alignMeasure, beat: alignBeat) } label: { Label("Align Here", systemImage: "pin.fill") }
                 .fwPrimaryButton()
@@ -180,17 +193,16 @@ private struct PlaybackReadout: View {
 
 }
 
-/// A short typed musical position such as "m 17" or "b 3", clamped to its range.
+/// A labeled musical position such as "Measure 17" or "Beat 3", clamped to its range.
 private struct MusicalPositionField: View {
-    var prefix: String
     var name: String
     @Binding var value: Int
     var range: ClosedRange<Int>
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: 3) {
-            Text(prefix).foregroundStyle(Color.fwSecondary)
+        HStack(spacing: 4) {
+            Text(name).foregroundStyle(Color.fwSecondary)
             TextField(name, value: $value, format: .number.grouping(.never))
                 .monospacedDigit()
                 .focused($focused)
@@ -202,6 +214,6 @@ private struct MusicalPositionField: View {
             let clamped = min(max(newValue, range.lowerBound), range.upperBound)
             if clamped != newValue { value = clamped }
         }
-        .help("\(name) to pin. Type a number and press Return.")
+        .help("The \(name.lowercased()) that Align Here pins to the playhead. Type a number and press Return.")
     }
 }
