@@ -350,6 +350,10 @@ struct TimingInspector: View {
                     .font(.caption).foregroundStyle(Color.fwSecondary)
             }
             if model.show.countingMode == .counts {
+                if let tempo = model.currentMoveTempo {
+                    InspectorFact(text: describe(tempo, isPreset: model.show.previousSet(before: model.currentSetID) == nil),
+                                  systemImage: "metronome")
+                }
                 NumberField(label: "Tempo (BPM)", value: tempoBPM, places: 1) { tempoBPM = $0 }
                 if model.setsInMovement.count == 1 && timing.anchors.isEmpty, let first = timing.measures.first {
                     Button {
@@ -409,7 +413,24 @@ struct TimingInspector: View {
                     tempoBPM = bpm
                 }
             }
+            loadMoveTempo()
         }
+        .onChange(of: model.currentSetID) { _, _ in loadMoveTempo() }
+        .onChange(of: model.revision) { _, _ in loadMoveTempo() }
+    }
+
+    /// Starts the tempo field from the selected move's own tempo, so an
+    /// imported show shows the tempo it came with rather than a default.
+    private func loadMoveTempo() {
+        guard model.show.countingMode == .counts, let tempo = model.currentMoveTempo else { return }
+        tempoBPM = tempo.lowerBound
+    }
+
+    private func describe(_ tempo: ClosedRange<Double>, isPreset: Bool) -> String {
+        let low = TimeFormat.decimal(tempo.lowerBound, places: tempo.lowerBound.rounded() == tempo.lowerBound ? 0 : 1)
+        let high = TimeFormat.decimal(tempo.upperBound, places: tempo.upperBound.rounded() == tempo.upperBound ? 0 : 1)
+        if isPreset { return "Tempo at this set: \(low) BPM" }
+        return tempo.lowerBound == tempo.upperBound ? "This move: \(low) BPM" : "This move changes tempo: \(low)–\(high) BPM"
     }
 }
 

@@ -924,6 +924,25 @@ final class EditorModel: ObservableObject {
         }
     }
 
+    /// The notated tempo of the move into the current set, read from the beats
+    /// it spans: one value when steady, the slowest and fastest when it changes.
+    /// For the opening set, the tempo of the beat it arrives on.
+    var currentMoveTempo: ClosedRange<Double>? {
+        guard let set = currentSet else { return nil }
+        let timing = movement.timing
+        guard let end = timing.eventIndex(of: set.cursor.eventID) else { return nil }
+        let start = show.previousSet(before: set.id).flatMap { timing.eventIndex(of: $0.cursor.eventID) }
+        let tempos: [Double]
+        if let start, start < end {
+            tempos = timing.events[start..<end].compactMap { timing.baselineTempo(of: $0) }
+        } else {
+            tempos = timing.events[end...].lazy.compactMap { timing.baselineTempo(of: $0) }.first.map { [$0] } ?? []
+        }
+        let rounded = tempos.filter(\.isFinite).map { ($0 * 10).rounded() / 10 }
+        guard let low = rounded.min(), let high = rounded.max() else { return nil }
+        return low...high
+    }
+
     func setCurrentSetMarkers(rehearsalMark: String, measureMarker: String) {
         guard let set = currentSet, set.rehearsalMark != rehearsalMark || set.measureMarker != measureMarker else { return }
         perform(.updateSetMarkers(set.id, rehearsalMark: rehearsalMark, measureMarker: measureMarker))
