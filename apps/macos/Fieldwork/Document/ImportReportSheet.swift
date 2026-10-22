@@ -6,6 +6,8 @@ import SwiftUI
 /// stays available under Technical Details.
 struct ImportReportSheet: View {
     let report: ImportReport
+    /// Pins count 0 of the open show to an offset, once the count track uses it.
+    var alignShow: ((Double) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var showsTechnical = false
     @State private var realign = RealignState.idle
@@ -86,7 +88,8 @@ struct ImportReportSheet: View {
                 ForEach(Array(report.savedFiles.enumerated()), id: \.element) { index, file in
                     if index > 0 { Divider().padding(.leading, 44) }
                     HStack(spacing: Tokens.Space.m) {
-                        icon(file.role == "Click check" ? "metronome" : "music.note.list", tint: Color.fwAccent)
+                        icon(file.role == "Click check" ? "metronome" : file.role.hasPrefix("Recording") ? "waveform" : "music.note.list",
+                             tint: Color.fwAccent)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(file.role).font(.system(size: 13, weight: .semibold))
                             Text(file.name).font(.system(size: 12)).foregroundStyle(Color.fwSecondary)
@@ -167,7 +170,7 @@ struct ImportReportSheet: View {
                 }
                 .padding(.top, 4)
             case .done:
-                Label("Done. \(files.prefix(1).uppercased() + files.dropFirst()) now start\(realignment.clickCheck == nil ? "s" : "") the music at \(text). Listen to the click check to confirm.",
+                Label("Done. \(files.prefix(1).uppercased() + files.dropFirst())\(report.recording == nil ? "" : " and the show") now start\(realignment.clickCheck == nil && report.recording == nil ? "s" : "") the music at \(text). Listen to the click check to confirm.",
                       systemImage: "checkmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.fwAccent)
@@ -192,6 +195,7 @@ struct ImportReportSheet: View {
         Task { @MainActor in
             do {
                 try await realignment.apply(offset: offset)
+                if report.recording != nil { alignShow?(offset) }
                 realign = .done
             } catch {
                 realign = .failed(DrillImport.explain(error))

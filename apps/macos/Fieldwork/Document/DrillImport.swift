@@ -26,6 +26,16 @@ enum DrillImport {
         }
         return "\(reason)\n\nConverter: \(ConverterLocator.buildInfo()?.summary ?? "build information missing")"
     }
+
+    /// The audio time of count 0 that the converter used for a count track, from
+    /// the `audio-offset-seconds` note it writes into the MusicXML identification.
+    static func audioOffset(inMusicXML data: Data) -> Double? {
+        let text = String(decoding: data.prefix(64 * 1024), as: UTF8.self)
+        guard let regex = try? NSRegularExpression(pattern: #"name="audio-offset-seconds">\s*([+-]?[0-9.]+)"#),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return Double(text[range])
+    }
 }
 
 /// Sends `.3du` drills to the import dialog. Every route that opens a file

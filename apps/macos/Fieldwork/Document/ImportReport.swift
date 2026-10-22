@@ -34,6 +34,9 @@ struct ImportReport: Identifiable {
     var savedFiles: [SavedFile]
     var notes: [ImportNote]
     var realignment: Realignment?
+    /// The recording to add to the converted show, and where count 0 falls in it.
+    var recording: URL?
+    var recordingOffset: Double?
 
     init(sourceName: String, savedFiles: [SavedFile] = [], diagnostics: [ConverterDiagnostic], realignment: Realignment? = nil) {
         self.sourceName = sourceName

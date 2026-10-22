@@ -992,6 +992,15 @@ final class EditorModel: ObservableObject {
         } catch { report(error) }
     }
 
+    /// Pins the opening set's arrival (count 0) to a time in the recording, as a
+    /// drill import's count track does. An offset of 0 needs no pin, and a negative
+    /// one (music before the recording starts) cannot be pinned.
+    func alignOpeningSet(atSeconds seconds: Double) {
+        guard seconds > 0.0005, let asset = audioAsset, let opening = setsInMovement.first else { return }
+        let frame = Int64((seconds * asset.sampleRate).rounded())
+        performTiming { resolution in try self.show.makeAlignSetArrival(opening.id, sampleFrame: frame, resolution: resolution) }
+    }
+
     func moveAnchor(_ id: AnchorID, toSeconds seconds: Double) {
         guard let asset = audioAsset else { return }
         let frame = Int64((max(0, seconds) * asset.sampleRate).rounded())

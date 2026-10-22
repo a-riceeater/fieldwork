@@ -122,6 +122,10 @@ final class FieldworkDocument: NSDocument {
     private func showOpeningNotice() {
         guard let model, let report = importReport else { return }
         importReport = nil
+        if let recording = report.recording {
+            model.importAudio(from: recording)
+            if let offset = report.recordingOffset { model.alignOpeningSet(atSeconds: offset) }
+        }
         model.importReport = report
     }
 

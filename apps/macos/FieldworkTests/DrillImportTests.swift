@@ -75,6 +75,16 @@ final class DrillImportTests: XCTestCase {
         XCTAssertTrue(options.followAudio && options.clickCheck)
     }
 
+    func testReadsTheCountTrackAudioOffset() {
+        func xml(_ value: String) -> Data {
+            Data("<identification><miscellaneous><miscellaneous-field name=\"audio-offset-seconds\">\(value)</miscellaneous-field></miscellaneous></identification>".utf8)
+        }
+        XCTAssertEqual(DrillImport.audioOffset(inMusicXML: xml("0.5270 (automatic)")), 0.527)
+        XCTAssertEqual(DrillImport.audioOffset(inMusicXML: xml("-0.2500 (given)")), -0.25)
+        XCTAssertEqual(DrillImport.audioOffset(inMusicXML: xml("0 (estimate not confident, not applied)")), 0)
+        XCTAssertNil(DrillImport.audioOffset(inMusicXML: Data("<score-partwise/>".utf8)))
+    }
+
     func testReportListsSavedFilesAndRetellsWarnings() {
         let diagnostics = [
             ConverterDiagnostic(severity: "warning", code: "alignment_not_confident",

@@ -150,12 +150,17 @@ final class DrillImportModel: ObservableObject {
                 }
                 progress = nil
                 let warnings = show.warnings + (score?.warnings ?? [])
-                // With a recording, the count track can be aligned again from the report.
+                // The recording chosen for the count track also becomes the show's audio,
+                // and the count track can be aligned again from the report.
+                let recording = musicXML == nil ? nil : options.audio
+                if let recording { saved.append(.init(role: "Recording, added to the show", name: recording.lastPathComponent)) }
                 let realignment = musicXML.flatMap { url in
-                    options.audio == nil ? nil : ImportReport.Realignment(source: source, options: options, musicXML: url, clickCheck: click)
+                    recording == nil ? nil : ImportReport.Realignment(source: source, options: options, musicXML: url, clickCheck: click)
                 }
-                finished?(showDestination, ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings,
-                                                        realignment: realignment))
+                var report = ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings, realignment: realignment)
+                report.recording = recording
+                report.recordingOffset = score.flatMap { DrillImport.audioOffset(inMusicXML: $0.data) }
+                finished?(showDestination, report)
             } catch ConverterError.cancelled {
                 progress = nil
             } catch {
