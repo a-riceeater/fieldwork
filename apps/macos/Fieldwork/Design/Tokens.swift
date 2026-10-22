@@ -51,11 +51,13 @@ enum Tokens {
     }
 
     enum Radius {
-        static let small: CGFloat = 10, panel: CGFloat = 12, cluster: CGFloat = 20
+        static let small: CGFloat = 10, panel: CGFloat = 12, field: CGFloat = 7, group: CGFloat = 14, floatingPanel: CGFloat = 18, cluster: CGFloat = 20
     }
 
     enum Layout {
         static let navigator: CGFloat = 190, inspector: CGFloat = 260, timeline: CGFloat = 180, status: CGFloat = 22
+        /// Gap between a floating panel and the window edge or its neighbors.
+        static let panelInset: CGFloat = 6
     }
 }
 

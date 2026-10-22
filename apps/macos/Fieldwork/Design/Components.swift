@@ -56,6 +56,59 @@ extension View {
                 .strokeBorder(selected ? Color.fwAccent : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1)
         )
     }
+
+    /// A borderless grouped surface for inspector content, like the grouped
+    /// rows in System Settings. Not glass: content stays legible.
+    func fwGroup(cornerRadius: CGFloat = Tokens.Radius.group) -> some View {
+        background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Color.primary.opacity(0.05)))
+    }
+
+    /// An inline value field: plain text on a soft rounded fill with an accent
+    /// ring while editing, in place of the boxed `.roundedBorder` bezel.
+    func fwField(focused: Bool = false) -> some View {
+        modifier(InlineFieldChrome(focused: focused))
+    }
+
+    /// A rounded panel inset from the window edge and its neighbors, like a
+    /// macOS 26 sidebar. `material` uses the sidebar material; otherwise the
+    /// opaque surface, for panels such as the timeline that need steady contrast.
+    func fwPanel(material: Bool = true) -> some View {
+        modifier(FloatingPanel(material: material))
+    }
+}
+
+private struct InlineFieldChrome: ViewModifier {
+    var focused: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+    private let shape = RoundedRectangle(cornerRadius: Tokens.Radius.field, style: .continuous)
+
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(shape.fill(Color.primary.opacity(focused ? 0.035 : 0.07)))
+            .overlay(shape.strokeBorder(focused ? Color.fwAccent : Color.primary.opacity(contrast == .increased ? 0.35 : 0),
+                                        lineWidth: focused ? 1.5 : 1))
+            .animation(.easeOut(duration: 0.12), value: focused)
+    }
+}
+
+private struct FloatingPanel: ViewModifier {
+    var material: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+    private let shape = RoundedRectangle(cornerRadius: Tokens.Radius.floatingPanel, style: .continuous)
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if material { VisualEffectBackground(material: .sidebar) } else { Color.fwSurface }
+            }
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.3 : 0.08)))
+            .shadow(color: .black.opacity(0.12), radius: 6, y: 1)
+            .padding(Tokens.Layout.panelInset)
+    }
 }
 
 /// Large tappable row used on the welcome screen: icon tile, title, subtitle.
