@@ -10,13 +10,9 @@ struct NavigatorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $tab) {
-                Text("Sets").tag(0)
-                Text("Roster").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(Tokens.Space.s)
+            CapsuleTabs(title: "Sidebar", selection: $tab, tabs: [CapsuleTab(value: 0, title: "Sets"), CapsuleTab(value: 1, title: "Roster")])
+                .padding([.horizontal, .top], Tokens.Space.s)
+                .padding(.bottom, Tokens.Space.xs)
             if tab == 0 { setsList } else { rosterList }
         }
         .fwPanel()
@@ -37,7 +33,7 @@ struct NavigatorView: View {
                     }
                 }
             }
-            .listStyle(.sidebar)
+            .fwSidebarList()
             HStack(spacing: Tokens.Space.xs) {
                 Menu {
                     ForEach([4, 8, 12, 16, 24, 32], id: \.self) { counts in
@@ -47,6 +43,7 @@ struct NavigatorView: View {
                     Label("Add Set", systemImage: "plus")
                 }
                 .menuStyle(.button)
+                .menuIndicator(.hidden)
                 .fwSecondaryButton()
                 .fixedSize()
                 .help("Add a set after the current one, copying its formation")
@@ -57,9 +54,10 @@ struct NavigatorView: View {
                         Button("\(counts) counts") { model.drawNextSet(counts: counts) }
                     }
                 } label: {
-                    Label("Draw", systemImage: "pencil.and.outline")
+                    Label("Draw Next Set", systemImage: "pencil.and.outline").labelStyle(.iconOnly)
                 }
                 .menuStyle(.button)
+                .menuIndicator(.hidden)
                 .fwSecondaryButton()
                 .fixedSize()
                 .help("Draw Next Set: add a set after the current one, draw its shapes over the previous set, then let Auto Route choose who goes where")
@@ -73,7 +71,9 @@ struct NavigatorView: View {
             }
             .controlSize(.small)
             .labelStyle(.titleAndIcon)
-            .padding(Tokens.Space.s)
+            .padding(.horizontal, Tokens.Space.s)
+            .padding(.vertical, Tokens.Space.s)
+            .frame(maxWidth: .infinity)
             .glassGroup(spacing: Tokens.Space.xs)
         }
     }
@@ -131,7 +131,7 @@ struct NavigatorView: View {
                     }
                 }
             }
-            .listStyle(.sidebar)
+            .fwSidebarList()
             HStack {
                 Button { model.showAddSection = true } label: { Label("Add Section", systemImage: "person.badge.plus") }
                     .fwSecondaryButton()

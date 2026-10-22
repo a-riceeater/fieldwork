@@ -17,6 +17,8 @@ enum Tokens {
     static let accent = dynamic(light: 0x2868E8, dark: 0x82A7FF)
     static let warning = dynamic(light: 0xA95F00, dark: 0xFFC46A)
     static let error = dynamic(light: 0xB92D41, dark: 0xFF8E9A)
+    /// The raised thumb of a capsule switcher.
+    static let thumb = dynamic(light: 0xFFFFFF, dark: 0x3B404E)
     /// The field stays the same in both appearances for stable contrast.
     static let field = NSColor(hex: 0x192A36)
     static let grid = NSColor(hex: 0x5E727C)

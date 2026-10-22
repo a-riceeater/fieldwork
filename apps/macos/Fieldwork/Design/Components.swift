@@ -69,11 +69,75 @@ extension View {
         modifier(InlineFieldChrome(focused: focused))
     }
 
+    /// A sidebar list drawn on its floating panel: no list background of its
+    /// own, and a soft edge instead of a dark band where rows scroll under.
+    @ViewBuilder
+    func fwSidebarList() -> some View {
+        let list = listStyle(.sidebar).scrollContentBackground(.hidden)
+        if #available(macOS 26.0, *) {
+            list.scrollEdgeEffectStyle(.soft, for: .all)
+        } else {
+            list
+        }
+    }
+
     /// A rounded panel inset from the window edge and its neighbors, like a
     /// macOS 26 sidebar. `material` uses the sidebar material; otherwise the
     /// opaque surface, for panels such as the timeline that need steady contrast.
     func fwPanel(material: Bool = true) -> some View {
         modifier(FloatingPanel(material: material))
+    }
+}
+
+/// One choice in `CapsuleTabs`.
+struct CapsuleTab<Value: Hashable>: Hashable {
+    var value: Value
+    var title: String
+}
+
+/// A capsule switcher whose raised thumb slides to the chosen option, in
+/// place of the older filled segmented control.
+struct CapsuleTabs<Value: Hashable>: View {
+    var title: String
+    @Binding var selection: Value
+    var tabs: [CapsuleTab<Value>]
+    @Namespace private var thumb
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(tabs, id: \.value) { tab in
+                let selected = tab.value == selection
+                Button {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { selection = tab.value }
+                } label: {
+                    Text(tab.title)
+                        .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? Color.primary : Color.fwSecondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background {
+                            if selected {
+                                Capsule()
+                                    .fill(Color(nsColor: Tokens.thumb))
+                                    .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                                    .matchedGeometryEffect(id: "thumb", in: thumb)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Color.primary.opacity(0.07)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(contrast == .increased ? 0.3 : 0)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
     }
 }
 
