@@ -37,6 +37,9 @@ struct ImportReport: Identifiable {
     /// The recording to add to the converted show, and where count 0 falls in it.
     var recording: URL?
     var recordingOffset: Double?
+    /// How often the drill's beats landed on a sound in the recording at the
+    /// chosen offset, and how often they do at deliberately wrong offsets.
+    var alignmentHits: (rate: Double, chance: Double)?
 
     init(sourceName: String, savedFiles: [SavedFile] = [], diagnostics: [ConverterDiagnostic], realignment: Realignment? = nil) {
         self.sourceName = sourceName
@@ -93,13 +96,16 @@ struct ImportNote: Identifiable, Hashable {
         case "alignment_not_confident":
             systemImage = "waveform.badge.magnifyingglass"
             title = "The music may not line up"
-            var detail = "Fieldwork couldn't confidently match the drill to the recording, so count 0 starts at the very beginning of the audio."
+            var detail = "Fieldwork couldn't confidently match the drill to the recording, so count 0 was left at the very start of the audio."
             if let offset = text.capture(#"best offset ([+-]?[0-9.]+) s"#).flatMap(Double.init), abs(offset) >= 0.001 {
-                detail += " Its best guess was that the music starts \(Translation.seconds(abs(offset))) \(offset > 0 ? "later" : "earlier")."
+                // The offset places count 0; the click check's first click is count 1, one count later.
+                detail += offset > 0
+                    ? " Its best guess put count 0 at \(Translation.seconds(offset)) into the recording, but that guess may be wrong."
+                    : " Its best guess put count 0 \(Translation.seconds(-offset)) before the recording starts, but that guess may be wrong."
                 suggestedOffset = offset
                 suggestedOffsetText = Translation.seconds(offset)
             }
-            self.detail = detail + " Listen to the click check before relying on the timing."
+            self.detail = detail
         case "beat_tracking_not_confident":
             systemImage = "metronome"
             title = "Followed tempos may be off"

@@ -160,6 +160,7 @@ final class DrillImportModel: ObservableObject {
                 var report = ImportReport(sourceName: source.lastPathComponent, savedFiles: saved, diagnostics: warnings, realignment: realignment)
                 report.recording = recording
                 report.recordingOffset = score.flatMap { DrillImport.audioOffset(inMusicXML: $0.data) }
+                report.alignmentHits = score.flatMap { DrillImport.alignmentHits(inMusicXML: $0.data) }
                 finished?(showDestination, report)
             } catch ConverterError.cancelled {
                 progress = nil

@@ -30,11 +30,22 @@ enum DrillImport {
     /// The audio time of count 0 that the converter used for a count track, from
     /// the `audio-offset-seconds` note it writes into the MusicXML identification.
     static func audioOffset(inMusicXML data: Data) -> Double? {
+        musicXMLNote(#"name="audio-offset-seconds">\s*([+-]?[0-9.]+)"#, in: data).first.flatMap(Double.init)
+    }
+
+    /// The converter's beat-hit rate and the rate chance gives, from its
+    /// `alignment-beat-hits` note, such as "0.31 (chance 0.28)".
+    static func alignmentHits(inMusicXML data: Data) -> (rate: Double, chance: Double)? {
+        let values = musicXMLNote(#"name="alignment-beat-hits">\s*([0-9.]+)\s*\(chance\s*([0-9.]+)\)"#, in: data).compactMap(Double.init)
+        return values.count == 2 ? (values[0], values[1]) : nil
+    }
+
+    /// The capture groups of `pattern` in the MusicXML header.
+    private static func musicXMLNote(_ pattern: String, in data: Data) -> [String] {
         let text = String(decoding: data.prefix(64 * 1024), as: UTF8.self)
-        guard let regex = try? NSRegularExpression(pattern: #"name="audio-offset-seconds">\s*([+-]?[0-9.]+)"#),
-              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-              let range = Range(match.range(at: 1), in: text) else { return nil }
-        return Double(text[range])
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return [] }
+        return (1..<match.numberOfRanges).compactMap { group in Range(match.range(at: group), in: text).map { range in String(text[range]) } }
     }
 }
 

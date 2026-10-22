@@ -155,12 +155,22 @@ struct ImportReportSheet: View {
             switch realign {
             case .idle:
                 VStack(alignment: .leading, spacing: 6) {
-                    Button { apply(offset, with: realignment) } label: { Label("Use This Timing", systemImage: "checkmark") }
+                    if let hits = report.alignmentHits {
+                        Text(matchQuality(hits))
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(Color.fwWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button { apply(offset, with: realignment) } label: { Label("Try This Guess", systemImage: "waveform") }
                         .controlSize(.small)
-                        .fwPrimaryButton()
-                    Text("Rewrites \(files) with the music starting at \(text).")
+                        .fwSecondaryButton()
+                    Text("Rewrites \(files)\(report.recording == nil ? "" : " and pins the show") with count 0 at \(text). The click check's first click is on count 1, one count after that.")
                         .font(.system(size: 11)).foregroundStyle(Color.fwSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if report.recording != nil {
+                        Text("If it sounds off, line it up by ear instead: in the timeline, put the playhead on the first downbeat, set Measure and Beat, and click Align Here.")
+                            .font(.system(size: 11)).foregroundStyle(Color.fwSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.top, 4)
             case .running:
@@ -170,7 +180,7 @@ struct ImportReportSheet: View {
                 }
                 .padding(.top, 4)
             case .done:
-                Label("Done. \(files.prefix(1).uppercased() + files.dropFirst())\(report.recording == nil ? "" : " and the show") now start\(realignment.clickCheck == nil && report.recording == nil ? "s" : "") the music at \(text). Listen to the click check to confirm.",
+                Label("Done. \(files.prefix(1).uppercased() + files.dropFirst())\(report.recording == nil ? "" : " and the show") now put\(realignment.clickCheck == nil && report.recording == nil ? "s" : "") count 0 at \(text). Listen to the click check; if it's off, line it up by ear with Align Here.",
                       systemImage: "checkmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.fwAccent)
@@ -188,6 +198,18 @@ struct ImportReportSheet: View {
                 .padding(.top, 4)
             }
         }
+    }
+
+    /// "Only 31% of beats landed on a sound in the recording, about what chance gives (28%)."
+    private func matchQuality(_ hits: (rate: Double, chance: Double)) -> String {
+        let rate = hits.rate.formatted(.percent.precision(.fractionLength(0)))
+        let chance = hits.chance.formatted(.percent.precision(.fractionLength(0)))
+        let margin = hits.rate - hits.chance
+        if margin >= 0.2 {
+            // Beats hit well, but other offsets nearby fit almost as well.
+            return "\(rate) of beats landed on a sound in the recording (chance gives \(chance)), but nearby offsets fit almost as well. Treat this guess with care."
+        }
+        return "Only \(rate) of beats landed on a sound in the recording, \(margin < 0.1 ? "about what" : "not much better than what") chance gives (\(chance)). Treat this guess with care."
     }
 
     private func apply(_ offset: Double, with realignment: ImportReport.Realignment) {

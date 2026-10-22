@@ -83,6 +83,10 @@ final class DrillImportTests: XCTestCase {
         XCTAssertEqual(DrillImport.audioOffset(inMusicXML: xml("-0.2500 (given)")), -0.25)
         XCTAssertEqual(DrillImport.audioOffset(inMusicXML: xml("0 (estimate not confident, not applied)")), 0)
         XCTAssertNil(DrillImport.audioOffset(inMusicXML: Data("<score-partwise/>".utf8)))
+
+        let hits = DrillImport.alignmentHits(inMusicXML: Data("<miscellaneous-field name=\"alignment-beat-hits\">0.31 (chance 0.28)</miscellaneous-field>".utf8))
+        XCTAssertEqual(hits?.rate, 0.31)
+        XCTAssertEqual(hits?.chance, 0.28)
     }
 
     func testReportListsSavedFilesAndRetellsWarnings() {
@@ -103,7 +107,7 @@ final class DrillImportTests: XCTestCase {
         XCTAssertEqual(report.savedFiles.map(\.name), ["show.musicxml"])
 
         let notes = Dictionary(uniqueKeysWithValues: report.notes.map { ($0.code, $0) })
-        XCTAssertTrue(notes["alignment_not_confident"]!.detail.contains("seconds later"))
+        XCTAssertTrue(notes["alignment_not_confident"]!.detail.contains("seconds into the recording"))
         XCTAssertFalse(notes["alignment_not_confident"]!.detail.contains("--"), "no command-line advice")
         XCTAssertEqual(notes["alignment_not_confident"]!.suggestedOffset, 0.527, "the guess can be applied from the report")
         XCTAssertNil(notes["measure_numbers_filled"]!.suggestedOffset)
