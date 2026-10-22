@@ -118,10 +118,9 @@ struct StatusBar: View {
                 .foregroundStyle(Color.fwSecondary)
         }
         .font(.system(size: 11))
-        .padding(.horizontal, Tokens.Space.m)
+        .padding(.horizontal, Tokens.Space.m + Tokens.Layout.panelInset)
         .frame(height: Tokens.Layout.status)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .padding(.bottom, 2)
     }
 }
 

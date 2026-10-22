@@ -57,7 +57,8 @@ struct EditorWorkspace: View {
     }
 }
 
-/// A draggable, accessible separator with a generous pointer target and a thin rule.
+/// A draggable, accessible gap between floating panels. It shows a small
+/// grabber only while the pointer is over it or it is being dragged.
 private struct PaneDivider: View {
     var title: String
     var vertical: Bool
@@ -65,13 +66,16 @@ private struct PaneDivider: View {
     @Binding var value: CGFloat
     var limits: ClosedRange<CGFloat>
     @State private var dragStart: CGFloat?
+    @State private var hovering = false
 
     private func set(_ proposed: CGFloat) { value = min(max(proposed, limits.lowerBound), limits.upperBound) }
 
     var body: some View {
-        Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.45))
-            .frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
+        Capsule().fill(Color.fwAccent.opacity(hovering || dragStart != nil ? 0.7 : 0))
+            .frame(width: vertical ? 3 : 36, height: vertical ? 36 : 3)
             .frame(width: vertical ? EditorPaneSizes.divider : nil, height: vertical ? nil : EditorPaneSizes.divider)
+            .frame(maxWidth: vertical ? nil : .infinity, maxHeight: vertical ? .infinity : nil)
+            .animation(.easeOut(duration: 0.15), value: hovering)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { gesture in
@@ -80,8 +84,9 @@ private struct PaneDivider: View {
                     set((dragStart ?? value) + direction * delta)
                 }
                 .onEnded { _ in dragStart = nil })
-            .onHover { hovering in
-                (hovering ? (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown) : NSCursor.arrow).set()
+            .onHover { inside in
+                hovering = inside
+                (inside ? (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown) : NSCursor.arrow).set()
             }
             .help("Drag to resize")
             .accessibilityElement()
