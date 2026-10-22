@@ -32,7 +32,7 @@ img[data-shot]{aspect-ratio:1224/736;object-fit:cover;object-position:top;height
 .highlight:nth-child(3) .highlight-media{left:28px;right:28px;top:230px;border-radius:12px 12px 0 0;background:#20232d}
 .highlight:nth-child(3) .highlight-media img{width:185%;left:-25%;top:auto;bottom:0}
 .detail-crop{position:relative}
-.detail-crop img[data-shot]{height:auto;aspect-ratio:1224/736;object-fit:cover;transition:transform .18s ease}
+.detail-crop img[data-shot]{position:absolute;height:auto;aspect-ratio:1224/768;max-width:none;object-fit:contain}
 @media(max-width:600px){.highlight-media{left:20px;top:215px}.highlight:nth-child(2) .highlight-media{left:35px;top:215px}.highlight:nth-child(3) .highlight-media{left:20px;right:20px;top:230px}.highlight .highlight-media img{width:190%;left:-40%;top:-35%}.highlight:nth-child(2) .highlight-media img{width:190%;left:0;top:-10%}.highlight:nth-child(3) .highlight-media img{width:200%;left:-25%;top:auto;bottom:0}}
 </style>
 </head>
@@ -108,7 +108,7 @@ Document | opened supplied .fieldwork + FieldworkDocument.swift | verified open,
 Distribution | no supplied release destination | unknown | unknown | none | explore tour only
 Asset manifest: set59/set60/set61, original 1224x768, lossless WebP, source local debug app.
 Hero/full view preserves original ratio; rail and detail explorer use CSS-only crops.
-All three original captures are embedded unchanged as lossless WebP. CSS crops annotate the same capture.
+All three source images are embedded as lossless WebP. Presentation frames crop the bottom 32px status strip, where the pointer was parked; image geometry is preserved. Detail crops use exact source-coordinate regions.
 Verified in UI: set navigation, waveform, inspector, field styles, playback controls.
 Formation tools and undo/save claims additionally grounded in EditorModel.swift, NavigatorView.swift,
 FieldCanvasView.swift, MainMenu.swift and FieldworkDocument.swift. Release/platform/pricing unknown and omitted.
@@ -243,18 +243,31 @@ The blue dot formation above is decorative SVG, not a product screenshot. -->
     });
   });
   const details = [
-    ['The show, one set at a time. Find a page by its label, rehearsal mark, or count, then select it to bring that formation into view.', 'translate(0,-8%)'],
-    ['Your formation is the focus. See performers in their section colors against a measured field, with editing tools nearby.', 'translate(-26%,-20%)'],
-    ['The context for your selection. Set labels, rehearsal marks, move counts, and tempo controls live beside the field.', 'translate(-67%,-8%)'],
-    ['The show over time. The waveform, playhead, and set markers bring movement and musical position into the same view.', 'translate(-22%,-80%)']
+    ['The show, one set at a time. Find a page by its label, rehearsal mark, or count, then select it to bring that formation into view.', [0, 65, 190, 285]],
+    ['Your formation is the focus. See performers in their section colors against a measured field, with editing tools nearby.', [390, 255, 470, 265]],
+    ['The context for your selection. Set labels, rehearsal marks, move counts, and tempo controls live beside the field.', [1010, 65, 214, 240]],
+    ['The show over time. The waveform, playhead, and set markers bring movement and musical position into the same view.', [0, 600, 1000, 136]]
   ];
+  let currentDetail = 0;
+  function fitDetail() {
+    const frame = $('.detail-crop');
+    const image = $('#detail-image');
+    const [x, y, width, height] = details[currentDetail][1];
+    const scale = Math.max(frame.clientWidth / width, frame.clientHeight / height);
+    image.style.width = `${1224 * scale}px`;
+    image.style.left = `${(frame.clientWidth - width * scale) / 2 - x * scale}px`;
+    image.style.top = `${(frame.clientHeight - height * scale) / 2 - y * scale}px`;
+  }
   function selectDetail(index) {
+    currentDetail = index;
     $$('[data-detail]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.detail) === index)));
     $('#detail-copy').textContent = details[index][0];
-    $('#detail-image').style.transform = details[index][1];
+    fitDetail();
   }
   $$('[data-detail]').forEach(button => button.addEventListener('click', () => selectDetail(Number(button.dataset.detail))));
   selectDetail(0);
+  if ('ResizeObserver' in window) new ResizeObserver(fitDetail).observe($('.detail-crop'));
+  else addEventListener('resize', fitDetail);
   const dialog = $('#image-dialog');
   let dialogOpener;
   $('#open-image').addEventListener('click', event => {
