@@ -17,7 +17,7 @@ final class EditorLayoutTests: XCTestCase {
     @MainActor
     func testInitialWorkspaceGivesFieldRemainingSpace() throws {
         let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
+        let window = UnconstrainedWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
                               styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = NSHostingView(rootView: EditorView(model: model))
         window.orderFront(nil)
@@ -228,4 +228,10 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertEqual(reopened.labelPlacement, .offset)
         XCTAssertFalse(session.isDirty)
     }
+}
+
+/// Keeps its requested frame when shown. AppKit otherwise shrinks titled
+/// windows to the screen, and CI runners have a 1024x768 display.
+private final class UnconstrainedWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
