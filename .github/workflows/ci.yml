@@ -1,5 +1,5 @@
-# Not yet observed running on GitHub. The Windows steps mirror commands that
-# were run locally; the macOS job has never been run (see docs/PROGRESS.md).
+# The Windows steps mirror commands that were run locally with Swift 6.4; the
+# macOS steps mirror the verified Xcode 26 baseline (see docs/PROGRESS.md).
 name: CI
 
 on:
@@ -17,10 +17,11 @@ jobs:
       - name: Build the converter and its synthetic fixture
         shell: bash
         run: sh scripts/build-converter.sh --native --fixtures
+      # swift.org publishes 6.4 only as 6.4.0; the swift-6.4-RELEASE URL is a 404.
       - uses: compnerd/gha-setup-swift@v0.3.0
         with:
-          branch: swift-6.4-release
-          tag: 6.4-RELEASE
+          branch: swift-6.4.0-release
+          tag: 6.4.0-RELEASE
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
@@ -31,13 +32,17 @@ jobs:
         run: ./scripts/test-portable.ps1
 
   macos:
-    runs-on: macos-15
+    # The app uses Liquid Glass APIs (glassEffect, .glass button styles), which
+    # need the macOS 26 SDK. macos-15 defaults to Xcode 16, which lacks them.
+    runs-on: macos-26
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/build/converter/target
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Toolchain versions
+        run: xcodebuild -version && swift --version
       - name: Rust targets for the universal converter
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - name: Converter tests
