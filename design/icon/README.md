@@ -1,7 +1,7 @@
 # Fieldwork app icon
 
 The mark is a drill formation: ten performer dots on an exact 104-unit grid form
-an F. The field-blue tile, white dots and blue accent use the app's existing
+an F. The field-blue tile, white dots and cyan accent use the app's existing
 design tokens. Flat fills and circles keep the mark legible without illustration,
 text, gradients or simulated materials. The mark retains generous padding inside the tile. Its position is offset
 24 units right and down from the geometric center to balance the F's visual
