@@ -325,7 +325,7 @@ final class TimelineCanvasView: NSView {
                 let pixelWidth = max(1, width - Int(offsetX))
                 let columns = peaks.peaks(frames: startFrame..<endFrame, buckets: pixelWidth)
                 let mid = waveformRect.midY, half = waveformRect.height / 2 - 4
-                ctx.setStrokeColor(Tokens.fieldAccent.withAlphaComponent(0.75).cgColor)
+                ctx.setStrokeColor(Tokens.accent.withAlphaComponent(0.75).cgColor)
                 ctx.setLineWidth(1)
                 for (i, c) in columns.enumerated() {
                     let px = offsetX + CGFloat(i) + 0.5
