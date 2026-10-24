@@ -19,9 +19,14 @@ enum Tokens {
     static let error = dynamic(light: 0xB92D41, dark: 0xFF8E9A)
     /// The raised thumb of a capsule switcher.
     static let thumb = dynamic(light: 0xFFFFFF, dark: 0x3B404E)
-    /// The field stays the same in both appearances for stable contrast.
-    static let field = NSColor(hex: 0x192A36)
-    static let grid = NSColor(hex: 0x5E727C)
+    /// The default field style: navy with gray checkpoint lines in dark appearance,
+    /// a pale blue-gray version of the same in light appearance.
+    static let field = dynamic(light: 0xDCE5EB, dark: 0x192A36)
+    static let grid = dynamic(light: 0x71848E, dark: 0x5E727C)
+    /// The canvas around the field, for every style but paper.
+    static let fieldSurround = dynamic(light: 0xEEF1F5, dark: 0x111C24)
+    /// Labels, selection rings and paths drawn on the light default field.
+    static let fieldInk = NSColor(hex: 0x192A36)
     static let fieldAccent = NSColor(hex: 0x82A7FF)
 
     /// The realistic field: mowed grass, or a tarp for indoor floors. Shared by

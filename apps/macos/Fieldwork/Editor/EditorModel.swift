@@ -215,7 +215,7 @@ final class EditorModel: ObservableObject {
         alwaysShowLabels = preferences.bool(forKey: "FieldworkAlwaysShowLabels")
         labelPlacement = PerformerLabelPlacement(rawValue: preferences.string(forKey: "FieldworkLabelPlacement") ?? "") ?? .front
         circlesOnly = preferences.bool(forKey: "FieldworkCirclesOnly")
-        fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .dark
+        fieldStyle = preferences.string(forKey: "FieldworkFieldStyle").flatMap(FieldStyle.init(rawValue:)) ?? .standard
         showsAllPaths = preferences.bool(forKey: "FieldworkShowAllPaths")
         self.session = session
         self.assets = assets

@@ -111,7 +111,7 @@ final class EditorLayoutTests: XCTestCase {
         let model = EditorModel(session: try DocumentSession(show: SampleShow.make()), assets: [:])
         let canvas = FieldCanvasView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         var state = model.canvasState()
-        state.fieldStyle = .dark
+        state.fieldStyle = .standard
         state.forms = []
         state.paths = []
         state.notes = []

@@ -97,8 +97,9 @@ struct CanvasDraft: Equatable {
 
 /// How the canvas draws the field. A per-user view preference, not show data.
 enum FieldStyle: String, CaseIterable, Identifiable {
-    /// The dark editing surface with gray checkpoint lines.
-    case dark
+    /// The plain editing surface with checkpoint lines, navy in dark appearance and pale
+    /// in light. The raw value predates light appearance and stays for saved preferences.
+    case standard = "dark"
     /// Mowed grass with white lines and yard numbers, like the field picker.
     case grass
     /// Cream graph paper with a step grid, like a printed drill chart.
@@ -108,7 +109,7 @@ enum FieldStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .dark: "Dark"
+        case .standard: "Default"
         case .grass: "Grass"
         case .paper: "Paper"
         }

@@ -37,8 +37,10 @@ Use actual macOS system Liquid Glass in supported toolbars, compact transport co
 | Primary text | `#161820` | `#F1F3F8` | Content |
 | Secondary text | `#626775` | `#ABB3C5` | Supporting labels |
 | Accent | `#2868E8` | `#82A7FF` | Selection and primary actions |
-| Field | `#192A36` | `#192A36` | Stable editing surface |
-| Grid | `#5E727C` | `#5E727C` | Strength varies by hierarchy |
+| Field | `#DCE5EB` | `#192A36` | Default field style; a pale version of the navy in light |
+| Grid | `#71848E` | `#5E727C` | Strength varies by hierarchy |
+| Field surround | `#EEF1F5` | `#111C24` | Canvas around every field style but paper |
+| Field ink | `#192A36` | `#192A36` | Labels, rings and paths on the light default field |
 | Warning | `#A95F00` | `#FFC46A` | Icon + text + dashed path |
 | Error | `#B92D41` | `#FF8E9A` | Invalid operation |
 

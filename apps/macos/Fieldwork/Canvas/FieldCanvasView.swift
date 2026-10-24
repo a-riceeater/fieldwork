@@ -36,6 +36,7 @@ final class FieldCanvasView: NSView {
     private struct BackgroundKey: Equatable {
         var field: Field
         var style: FieldStyle
+        var dark: Bool
         var bounds: CGRect
         var transform: CanvasTransform
         var backingScale: CGFloat
@@ -59,6 +60,7 @@ final class FieldCanvasView: NSView {
     private var labelBackingScale: CGFloat = 0
     private var labelFontSize: CGFloat = 0
     private var labelPaperStyle = false
+    private var labelDark = false
     private var spaceDown = false
     /// Space toggles playback when tapped; Space-drag pans.
     private var spaceUsedForPan = false
@@ -811,8 +813,8 @@ final class FieldCanvasView: NSView {
         guard let state else { return }
         let field = state.field
         drawBackground(state, in: ctx)
-        // Labels, selection rings and paths: white on dark fields, dark ink on paper.
-        let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : NSColor.white
+        // Labels, selection rings and paths: white on dark fields, dark ink on paper and the light default field.
+        let ink = state.fieldStyle == .paper ? Tokens.Paper.ink : (lightField(state) ? Tokens.fieldInk : NSColor.white)
 
         // The previous set, faint and unlabeled, behind everything while drawing the next set.
         for ghost in state.ghosts {
@@ -888,25 +890,27 @@ final class FieldCanvasView: NSView {
         let labelScale = min(1, transform.scale / 30)
         let fontSize: CGFloat = state.alwaysShowLabels ? 8 : max(8, min(11, transform.scale * 0.6))
         let paper = state.fieldStyle == .paper
+        let light = lightField(state)
         let backingScale = window?.backingScaleFactor ?? 2
-        if labelFontSize != fontSize || labelPaperStyle != paper || labelBackingScale != backingScale || labelCache.count > max(512, state.dots.count * 2) {
+        if labelFontSize != fontSize || labelPaperStyle != paper || labelDark != isDarkAppearance || labelBackingScale != backingScale || labelCache.count > max(512, state.dots.count * 2) {
             labelCache.removeAll(keepingCapacity: true)
             labelFontSize = fontSize
             labelPaperStyle = paper
+            labelDark = isDarkAppearance
             labelBackingScale = backingScale
         }
         let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
             .foregroundColor: ink.withAlphaComponent(0.9),
-            .strokeColor: paper ? Tokens.Paper.paper : NSColor.black,
+            .strokeColor: paper ? Tokens.Paper.paper : (light ? Tokens.field : NSColor.black),
             .strokeWidth: -3
         ]
         for dot in state.dots {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
-            if paper {
+            if paper || light {
                 // A solid edge keeps pale colors visible, thinning with small dots so it does not fuse neighbors.
-                drawSymbol(dot.symbol, at: p, radius: r + min(0.8, r * 0.3), color: Tokens.Paper.ink, in: ctx)
+                drawSymbol(dot.symbol, at: p, radius: r + min(0.8, r * 0.3), color: ink, in: ctx)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
             } else if state.fieldStyle == .grass {
                 ctx.saveGState()
@@ -1075,10 +1079,20 @@ final class FieldCanvasView: NSView {
                           inkSize: CGSize(width: CGFloat(inkImage.width) / scale, height: CGFloat(inkImage.height) / scale))
     }
 
+    private var isDarkAppearance: Bool { effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
+
+    /// The default style turns pale in light appearance and takes dark ink like paper.
+    private func lightField(_ state: CanvasState) -> Bool { state.fieldStyle == .standard && !isDarkAppearance }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     /// Grid lines, hash marks and yard labels do not change when performers move.
     private func drawBackground(_ state: CanvasState, in ctx: CGContext) {
         let scale = window?.backingScaleFactor ?? 2
-        let key = BackgroundKey(field: state.field, style: state.fieldStyle, bounds: bounds,
+        let key = BackgroundKey(field: state.field, style: state.fieldStyle, dark: isDarkAppearance, bounds: bounds,
                                 transform: transform, backingScale: scale)
         if backgroundCache?.key != key {
             let width = Int(ceil(bounds.width * scale)), height = Int(ceil(bounds.height * scale))
@@ -1101,13 +1115,13 @@ final class FieldCanvasView: NSView {
     }
 
     private func paintBackground(_ state: CanvasState, in ctx: CGContext) {
-        (state.fieldStyle == .paper ? Tokens.Paper.paper : NSColor(hex: 0x111C24)).setFill()
+        (state.fieldStyle == .paper ? Tokens.Paper.paper : Tokens.fieldSurround).setFill()
         bounds.fill()
         let field = state.field
         let fieldRect = CGRect(origin: view(Point2(field.bounds.minX, field.bounds.minY)),
                                size: CGSize(width: CGFloat(field.length) * transform.scale, height: CGFloat(field.width) * transform.scale))
         switch state.fieldStyle {
-        case .dark: drawSchematic(field, in: fieldRect, ctx: ctx)
+        case .standard: drawSchematic(field, in: fieldRect, ctx: ctx)
         case .grass: drawGrass(field, in: fieldRect, ctx: ctx)
         case .paper: drawPaper(field, in: fieldRect, ctx: ctx)
         }
@@ -1180,7 +1194,7 @@ final class FieldCanvasView: NSView {
         }
     }
 
-    /// The dark editing surface with checkpoint lines whose strength varies by hierarchy.
+    /// The default editing surface with checkpoint lines whose strength varies by hierarchy.
     private func drawSchematic(_ field: Field, in fieldRect: CGRect, ctx: CGContext) {
         Tokens.field.setFill()
         fieldRect.fill()
