@@ -14,7 +14,7 @@ enum Tokens {
     static let surface = dynamic(light: 0xFFFFFF, dark: 0x20232D)
     static let textPrimary = dynamic(light: 0x161820, dark: 0xF1F3F8)
     static let textSecondary = dynamic(light: 0x626775, dark: 0xABB3C5)
-    static let accent = dynamic(light: 0x2868E8, dark: 0x82A7FF)
+    static let accent = dynamic(light: 0x5DD2D4, dark: 0x5DD2D4)
     static let warning = dynamic(light: 0xA95F00, dark: 0xFFC46A)
     static let error = dynamic(light: 0xB92D41, dark: 0xFF8E9A)
     /// The raised thumb of a capsule switcher.
