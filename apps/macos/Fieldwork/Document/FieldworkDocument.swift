@@ -67,7 +67,8 @@ final class FieldworkDocument: NSDocument {
     private func makeEditorWindow() {
         if model == nil, let opened {
             self.opened = nil
-            openProgress?.report(.preparing, 0)
+            // Building the editor costs roughly per performer; a few hundred take over a second.
+            openProgress?.beginPreparingEditor(isLarge: opened.document.show.performers.count >= 100)
             // Build the editor on a later turn so the progress window can draw this last step first.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [self] in
                 MainActor.assumeIsolated { finishOpening(opened) }

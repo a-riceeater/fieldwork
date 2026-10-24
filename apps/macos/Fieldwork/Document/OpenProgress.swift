@@ -93,7 +93,13 @@ struct OpenProgressView: View {
 /// shows open without a flash.
 final class OpenProgress: @unchecked Sendable {
     private static let showDelay: TimeInterval = 0.3
+    /// Reading a show this slowly means building its editor will also block the
+    /// main thread for a while, so the window comes up before that step even
+    /// when the delay above has not passed yet.
+    private static let slowReadThreshold: TimeInterval = 0.1
 
+    private let name: String
+    private let started = CACurrentMediaTime()
     private let lock = NSLock()
     private var pending: (step: OpenStep, fraction: Double, detail: String)?
     private var deliveryScheduled = false
@@ -102,10 +108,10 @@ final class OpenProgress: @unchecked Sendable {
     private var panel: NSPanel?
     private var finished = false
 
+    /// The model is made on first use, not on a later main-queue turn: when
+    /// NSDocument reads on the main thread, the editor step comes before that turn.
     init(name: String) {
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated { self.model = OpenProgressModel(name: name) }
-        }
+        self.name = name
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDelay) {
             MainActor.assumeIsolated { self.showWindow() }
         }
@@ -124,6 +130,17 @@ final class OpenProgress: @unchecked Sendable {
         }
     }
 
+    /// Enters the last step, which runs on the main thread and can't update the
+    /// window while it works, so a large show gets its window drawn first.
+    @MainActor
+    func beginPreparingEditor(isLarge: Bool) {
+        report(.preparing, 0)
+        guard isLarge || CACurrentMediaTime() - started >= Self.slowReadThreshold else { return }
+        deliver()
+        showWindow()
+        panel?.displayIfNeeded()
+    }
+
     /// Closes the window, or keeps it from ever appearing. Safe from any thread.
     func finish() {
         DispatchQueue.main.async {
@@ -136,13 +153,22 @@ final class OpenProgress: @unchecked Sendable {
     }
 
     @MainActor
+    private func makeModel() -> OpenProgressModel {
+        if let model { return model }
+        let model = OpenProgressModel(name: name)
+        self.model = model
+        return model
+    }
+
+    @MainActor
     private func deliver() {
         lock.lock()
         let update = pending
         pending = nil
         deliveryScheduled = false
         lock.unlock()
-        guard let update, let model else { return }
+        guard let update else { return }
+        let model = makeModel()
         model.step = update.step
         model.stepFraction = update.fraction
         model.detail = update.detail
@@ -150,7 +176,8 @@ final class OpenProgress: @unchecked Sendable {
 
     @MainActor
     private func showWindow() {
-        guard !finished, panel == nil, let model else { return }
+        guard !finished, panel == nil else { return }
+        let model = makeModel()
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 260), styleMask: [.titled], backing: .buffered, defer: false)
         panel.title = "Opening Show"
         panel.isReleasedWhenClosed = false
