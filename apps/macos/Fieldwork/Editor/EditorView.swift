@@ -80,6 +80,75 @@ struct CanvasToolCluster: View {
     }
 }
 
+/// Floating transport shown in canvas focus, where the timeline is hidden:
+/// play/pause, a scrubbable progress bar and the clock. Uses glass like the tool cluster.
+struct FocusPlaybackBar: View {
+    @ObservedObject var model: EditorModel
+    @ObservedObject var position: PlaybackPosition
+    /// Follows every display frame so the bar moves smoothly; the readout is throttled.
+    @State private var seconds: Double = 0
+    @State private var scrubbing = false
+
+    var body: some View {
+        let duration = model.timelineDuration
+        HStack(spacing: Tokens.Space.m) {
+            Button { model.togglePlay() } label: {
+                Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                    .frame(width: 18)
+            }
+            .buttonStyle(.borderless)
+            .help(model.isPlaying ? "Pause (Space)" : "Play (Space)")
+            .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+            GeometryReader { geometry in
+                let progress = min(max(seconds / duration, 0), 1)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.15))
+                    Capsule().fill(Color.fwAccent)
+                        .frame(width: geometry.size.width * progress)
+                    Circle().fill(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 0.5)
+                        .frame(width: scrubbing ? 14 : 10, height: scrubbing ? 14 : 10)
+                        .offset(x: geometry.size.width * progress - (scrubbing ? 7 : 5))
+                }
+                .frame(height: 4)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        scrubbing = true
+                        let fraction = min(max(gesture.location.x / max(geometry.size.width, 1), 0), 1)
+                        model.seek(to: fraction * duration)
+                    }
+                    .onEnded { _ in scrubbing = false })
+                .animation(.easeOut(duration: 0.12), value: scrubbing)
+            }
+            .frame(height: 18)
+            .accessibilityElement()
+            .accessibilityLabel("Playback position")
+            .accessibilityValue(TimeFormat.clock(position.readoutSeconds))
+            .accessibilityAdjustableAction { adjustment in
+                switch adjustment {
+                case .increment: model.seek(to: min(seconds + 5, duration))
+                case .decrement: model.seek(to: max(seconds - 5, 0))
+                @unknown default: break
+                }
+            }
+            Text("\(TimeFormat.clock(max(position.readoutSeconds, 0))) / \(TimeFormat.clock(duration))")
+                .font(.system(size: 11))
+                .monospacedDigit()
+                .foregroundStyle(Color.fwSecondary)
+                .fixedSize()
+        }
+        .controlSize(.large)
+        .padding(.horizontal, Tokens.Space.l)
+        .padding(.vertical, Tokens.Space.s)
+        .frame(maxWidth: 520)
+        .floatingGlass()
+        .onAppear { seconds = position.seconds }
+        .onReceive(position.frames) { seconds = $0 }
+    }
+}
+
 struct BannerView: View {
     var text: String
     var isWarning: Bool

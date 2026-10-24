@@ -43,6 +43,12 @@ struct EditorWorkspace: View {
                     .overlay(alignment: .top) { UnplacedBanner(model: model) }
                     .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
                     .overlay(alignment: .bottom) { DrawSetBar(model: model).padding(.horizontal, Tokens.Space.m) }
+                    .overlay(alignment: .bottom) {
+                        if model.focusesCanvas, model.draft == nil {
+                            FocusPlaybackBar(model: model, position: model.playbackPosition)
+                                .padding(Tokens.Space.m)
+                        }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if !model.focusesCanvas {
                         PaneDivider(title: "Inspector width", vertical: true, direction: -1,
