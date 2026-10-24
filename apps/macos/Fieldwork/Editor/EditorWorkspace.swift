@@ -28,10 +28,12 @@ struct EditorWorkspace: View {
             let fitted = sizes.fitted(to: geometry.size)
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
-                    NavigatorView(model: model).frame(width: fitted.navigator)
-                    PaneDivider(title: "Sets panel width", vertical: true,
-                                value: Binding(get: { fitted.navigator }, set: { sizes.navigator = $0 }),
-                                limits: 160...min(320, max(160, geometry.size.width - fitted.inspector - 428)))
+                    if !model.focusesCanvas {
+                        NavigatorView(model: model).frame(width: fitted.navigator)
+                        PaneDivider(title: "Sets panel width", vertical: true,
+                                    value: Binding(get: { fitted.navigator }, set: { sizes.navigator = $0 }),
+                                    limits: 160...min(320, max(160, geometry.size.width - fitted.inspector - 428)))
+                    }
                     ZStack(alignment: .bottomLeading) {
                         FieldCanvas(model: model)
                             .clipped()
@@ -42,16 +44,20 @@ struct EditorWorkspace: View {
                     .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
                     .overlay(alignment: .bottom) { DrawSetBar(model: model).padding(.horizontal, Tokens.Space.m) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    PaneDivider(title: "Inspector width", vertical: true, direction: -1,
-                                value: Binding(get: { fitted.inspector }, set: { sizes.inspector = $0 }),
-                                limits: 240...min(360, max(240, geometry.size.width - fitted.navigator - 428)))
-                    InspectorView(model: model).frame(width: fitted.inspector)
+                    if !model.focusesCanvas {
+                        PaneDivider(title: "Inspector width", vertical: true, direction: -1,
+                                    value: Binding(get: { fitted.inspector }, set: { sizes.inspector = $0 }),
+                                    limits: 240...min(360, max(240, geometry.size.width - fitted.navigator - 428)))
+                        InspectorView(model: model).frame(width: fitted.inspector)
+                    }
                 }
                 .frame(maxHeight: .infinity)
-                PaneDivider(title: "Timeline height", vertical: false, direction: -1,
-                            value: Binding(get: { fitted.timeline }, set: { sizes.timeline = $0 }),
-                            limits: 170...min(420, max(170, geometry.size.height - 364)))
-                TimelinePanel(model: model).frame(height: fitted.timeline)
+                if !model.focusesCanvas {
+                    PaneDivider(title: "Timeline height", vertical: false, direction: -1,
+                                value: Binding(get: { fitted.timeline }, set: { sizes.timeline = $0 }),
+                                limits: 170...min(420, max(170, geometry.size.height - 364)))
+                    TimelinePanel(model: model).frame(height: fitted.timeline)
+                }
             }
         }
     }

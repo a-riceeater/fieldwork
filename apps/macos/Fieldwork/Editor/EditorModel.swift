@@ -174,6 +174,8 @@ final class EditorModel: ObservableObject {
     @Published var showsAllPaths: Bool {
         didSet { preferences.set(showsAllPaths, forKey: "FieldworkShowAllPaths") }
     }
+    /// Hides the panels, status bar and toolbar so the field fills the window. Not persisted.
+    @Published var focusesCanvas = false
     @Published private(set) var isArranging = false
     private var arrangementTask: Task<DrillCommand, Error>?
     private var arrangementGeneration = UUID()

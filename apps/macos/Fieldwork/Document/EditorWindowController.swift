@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Hosts the SwiftUI editor in an NSWindow. The SwiftUI toolbar is bridged
@@ -6,6 +7,7 @@ import SwiftUI
 /// arrive here through the responder chain.
 final class EditorWindowController: NSWindowController, NSMenuItemValidation, NSWindowDelegate {
     let model: EditorModel
+    private var focusObserver: AnyCancellable?
 
     @MainActor
     init(document: FieldworkDocument, model: EditorModel) {
@@ -22,6 +24,10 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation, NS
         window.delegate = self
         shouldCascadeWindows = true
         window.setFrameAutosaveName("FieldworkEditorWindow")
+        // The bridged SwiftUI toolbar can't hide itself, so the window hides it for canvas focus.
+        focusObserver = model.$focusesCanvas.removeDuplicates().sink { [weak window] focused in
+            window?.toolbar?.isVisible = !focused
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -64,6 +70,7 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation, NS
     @MainActor @objc func fitSelection(_ sender: Any?) { model.requestCanvas(.fitSelection) }
     @MainActor @objc func zoomInField(_ sender: Any?) { model.requestCanvas(.zoomIn) }
     @MainActor @objc func zoomOutField(_ sender: Any?) { model.requestCanvas(.zoomOut) }
+    @MainActor @objc func toggleCanvasFocus(_ sender: Any?) { model.focusesCanvas.toggle() }
     @MainActor @objc func toggleCirclesOnly(_ sender: Any?) { model.circlesOnly.toggle() }
     @MainActor @objc func toggleAllPaths(_ sender: Any?) { model.showsAllPaths.toggle() }
     @MainActor @objc func setFieldStyle(_ sender: Any?) {
@@ -109,6 +116,9 @@ final class EditorWindowController: NSWindowController, NSMenuItemValidation, NS
             return true
         case #selector(setLabelPlacement(_:)):
             menuItem.state = menuItem.representedObject as? String == model.labelPlacement.rawValue ? .on : .off
+            return true
+        case #selector(toggleCanvasFocus(_:)):
+            menuItem.title = model.focusesCanvas ? "Show Panels" : "Hide Panels"
             return true
         case #selector(toggleAllPaths(_:)):
             menuItem.state = model.showsAllPaths ? .on : .off

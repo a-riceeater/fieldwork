@@ -26,7 +26,7 @@ struct EditorView: View {
                 .background(.bar)
             }
             EditorWorkspace(model: model)
-            StatusBar(model: model)
+            if !model.focusesCanvas { StatusBar(model: model) }
         }
         .background(Color.fwWindow)
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
@@ -52,15 +52,17 @@ struct EditorView: View {
     }
 }
 
-/// Floating cluster over the canvas: fit/zoom. Uses glass, never the field itself.
+/// Floating cluster over the canvas: focus/fit/zoom. Uses glass, never the field itself.
 struct CanvasToolCluster: View {
     @ObservedObject var model: EditorModel
 
     var body: some View {
         HStack(spacing: 2) {
-            Button { model.requestCanvas(.fitField) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                .help("Fit Field (⌘0)")
-                .accessibilityLabel("Fit field")
+            Button { model.focusesCanvas.toggle() } label: {
+                Image(systemName: model.focusesCanvas ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            }
+            .help(model.focusesCanvas ? "Show Panels (⇧⌘F)" : "Hide Panels (⇧⌘F)")
+            .accessibilityLabel(model.focusesCanvas ? "Show panels" : "Hide panels")
             Button { model.requestCanvas(.fitSelection) } label: { Image(systemName: "scope") }
                 .help("Fit Selection")
                 .accessibilityLabel("Fit selection")

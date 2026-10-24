@@ -98,6 +98,7 @@ enum MainMenu {
                 return menuItem
             }),
             .separator(),
+            item("Hide Panels", #selector(EditorWindowController.toggleCanvasFocus(_:)), "f", [.command, .shift]),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ]))
 

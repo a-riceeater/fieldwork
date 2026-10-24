@@ -48,7 +48,9 @@ struct FieldCanvas: NSViewRepresentable {
         func canvasCommitForm(_ geometry: FormGeometry) { model.commitForm(geometry) }
         func canvasCommitHandle(_ form: FormID, geometry: FormGeometry) { model.commitHandle(form, geometry: geometry) }
         func canvasNudge(dx: Double, dy: Double) { model.nudge(dx: dx, dy: dy) }
+        /// Escape clears the selection first; with nothing selected it leaves canvas focus.
         func canvasClearSelection() {
+            if model.selection.isEmpty, model.focusedNoteID == nil { model.focusesCanvas = false }
             model.selection = []
             model.focusedNoteID = nil
         }
