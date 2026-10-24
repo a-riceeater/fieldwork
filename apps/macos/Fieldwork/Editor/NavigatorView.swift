@@ -169,14 +169,14 @@ struct SetRow: View {
                         .accessibilityLabel("Rehearsal mark \(set.rehearsalMark)")
                 }
                 if !set.notes.isEmpty {
-                    Image(systemName: "note.text").font(.system(size: 10)).foregroundStyle(Color.fwSecondary).accessibilityLabel("Has notes")
+                    Image(systemName: "note.text").font(.system(size: 10)).foregroundStyle(.secondary).accessibilityLabel("Has notes")
                 }
                 Spacer(minLength: 4)
-                if let time { Text(time).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Color.fwSecondary) }
+                if let time { Text(time).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary) }
             }
             Text(detail)
                 .font(.system(size: 11)).monospacedDigit()
-                .foregroundStyle(Color.fwSecondary)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
