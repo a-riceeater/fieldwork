@@ -222,11 +222,13 @@ final class FieldCanvasView: NSView {
 
     // MARK: Geometry helpers
 
-    // Paper needs a slightly larger minimum marker to stand clear of its grid.
-    // Keep midrange markers compact enough to distinguish tight intervals.
+    // A 0.25-meter radius is just under half a step, so one-step intervals keep a sliver of
+    // daylight while forms keep the same proportions at every zoom; capping it would thin
+    // close-ups into scattered specks. Only the overview floor, slightly higher on paper,
+    // departs from field scale.
     private var dotRadius: CGFloat {
         let minimum: CGFloat = state?.fieldStyle == .paper ? 3 : 2.5
-        return min(9, max(minimum, 0.15 * transform.scale))
+        return max(minimum, 0.25 * transform.scale)
     }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
