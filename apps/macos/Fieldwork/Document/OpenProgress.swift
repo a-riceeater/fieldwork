@@ -157,9 +157,10 @@ final class OpenProgress: @unchecked Sendable {
         panel.hidesOnDeactivate = false
         let hosting = NSHostingController(rootView: OpenProgressView(model: model))
         // Sized once here: if SwiftUI resized the panel later it would drift off center.
+        // Without sizing options the hosting view's fittingSize is zero, so ask SwiftUI directly.
         hosting.sizingOptions = []
         panel.contentViewController = hosting
-        panel.setContentSize(hosting.view.fittingSize)
+        panel.setContentSize(hosting.sizeThatFits(in: CGSize(width: 380, height: 10_000)))
         // The middle of the screen you're working on; `center()` sits higher than the middle on purpose.
         if let area = (NSScreen.main ?? panel.screen)?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: (area.midX - panel.frame.width / 2).rounded(), y: (area.midY - panel.frame.height / 2).rounded()))
