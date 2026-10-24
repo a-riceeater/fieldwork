@@ -223,13 +223,9 @@ final class FieldCanvasView: NSView {
     // MARK: Geometry helpers
 
     // A 0.25-meter radius is just under half a step, so one-step intervals keep a sliver of
-    // daylight while forms keep the same proportions at every zoom; capping it would thin
-    // close-ups into scattered specks. Only the overview floor, slightly higher on paper,
-    // departs from field scale.
-    private var dotRadius: CGFloat {
-        let minimum: CGFloat = state?.fieldStyle == .paper ? 3 : 2.5
-        return max(minimum, 0.25 * transform.scale)
-    }
+    // daylight and forms keep the same proportions at every zoom, the full-field overview
+    // included. The small floor only stops dots vanishing on very large fields.
+    private var dotRadius: CGFloat { max(1.5, 0.25 * transform.scale) }
 
     private func view(_ p: Point2) -> CGPoint { transform.toView(p, in: bounds) }
     private func world(_ v: CGPoint) -> Point2 { transform.toWorld(v, in: bounds) }
@@ -909,8 +905,8 @@ final class FieldCanvasView: NSView {
             let p = view(movingIDs.contains(dot.id) ? dot.point + previewDelta : dot.point)
             let color = Tokens.sectionColor(dot.colorIndex)
             if paper {
-                // A solid edge stays visible at overview zooms, even for pale colors.
-                drawSymbol(dot.symbol, at: p, radius: r + 0.8, color: Tokens.Paper.ink, in: ctx)
+                // A solid edge keeps pale colors visible, thinning with small dots so it does not fuse neighbors.
+                drawSymbol(dot.symbol, at: p, radius: r + min(0.8, r * 0.3), color: Tokens.Paper.ink, in: ctx)
                 drawSymbol(dot.symbol, at: p, radius: r, color: color, in: ctx)
             } else if state.fieldStyle == .grass {
                 ctx.saveGState()
