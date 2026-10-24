@@ -28,6 +28,7 @@
 img[data-shot]{aspect-ratio:2940/1846;object-fit:cover;object-position:top;height:auto}
 .image-stack img[data-shot]{height:100%;object-fit:cover;object-position:top}
 .hero-media img,.explore-screen>img,.dialog-image{width:100%;height:auto}
+.hero-stack{position:relative}.hero-stack img:not(:first-child){position:absolute;inset:0}.hero-stack img{opacity:0;transition:opacity 1.1s var(--ease)}.hero-stack img.active{opacity:1}
 .highlight-media{position:absolute;left:28px;right:0;top:215px;bottom:0;overflow:hidden;border-radius:12px 0 0 0;background:#fbf4e4;box-shadow:0 12px 32px #0002}
 .highlight .highlight-media img{position:absolute;width:150%;height:auto;max-width:none;left:-22%;top:-35%;bottom:auto;border-radius:0;box-shadow:none}
 .highlight:nth-child(2) .highlight-media{left:65px;top:210px}
@@ -55,7 +56,7 @@ img[data-shot]{aspect-ratio:2940/1846;object-fit:cover;object-position:top;heigh
 <p class="hero-copy">A clear field. A precise workspace.<br>Everything you need to shape the next set.</p>
 <div class="hero-actions"><a class="btn" href="#tour">Explore Fieldwork <span aria-hidden="true">↗</span></a><a class="text-link" href="#workflow">See the workflow <span aria-hidden="true">↓</span></a></div>
 <p class="platform">Built for Mac. Made for the field.</p></div>
-<figure class="hero-media"><img data-shot="0" src="assets/screenshots/theme-grass-light.webp" alt="Fieldwork for Mac in light appearance showing Set 61 on a grass field, with set navigation, inspector notes, and the audio timeline" width="2940" height="1846" fetchpriority="high"></figure>
+<figure class="hero-media"><div class="hero-stack" id="hero-stack"><img class="active" data-shot="0" src="assets/screenshots/theme-grass-light.webp" alt="Fieldwork for Mac in light appearance showing Set 61, with set navigation, inspector notes, and the audio timeline. The field cycles through its grass, textured grass, paper, and default styles." width="2940" height="1846" fetchpriority="high"><img data-shot="0" src="assets/screenshots/theme-textured-light.webp" alt="" width="2940" height="1846" loading="lazy" fetchpriority="low"><img data-shot="0" src="assets/screenshots/theme-paper-light.webp" alt="" width="2940" height="1846" loading="lazy" fetchpriority="low"><img data-shot="0" src="assets/screenshots/theme-default-light.webp" alt="" width="2940" height="1846" loading="lazy" fetchpriority="low"></div></figure>
 <p class="capture-caption hero-caption">Your field. Your formations. Your next move.</p>
 </section>
 <section class="section white" id="tour" aria-labelledby="highlights-title">
@@ -156,6 +157,21 @@ The blue dot formation above is decorative SVG, not a product screenshot. -->
   document.addEventListener('click', event => {
     if (!event.target.closest('.topbar')) closeMenu();
   });
+  // The hero cycles through the field styles, holding each long enough to read.
+  const heroShots = $$('#hero-stack img');
+  let heroIndex = 0;
+  let heroVisible = true;
+  setInterval(() => {
+    if (reduced.matches || document.hidden || !heroVisible) return;
+    const next = (heroIndex + 1) % heroShots.length;
+    if (!heroShots[next].complete || !heroShots[next].naturalWidth) return;
+    heroShots[heroIndex].classList.remove('active');
+    heroShots[next].classList.add('active');
+    heroIndex = next;
+  }, 3500);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => { heroVisible = entry.isIntersecting; }).observe($('#hero-stack'));
+  }
   const rail = $('#highlight-rail');
   const cards = $$('.highlight');
   let railIndex = 0;
