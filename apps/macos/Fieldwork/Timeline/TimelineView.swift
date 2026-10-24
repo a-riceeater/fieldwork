@@ -273,7 +273,7 @@ final class TimelineCanvasView: NSView {
         let monoBold = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
 
         // Lane backgrounds and separators.
-        NSColor(hex: 0x0F1820).setFill()
+        Tokens.dynamic(light: 0xEEF1F5, dark: 0x0F1820).setFill()
         waveformRect.fill()
         ctx.setStrokeColor(NSColor.separatorColor.cgColor)
         ctx.setLineWidth(1)
@@ -325,7 +325,7 @@ final class TimelineCanvasView: NSView {
                 let pixelWidth = max(1, width - Int(offsetX))
                 let columns = peaks.peaks(frames: startFrame..<endFrame, buckets: pixelWidth)
                 let mid = waveformRect.midY, half = waveformRect.height / 2 - 4
-                ctx.setStrokeColor(Tokens.accent.withAlphaComponent(0.75).cgColor)
+                ctx.setStrokeColor(Tokens.dynamic(light: 0x2BA3A6, dark: 0x5DD2D4).withAlphaComponent(0.75).cgColor)
                 ctx.setLineWidth(1)
                 for (i, c) in columns.enumerated() {
                     let px = offsetX + CGFloat(i) + 0.5
