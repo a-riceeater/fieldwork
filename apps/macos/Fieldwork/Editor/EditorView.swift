@@ -85,9 +85,12 @@ struct CanvasToolCluster: View {
 struct FocusPlaybackBar: View {
     @ObservedObject var model: EditorModel
     @ObservedObject var position: PlaybackPosition
+    /// Set while hovered or scrubbed, so the auto-hide leaves the bar up.
+    @Binding var isHeld: Bool
     /// Follows every display frame so the bar moves smoothly; the readout is throttled.
     @State private var seconds: Double = 0
     @State private var scrubbing = false
+    @State private var hovering = false
 
     var body: some View {
         let duration = model.timelineDuration
@@ -144,7 +147,10 @@ struct FocusPlaybackBar: View {
         .padding(.vertical, Tokens.Space.s)
         .frame(maxWidth: 520)
         .floatingGlass()
+        .onHover { hovering = $0 }
+        .onChange(of: hovering || scrubbing) { _, held in isHeld = held }
         .onAppear { seconds = position.seconds }
+        .onDisappear { isHeld = false }
         .onReceive(position.frames) { seconds = $0 }
     }
 }

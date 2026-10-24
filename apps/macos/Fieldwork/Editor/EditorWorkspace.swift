@@ -22,6 +22,11 @@ struct EditorPaneSizes {
 struct EditorWorkspace: View {
     @ObservedObject var model: EditorModel
     @State private var sizes = EditorPaneSizes()
+    @State private var showsPlaybackControls = true
+    /// The pointer is over the playback bar or scrubbing it, so it must not fade.
+    @State private var playbackControlsHeld = false
+    @State private var pointerOverCanvas = false
+    @State private var hideControlsTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometry in
@@ -44,10 +49,18 @@ struct EditorWorkspace: View {
                     .overlay(alignment: .bottomTrailing) { ArrangeBar(model: model).padding(.trailing, Tokens.Space.m) }
                     .overlay(alignment: .bottom) { DrawSetBar(model: model).padding(.horizontal, Tokens.Space.m) }
                     .overlay(alignment: .bottom) {
-                        if model.focusesCanvas, model.draft == nil {
-                            FocusPlaybackBar(model: model, position: model.playbackPosition)
+                        if model.focusesCanvas, model.draft == nil, showsPlaybackControls {
+                            FocusPlaybackBar(model: model, position: model.playbackPosition, isHeld: $playbackControlsHeld)
                                 .padding(Tokens.Space.m)
+                                .transition(.opacity)
                         }
+                    }
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active: pointerOverCanvas = true
+                        case .ended: pointerOverCanvas = false
+                        }
+                        revealPlaybackControls()
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if !model.focusesCanvas {
@@ -65,6 +78,23 @@ struct EditorWorkspace: View {
                     TimelinePanel(model: model).frame(height: fitted.timeline)
                 }
             }
+        }
+        .onChange(of: model.isPlaying) { revealPlaybackControls() }
+        .onChange(of: model.focusesCanvas) { revealPlaybackControls() }
+        .onChange(of: playbackControlsHeld) { revealPlaybackControls() }
+    }
+
+    /// Like typical video controls: pointer movement shows the focus playback bar,
+    /// and it fades with the cursor after a short idle while playing.
+    private func revealPlaybackControls() {
+        hideControlsTask?.cancel()
+        if !showsPlaybackControls { withAnimation(.easeOut(duration: 0.15)) { showsPlaybackControls = true } }
+        guard model.focusesCanvas, model.isPlaying, !playbackControlsHeld else { return }
+        hideControlsTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled, model.isPlaying, !playbackControlsHeld else { return }
+            withAnimation(.easeOut(duration: 0.3)) { showsPlaybackControls = false }
+            if pointerOverCanvas { NSCursor.setHiddenUntilMouseMoves(true) }
         }
     }
 }
