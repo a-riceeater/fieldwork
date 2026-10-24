@@ -82,7 +82,7 @@ img[data-shot]{aspect-ratio:2940/1846;object-fit:cover;object-position:top;heigh
 </div></section>
 <section class="themes" id="themes" aria-labelledby="themes-title"><div class="wrap">
 <div class="center reveal"><p class="section-number">04 / MAKE IT YOURS</p><h2 id="themes-title">Your field.<br>Your look.</h2><p>Four field styles, in light or dark. Pick the one that reads best for the way you work.</p></div>
-<div class="theme-controls"><div class="segmented theme-styles" aria-label="Field style"><button aria-pressed="true" data-style="grass">Grass</button><button aria-pressed="false" data-style="textured">Textured Grass</button><button aria-pressed="false" data-style="paper">Paper</button><button aria-pressed="false" data-style="dark">Dark</button></div>
+<div class="theme-controls"><div class="segmented theme-styles" aria-label="Field style"><button aria-pressed="true" data-style="grass">Grass</button><button aria-pressed="false" data-style="textured">Textured Grass</button><button aria-pressed="false" data-style="paper">Paper</button><button aria-pressed="false" data-style="default">Default</button></div>
 <div class="segmented theme-looks" aria-label="Appearance"><button aria-pressed="true" data-look="light"><span aria-hidden="true">☀︎</span> Light</button><button aria-pressed="false" data-look="dark"><span aria-hidden="true">☾</span> Dark</button></div></div>
 <div class="theme-stage" id="theme-stage" data-look="light"><div class="image-stack"><img id="theme-image" class="active" data-shot="0" src="assets/screenshots/theme-grass-light.webp" alt="Set 61 on the grass field style, in light appearance" width="2940" height="1846" loading="lazy"></div></div>
 <div class="demo-caption"><h3 id="theme-heading">Grass</h3><p id="theme-description">Mowed grass with white lines and yard numbers. The field the way your performers see it.</p></div>
@@ -99,7 +99,7 @@ img[data-shot]{aspect-ratio:2940/1846;object-fit:cover;object-position:top;heigh
 <details><summary>Is Fieldwork a Mac app?</summary><p>Fieldwork has a native Mac workspace for designing formations, navigating sets, and reviewing movement on the field.</p></details>
 <details><summary>How do I move between sets?</summary><p>Select a set in the navigator to bring its formation into view. Labels, rehearsal marks, and counts help you find your place, while the inspector shows the details of the selected set.</p></details>
 <details><summary>Can I work with music?</summary><p>Work with an audio waveform, playhead, and set markers in one timeline. Use the playback and alignment controls to review how your formations relate to the music.</p></details>
-<details><summary>Can I change how the field looks?</summary><p>Yes. Choose Grass, Textured Grass, Paper, or Dark from the toolbar or View › Field Style. The field style is a personal view preference, so it never changes the show file, and the window follows your Mac’s light or dark appearance.</p></details>
+<details><summary>Can I change how the field looks?</summary><p>Yes. Choose Default, Grass, Textured Grass, or Paper from the toolbar or View › Field Style. The field style is a personal view preference, so it never changes the show file, and the window follows your Mac’s light or dark appearance.</p></details>
 <details><summary>How are shows saved?</summary><p>Save your show as a .fieldwork document and reopen it in the Mac app to keep working on your formations.</p></details>
 <details><summary>Where can I get Fieldwork?</summary><p>Release details are coming. In the meantime, explore the workspace and get a feel for designing your next show in Fieldwork.</p></details>
 </div></div></section>
@@ -307,7 +307,7 @@ The blue dot formation above is decorative SVG, not a product screenshot. -->
     grass: ['Grass', 'Mowed grass with white lines and yard numbers. The field the way your performers see it.'],
     textured: ['Textured Grass', 'A grain of grass blades and darker sidelines, for a field with a little more life in it.'],
     paper: ['Paper', 'Near-white graph paper with a step grid, like a printed drill chart.'],
-    dark: ['Dark', 'A quiet blue-gray surface with gray checkpoint lines, so every dot stands out.']
+    default: ['Default', 'A quiet field with checkpoint lines, navy in dark appearance and pale blue-gray in light, so every dot stands out.']
   };
   let themeStyle = 'grass';
   let themeLook = 'light';
