@@ -97,6 +97,11 @@ enum MainMenu {
                 menuItem.representedObject = style.rawValue
                 return menuItem
             }),
+            submenu("Appearance", AppearanceMode.allCases.map { mode in
+                let menuItem = item(mode.title, #selector(AppDelegate.chooseAppearance(_:)))
+                menuItem.representedObject = mode.rawValue
+                return menuItem
+            }),
             .separator(),
             item("Hide Panels", #selector(EditorWindowController.toggleCanvasFocus(_:)), "f", [.command, .shift]),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),

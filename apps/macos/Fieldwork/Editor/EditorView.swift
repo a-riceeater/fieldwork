@@ -299,6 +299,7 @@ extension EditorView {
             }
             .pickerStyle(.menu)
             .help("Draw the field dark, as mowed grass or as graph paper (View › Field Style)")
+            AppearanceMenu()
             Picker("Axis", selection: $model.axisLock) {
                 Text("Free").tag(AxisLock.none)
                 Text("Side-to-side").tag(AxisLock.horizontal)

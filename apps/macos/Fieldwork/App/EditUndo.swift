@@ -45,6 +45,9 @@ extension AppDelegate: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(undoEdit(_:)): redo = false
         case #selector(redoEdit(_:)): redo = true
+        case #selector(chooseAppearance(_:)):
+            menuItem.state = menuItem.representedObject as? String == AppearanceSettings.shared.mode.rawValue ? .on : .off
+            return true
         default: return true
         }
         if let text = editingText {

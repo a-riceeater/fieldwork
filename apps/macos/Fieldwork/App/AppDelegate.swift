@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func main() {
         let app = NSApplication.shared
+        // Set before any window exists so restored documents never open in the wrong appearance.
+        AppearanceSettings.shared.apply()
         // The first document controller becomes the shared one; it sends .3du drills to the import dialog.
         _ = FieldworkDocumentController()
         let delegate = AppDelegate()
@@ -34,6 +36,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { showWelcome(nil) }
         return true
+    }
+
+    // MARK: Appearance
+
+    /// Lives here rather than on the editor so it also works from the Welcome window.
+    /// Not `setAppearance:`, which every view and window answers first in the responder chain.
+    @objc func chooseAppearance(_ sender: Any?) {
+        if let raw = (sender as? NSMenuItem)?.representedObject as? String, let mode = AppearanceMode(rawValue: raw) {
+            AppearanceSettings.shared.mode = mode
+        }
     }
 
     // MARK: Welcome and new shows
